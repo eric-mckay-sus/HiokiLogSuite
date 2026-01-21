@@ -1,0 +1,5 @@
+C:\LOCAL PROGRAMS\ConnectorMark1\obj\Debug\net9.0\ConnectorMark1.csproj.AssemblyReference.cache
+C:\LOCAL PROGRAMS\ConnectorMark1\obj\Debug\net9.0\ConnectorMark1.GeneratedMSBuildEditorConfig.editorconfig
+C:\LOCAL PROGRAMS\ConnectorMark1\obj\Debug\net9.0\ConnectorMark1.AssemblyInfoInputs.cache
+C:\LOCAL PROGRAMS\ConnectorMark1\obj\Debug\net9.0\ConnectorMark1.AssemblyInfo.cs
+C:\LOCAL PROGRAMS\ConnectorMark1\obj\Debug\net9.0\ConnectorMark1.csproj.CoreCompileInputs.cache
