@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "ConnectorMark1": {
-      "commandName": "Project",
-      "commandLineArgs": "\"C:\\LOCAL NETWORK FILES\\Hioki ICT results\\20251212\""
-    }
-  }
-}

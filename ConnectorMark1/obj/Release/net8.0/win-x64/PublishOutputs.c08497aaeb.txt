@@ -1,2 +1,0 @@
-C:\LOCAL PROGRAMS\ConnectorMark1\ConnectorMark1\bin\Release\net8.0\win-x64\publish\ConnectorMark1.pdb
-C:\LOCAL PROGRAMS\ConnectorMark1\ConnectorMark1\bin\Release\net8.0\win-x64\publish\ConnectorMark1.exe
