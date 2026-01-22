@@ -12,6 +12,14 @@ class Program
     private static string connectionString = ""; // string of the information necessary to open a connection (insecure?)
     private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
     private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
+    private static readonly Dictionary<char, double> multipliers = new() // Fixed point: d = 0.1 (deci), m = 0.001 (milli), u = 0.000001 (micro), k = 1000 (kilo), M = 1000000 (Mega)
+    {
+        { 'd', 0.1 },
+        { 'm', 0.001 },
+        { 'u', 0.000001 },
+        { 'k', 1000.0 },
+        { 'M', 1000000.0 }
+    };
 
     /// <summary>
     /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through
@@ -95,7 +103,7 @@ class Program
         }
     }
 
-        /// <summary>
+    /// <summary>
     /// Checks the cache to see if a certain result type or mode is already in the DB.
     /// If it isn't, this method creates a new row for it in the DB and adds it to the cache to keep it current
     /// </summary>
@@ -103,7 +111,7 @@ class Program
     /// <param name="isResultType"> whether the string to check is a result type (or test mode) </param>
     /// <param name="context"> for harvesting connection and transaction </param>
     /// <returns> the id of the type or mode, either existing or new </returns>
-    static public async Task<int> GetCachedId(string toCheck, bool isResultType, ParsingContext context)
+    static public async Task<byte> GetCachedId(string toCheck, bool isResultType, ParsingContext context)
     {
         if (string.IsNullOrWhiteSpace(toCheck)) return 0;
 
@@ -138,16 +146,38 @@ class Program
     }
 
     /// <summary>
-    /// Ensures that SQL has a readable float
+    /// Ensures that SQL has a readable float, handling Hioki fixed-point notation (d, m, k, M, u).
     /// </summary>
     /// <param name="input"> The string representation of the float to be cleaned </param>
     /// <returns> An object representing the float </returns>
     private static object CleanFloatValue(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return DBNull.Value;
-        string cleaned = input.Replace("%", "").Trim();
-        return double.TryParse(cleaned, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double result)
-               ? result : DBNull.Value;
+
+        // Basic cleaning
+        string cleaned = input.Replace("%", "").Trim();        
+
+        double multiplier = 1.0;
+
+        // Check for the fixed-point character
+        foreach (var pair in multipliers)
+        {
+            if (cleaned.Contains(pair.Key))
+            {
+                multiplier = pair.Value;
+                // Replace the letter with a standard decimal point to allow parsing
+                cleaned = cleaned.Replace(pair.Key, '.');
+                break; // Hioki usually only uses one unit character per value
+            }
+        }
+
+        // Parse and apply multiplier
+        if (double.TryParse(cleaned, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double result))
+        {
+            return result * multiplier;
+        }
+
+        return DBNull.Value;
     }
 
     /// <summary>
@@ -321,7 +351,7 @@ class Program
         table.Columns.Add("hPin", typeof(string));
         table.Columns.Add("lPin", typeof(string));
         table.Columns.Add("pos", typeof(string));
-        table.Columns.Add("mode", typeof(string));
+        table.Columns.Add("mode", typeof(byte)); // Maps to tinyint
         table.Columns.Add("rangeNum", typeof(int));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
@@ -348,7 +378,8 @@ class Program
             if (line.Length < 13) continue;
 
             // Get result ID from cache
-            int resultId = await GetCachedId(line[0].Trim(), true, context);
+            byte resultId = await GetCachedId(line[0].Trim(), true, context);
+            byte modeId = await GetCachedId(line[6].Trim(), false, context);
 
             // Add a row to the DataTable
             DataRow row = table.NewRow();
@@ -357,12 +388,12 @@ class Program
             row["groupNum"] = context.Data.Group;
             row["stepNum"] = int.Parse(line[1].Trim());
             row["timesTested"] = context.Data.TimesTested;
-            row["allResult"] = (byte)resultId;
+            row["allResult"] = resultId;
             row["partName"] = line[2].Trim();
             row["hPin"] = line[3].Trim();
             row["lPin"] = line[4].Trim();
             row["pos"] = line[5].Trim();
-            row["mode"] = line[6].Trim();
+            row["mode"] = modeId;
             row["rangeNum"] = int.Parse(line[7].Trim());
             row["hLim"] = CleanFloatValue(line[8]);
             row["lLim"] = CleanFloatValue(line[9]);
@@ -409,15 +440,15 @@ class Program
         table.Columns.Add("mode", typeof(byte)); // Maps to tinyint
         table.Columns.Add("hPin", typeof(string));
         table.Columns.Add("lPin", typeof(string));
-        table.Columns.Add("ref", typeof(string));
-        table.Columns.Add("meas", typeof(string));
+        table.Columns.Add("ref", typeof(double));
+        table.Columns.Add("meas", typeof(double));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
         table.Columns.Add("id1", typeof(string));
         table.Columns.Add("id2", typeof(string));
         table.Columns.Add("id3", typeof(string));
         table.Columns.Add("id4", typeof(string));
-        table.Columns.Add("inputVol", typeof(string));
+        table.Columns.Add("inputVol", typeof(double));
         table.Columns.Add("commStd", typeof(string));
         table.Columns.Add("executeMode", typeof(string));
         table.Columns.Add("devAddress", typeof(string));
@@ -438,8 +469,8 @@ class Program
             if (line[0].Contains("Rslt")) continue; // found header
 
             // Check the caches
-            int resultId = await GetCachedId(line[0].Trim(), true, context);
-            int modeId = await GetCachedId(line[5].Trim(), false, context);
+            byte resultId = await GetCachedId(line[0].Trim(), true, context);
+            byte modeId = await GetCachedId(line[5].Trim(), false, context);
 
             // Create a new row in the internal DataTable
             DataRow row = table.NewRow();
@@ -447,22 +478,22 @@ class Program
             row["testTime"] = context.Data.TestTime;
             row["groupNum"] = context.Data.Group;
             row["stepNum"] = int.Parse(line[1].Trim());
-            row["allResult"] = (byte)resultId;
+            row["allResult"] = resultId;
             row["measGrp"] = int.Parse(line[2].Trim());
             row["comment"] = line[3].Trim();
             row["pos"] = line[4].Trim();
-            row["mode"] = (byte)modeId;
+            row["mode"] = modeId;
             row["hPin"] = line[6].Trim();
             row["lPin"] = line[7].Trim();
-            row["ref"] = line[8].Trim();
-            row["meas"] = line[9].Trim();
+            row["ref"] = CleanFloatValue(line[8]);
+            row["meas"] = CleanFloatValue(line[9]);
             row["hLim"] = CleanFloatValue(line[10]);
             row["lLim"] = CleanFloatValue(line[11]);
             row["id1"] = line[12].Trim();
             row["id2"] = line[13].Trim();
             row["id3"] = line[14].Trim();
             row["id4"] = line[15].Trim();
-            row["inputVol"] = line[16].Trim();
+            row["inputVol"] = CleanFloatValue(line[16]);
             row["commStd"] = line[17].Trim();
             row["executeMode"] = line[18].Trim();
             row["devAddress"] = line[19].Trim();
