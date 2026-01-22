@@ -1,5 +1,5 @@
-/bin/*
-/obj/*
-/ConnectorMark1/bin/*
-/ConnectorMark1/obj/*
-/ConnectorMark1/Properties/*
+/bin/
+/obj/
+/ConnectorMark1/bin/
+/ConnectorMark1/obj/
+/ConnectorMark1/Properties/

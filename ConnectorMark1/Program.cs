@@ -1,13 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
-using Microsoft.Identity.Client;
-using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Data;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Threading.Tasks;
-using System.Text;
 
 /// <summary>
 /// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
@@ -22,15 +15,27 @@ class Program
     private static ConcurrentDictionary<string, byte> TestModeCache = new ConcurrentDictionary<string, byte>();
 
     /// <summary>
-    /// Abstracts the four fields common between group files and step files to reduce the arguments passed through
+    /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through
     /// </summary>
     public class CommonPackage
     {
-        public string barcode = ""; // the base product ID from which all sub-barcodes can be computed
-        public DateTime testTime; // the timestamp of when this product was tested
-        public int timesTested; // the number of times this product has been tested
-        public int? group; // the group number for this product, ignored for group file parsing
+        public string Barcode { get; set; } = ""; // the base product ID from which all sub-barcodes can be computed
+        public DateTime TestTime { get; set; } // the timestamp of when this product was tested
+        public int TimesTested { get; set; } // the number of times this product has been tested
+        public int? Group { get; set; } // the group number for this product, ignored for group file parsing
     }
+
+    /// <summary>
+    /// Abstracts the three objects required for parsing plus one for the CommonPackage
+    /// </summary>
+    public class ParsingContext(StreamReader reader, SqlConnection conn, SqlTransaction trans, CommonPackage data) // apparently you can put the constructor in the class definition
+    {
+        public StreamReader Reader { get; } = reader;
+        public SqlConnection Connection { get; } = conn;
+        public SqlTransaction Transaction { get; } = trans;
+        public CommonPackage Data { get; } = data;
+    }
+
     /// <summary>
     /// Entry point for the program. Parses every file in the specified folder and adds it to the database.
     /// </summary>
@@ -109,8 +114,8 @@ class Program
 
                 // Parse timesTested as an int
                 string? line = reader.ReadLine();
-                package.timesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
-                if (package.timesTested == 0) // if timesTested is null, say which file, and skip it (timesTested is primary key)
+                package.TimesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
+                if (package.TimesTested == 0) // if TimesTested is null, say which file, and skip it (timesTested is primary key)
                 {
                     Console.Error.WriteLine($"Error reading timesTested for {file}");
                     return;
@@ -119,8 +124,8 @@ class Program
 
                 // Parse barcode
                 line = reader.ReadLine();
-                package.barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
-                if (line == null) // if the barcode is null, say which file, and skip it (barcode is primary key)
+                package.Barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
+                if (line == null) // if Barcode is null, say which file, and skip it (barcode is primary key)
                 { 
                     Console.Error.WriteLine($"Error reading barcode for {file}");
                     return;
@@ -132,12 +137,12 @@ class Program
 
                 if (dateParts != null && dateParts.Length >= 3)
                 {
-                    // Combine Date [1] and Time [2] with a space
+                    // concatenate date & time
                     string fullDtStr = dateParts[1].Trim() + " " + dateParts[2].Trim();
 
                     if (DateTime.TryParse(fullDtStr, out DateTime dt))
                     {
-                        package.testTime = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
+                        package.TestTime = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
                     }
                     else
                     {
@@ -162,16 +167,17 @@ class Program
                     {
                         try
                         {
+                            ParsingContext context = new ParsingContext(reader, connection, transaction, package); // Compile everything the parser needs to know into a context object
                             if (groupOrStep.Contains("-----  Group  -----"))
                             {
-                                await ParseGroupFile(reader, package, connection, transaction); // pass in reader and connection to maintain the current line and connection status
+                                await ParseGroupFile(context);
                             }
                             else
                             {
                                 string? groupLine = reader.ReadLine();
                                 string[]? groupParts = groupLine?.Split(',');
-                                package.group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
-                                await ParseStepFile(reader, package, connection, transaction);
+                                context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
+                                await ParseStepFile(context);
                             }
                             transaction.Commit();
                         }
@@ -205,27 +211,27 @@ class Program
     /// <param name="package"> The CommonPackage containing the barcode, time of testing, and number of times the group was tested </param>
     /// <param name="connection"> The connection to the SQL database </param>
     /// <returns></returns>
-    private static async Task ParseGroupFile(StreamReader reader, CommonPackage package, SqlConnection connection, SqlTransaction transaction) //TODO needs to handle multiple items on same barcode
+    private static async Task ParseGroupFile(ParsingContext context) //TODO needs to handle multiple items on same barcode
     {
         string sql = @"INSERT INTO pe3coop.dbo.GroupResults (barcode, testTime, groupNumber, timesTested, allResult,
                        componentTest, shortTest, openTest, icTest, macroTest, functionTest)
                        VALUES (@barcode, @testTime, @groupNum, @timesTested, @result,
                        @comp, @short, @open, @ic, @macro, @function)"; // Reflects order in DB
         string[] paramNames = { "@comp", "@short", "@open", "@ic", "@macro", "@function" }; // to map the line values to their parameters in SQL, reflects order in CSV
-        while (!reader.EndOfStream) // The rest of the file are group test results to parse
+        while (!context.Reader.EndOfStream) // The rest of the file are group test results to parse
         {
-            string? line = reader.ReadLine();
+            string? line = context.Reader.ReadLine();
             string[]? split = line?.Split(",");
             if (split != null)
             {
-                int resultId = await GetCachedId(split[0].Trim(), connection, true, transaction);
-                using (SqlCommand command = new SqlCommand(sql, connection))
+                int resultId = await GetCachedId(split[0].Trim(), true, context);
+                using (SqlCommand command = new SqlCommand(sql, context.Connection))
                 {
-                    command.Transaction = transaction;
-                    command.Parameters.AddWithValue("@barcode", package.barcode);
-                    command.Parameters.AddWithValue("@testTime", package.testTime);
+                    command.Transaction = context.Transaction;
+                    command.Parameters.AddWithValue("@barcode", context.Data.Barcode);
+                    command.Parameters.AddWithValue("@testTime", context.Data.TestTime);
                     command.Parameters.AddWithValue("@groupNum", split[1].Trim());
-                    command.Parameters.AddWithValue("@timesTested", package.timesTested);
+                    command.Parameters.AddWithValue("@timesTested", context.Data.TimesTested);
                     command.Parameters.AddWithValue("@result", resultId);
                     for (int i = 0; i < paramNames.Length; i++)
                     {
@@ -245,7 +251,7 @@ class Program
     /// <param name="package"> The CommonPackage containing the barcode, time of testing, group number, and number of times the group was tested </param>
     /// <param name="connection"> The connection to the SQL database </param>
     /// <returns></returns>
-    private static async Task ParseStepFile(StreamReader reader, CommonPackage package, SqlConnection connection, SqlTransaction transaction) // needs barcode extension
+    private static async Task ParseStepFile(ParsingContext context) //TODO needs barcode extension
     {
         // 1. Create a DataTable to hold the data in memory
         DataTable table = new DataTable();
@@ -268,33 +274,33 @@ class Program
         table.Columns.Add("meas", typeof(double));
 
         string? raw;
-        while ((raw = await reader.ReadLineAsync()) != null)
+        while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
             if (string.IsNullOrWhiteSpace(raw)) continue;
 
             string[] line = raw.Split(',');
             if (line[0].StartsWith("Gr"))
             {
-                package.group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
+                context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
                 continue;
             }
             if (line[0].Contains("-----  FCT  -----"))
             {
-                //await ParseFctSection(reader, package, connection, transaction, table);
+                await ParseFctSection(context);
                 return;
             }
             if (line.Length < 13) continue;
 
-            // 2. Parse the result ID (This remains a separate call)
-            int resultId = await GetCachedId(line[0].Trim(), connection, true, transaction);
+            // Parse the result ID (This remains a separate call)
+            int resultId = await GetCachedId(line[0].Trim(), true, context);
 
-            // 3. Add a row to the DataTable
+            // Add a row to the DataTable
             DataRow row = table.NewRow();
-            row["barcode"] = package.barcode;
-            row["testTime"] = package.testTime;
-            row["groupNum"] = package.group;
+            row["barcode"] = context.Data.Barcode;
+            row["testTime"] = context.Data.TestTime;
+            row["groupNum"] = context.Data.Group;
             row["stepNum"] = int.Parse(line[1].Trim());
-            row["timesTested"] = package.timesTested;
+            row["timesTested"] = context.Data.TimesTested;
             row["allResult"] = (byte)resultId;
             row["partName"] = line[2].Trim();
             row["hPin"] = line[3].Trim();
@@ -312,8 +318,8 @@ class Program
             table.Rows.Add(row);
         }
 
-        // 4. Perform the Bulk Copy
-        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
+        // Perform the Bulk Copy
+        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction))
         {
             bulkCopy.DestinationTableName = "pe3coop.dbo.StepResults";
 
@@ -354,7 +360,7 @@ class Program
     /// <param name="package"> The CommonPackage containing the barcode, time of testing, group number, and number of times the group was tested </param>
     /// <param name="connection"> The connection to the SQL database </param>
     /// <returns></returns>
-    private static async Task ParseFctSection(StreamReader reader, CommonPackage package, SqlConnection connection, SqlTransaction transaction, DataTable stepTable)
+    private static async Task ParseFctSection(ParsingContext context)
     {
         DataTable table = new DataTable();
         table.Columns.Add("barcode", typeof(string));
@@ -362,14 +368,14 @@ class Program
         table.Columns.Add("groupNum", typeof(int));
         table.Columns.Add("stepNum", typeof(int));
         table.Columns.Add("allResult", typeof(byte)); // Maps to tinyint
-        table.Columns.Add("measGrp", typeof(string));
+        table.Columns.Add("measGrp", typeof(int));
         table.Columns.Add("comment", typeof(string));
         table.Columns.Add("pos", typeof(string));
-        table.Columns.Add("mode", typeof(string));
+        table.Columns.Add("mode", typeof(byte));
         table.Columns.Add("hPin", typeof(string));
         table.Columns.Add("lPin", typeof(string));
-        table.Columns.Add("ref", typeof(double));
-        table.Columns.Add("meas", typeof(double));
+        table.Columns.Add("ref", typeof(string));
+        table.Columns.Add("meas", typeof(string));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
         table.Columns.Add("id1", typeof(string));
@@ -386,24 +392,24 @@ class Program
         table.Columns.Add("ifResponse", typeof(string));
 
         string? raw;
-        while ((raw = await reader.ReadLineAsync()) != null)
+        while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
             string[] line = raw.Split(',');
             //Skips
             if (line[0].StartsWith("Gr"))
             {
-                package.group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
+                context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
                 continue;
             }
             if (line[0].Contains("Rslt")) continue;
 
-            int resultId = await GetCachedId(line[0].Trim(), connection, true, transaction);
-            int modeId = await GetCachedId(line[5].Trim(), connection, false, transaction);
+            int resultId = await GetCachedId(line[0].Trim(), true, context);
+            int modeId = await GetCachedId(line[5].Trim(), false, context);
 
             DataRow row = table.NewRow();
-            row["barcode"] = package.barcode;
-            row["testTime"] = package.testTime;
-            row["groupNum"] = package.group;
+            row["barcode"] = context.Data.Barcode;
+            row["testTime"] = context.Data.TestTime;
+            row["groupNum"] = context.Data.Group;
             row["stepNum"] = int.Parse(line[1].Trim());
             row["allResult"] = (byte)resultId;
             row["measGrp"] = int.Parse(line[2].Trim());
@@ -412,8 +418,8 @@ class Program
             row["mode"] = (byte)modeId;
             row["hPin"] = line[6].Trim();
             row["lPin"] = line[7].Trim();
-            row["ref"] = CleanFloatValue(line[8]);
-            row["meas"] = CleanFloatValue(line[9]);
+            row["ref"] = line[8].Trim();
+            row["meas"] = line[9].Trim();
 
             row["hLim"] = CleanFloatValue(line[10]);
             row["lLim"] = CleanFloatValue(line[11]);
@@ -432,7 +438,7 @@ class Program
 
             table.Rows.Add(row);
         }
-        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
+        using (SqlBulkCopy bulkCopy = new SqlBulkCopy(context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction))
         {
             bulkCopy.DestinationTableName = "pe3coop.dbo.FCTResults";
 
@@ -454,14 +460,14 @@ class Program
     }
 
     /// <summary>
-    /// Runs a SELECT statement to see if a certain result type or mode is already in the DB.
-    /// If it isn't, this method creates a new row for it
+    /// Checks the cache to see if a certain result type or mode is already in the DB.
+    /// If it isn't, this method creates a new row for it in the DB and adds it to the cache to keep it current
     /// </summary>
     /// <param name="toCheck"> A string representing the result or mode to check for </param>
     /// <param name="connection"> The connection to the SQL database </param>
     /// <param name="typeMode"> true to indicate type, false to indicate mode</param>
     /// <returns> the id of the type or mode, either existing or new </returns>
-    static public async Task<int> GetCachedId(string toCheck, SqlConnection connection, bool isResultType, SqlTransaction transaction)
+    static public async Task<int> GetCachedId(string toCheck, bool isResultType, ParsingContext context)
     {
         if (string.IsNullOrWhiteSpace(toCheck)) return 0;
 
@@ -484,9 +490,9 @@ class Program
         END
         SELECT id FROM {tableName} WHERE {columnName} = @val;";
 
-        using (SqlCommand command = new SqlCommand(insertSql, connection))
+        using (SqlCommand command = new SqlCommand(insertSql, context.Connection))
         {
-            command.Transaction = transaction;
+            command.Transaction = context.Transaction;
             command.Parameters.AddWithValue("@val", toCheck);
             object? result = await command.ExecuteScalarAsync();
             byte newId = Convert.ToByte(result);
