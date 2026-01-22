@@ -1,6 +1,7 @@
 ﻿using Microsoft.Data.SqlClient;
 using System.Collections.Concurrent;
 using System.Data;
+using DotNetEnv;
 
 /// <summary>
 /// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
@@ -47,13 +48,14 @@ class Program
             return;
         }
         Console.Write("Connecting...");
-        var builder = new SqlConnectionStringBuilder //TODO refactor as part of the environment
+        Env.Load(); // Only use of DotNetEnv
+        var builder = new SqlConnectionStringBuilder
         {
-            DataSource = "SUS-SQL-02",
-            UserID = "pe3coop",
-            Password = "pe3coop",
-            InitialCatalog = "pe3Coop",
-            TrustServerCertificate = true // technically insecure but can be swapped for adding the certificate to the client environment
+            DataSource = Environment.GetEnvironmentVariable("DB_SERVER"),
+            UserID = Environment.GetEnvironmentVariable("DB_USER"),
+            Password = Environment.GetEnvironmentVariable("DB_PASS"),
+            InitialCatalog = Environment.GetEnvironmentVariable("DB_NAME"),
+            TrustServerCertificate = true //TODO insecure, eventually require certificate verification
         };
         connectionString = builder.ConnectionString;
 
@@ -264,29 +266,38 @@ class Program
                        componentTest, shortTest, openTest, icTest, macroTest, functionTest)
                        VALUES (@barcode, @testTime, @groupNum, @timesTested, @result,
                        @comp, @short, @open, @ic, @macro, @function)"; // Reflects order in DB
-        string[] paramNames = ["@comp", "@short", "@open", "@ic", "@macro", "@function"]; // to map the line values to their parameters in SQL, reflects order in CSV
+        string[] paramNames = ["@result", "@comp", "@short", "@open", "@ic", "@macro", "@function"]; // to map the line values to their parameters in SQL, reflects order in CSV
         while (!context.Reader.EndOfStream) // The rest of the file are group test results to parse
         {
             string? line = context.Reader.ReadLine();
             string[]? split = line?.Split(",");
             if (split != null)
             {
-                int resultId = await GetCachedId(split[0].Trim(), true, context);
-                using (SqlCommand command = new(sql, context.Connection))
+                int[] ids =
+                [
+                    await GetCachedId(split[0].Trim(), true, context),
+                    await GetCachedId(split[2].Trim(), true, context),
+                    await GetCachedId(split[3].Trim(), true, context),
+                    await GetCachedId(split[4].Trim(), true, context),
+                    await GetCachedId(split[5].Trim(), true, context),
+                    await GetCachedId(split[6].Trim(), true, context),
+                    await GetCachedId(split[7].Trim(), true, context)
+                ];
+
+                using SqlCommand command = new(sql, context.Connection);
+                command.Transaction = context.Transaction;
+                // Load the common parameters manually
+                command.Parameters.AddWithValue("@barcode", context.Data.Barcode);
+                command.Parameters.AddWithValue("@testTime", context.Data.TestTime);
+                command.Parameters.AddWithValue("@groupNum", split[1].Trim());
+                command.Parameters.AddWithValue("@timesTested", context.Data.TimesTested);
+
+                // Then loop through the reference parameters
+                for (int i = 0; i < ids.Length; i++)
                 {
-                    command.Transaction = context.Transaction;
-                    command.Parameters.AddWithValue("@barcode", context.Data.Barcode);
-                    command.Parameters.AddWithValue("@testTime", context.Data.TestTime);
-                    command.Parameters.AddWithValue("@groupNum", split[1].Trim());
-                    command.Parameters.AddWithValue("@timesTested", context.Data.TimesTested);
-                    command.Parameters.AddWithValue("@result", resultId);
-                    for (int i = 0; i < paramNames.Length; i++)
-                    {
-                        string value = (split.Length > i + 2) ? split[i + 2].Trim() : "";
-                        command.Parameters.AddWithValue(paramNames[i], value);
-                    }
-                    await command.ExecuteNonQueryAsync();
+                    command.Parameters.AddWithValue(paramNames[i], ids[i]);
                 }
+                await command.ExecuteNonQueryAsync();
             }
         }
     }
