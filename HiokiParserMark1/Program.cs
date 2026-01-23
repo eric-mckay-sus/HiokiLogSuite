@@ -9,7 +9,7 @@ using DotNetEnv;
 /// </summary>
 class Program
 {
-    private static string connectionString = ""; // string of the information necessary to open a connection (insecure?)
+    private static string ConnectionString = ""; // string of the information necessary to open a connection (insecure?)
     private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
     private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
     private static readonly Dictionary<char, double> multipliers = new() // Fixed point: d = 0.1 (deci), m = 0.001 (milli), u = 0.000001 (micro), k = 1000 (kilo), M = 1000000 (Mega)
@@ -65,7 +65,7 @@ class Program
             InitialCatalog = Environment.GetEnvironmentVariable("DB_NAME"),
             TrustServerCertificate = true //TODO insecure, eventually require certificate verification
         };
-        connectionString = builder.ConnectionString;
+        ConnectionString = builder.ConnectionString;
 
         await InitializeCaches();
         string[] files = Directory.GetFiles(args[0], "*.*", SearchOption.AllDirectories);
@@ -82,7 +82,7 @@ class Program
     private static async Task InitializeCaches()
     {
         // This syntax for keyword "using" places the closing brace where the variable goes out of scope
-        using SqlConnection connection = new(connectionString); // when InitializeCaches() returns, connection knows it's finished
+        using SqlConnection connection = new(ConnectionString); // when InitializeCaches() returns, connection knows it's finished
         await connection.OpenAsync();
         Console.WriteLine("Connected!");
 
@@ -246,7 +246,7 @@ class Program
             string groupOrStep = reader.ReadLine()?.Split(',')[0].Trim() ?? "";
             reader.ReadLine(); // Cut the column name row
 
-            using SqlConnection connection = new SqlConnection(connectionString); // Create the connection to be used for the rest of the program
+            using SqlConnection connection = new(ConnectionString); // Create the connection to be used for the rest of the program
             await connection.OpenAsync();
             using SqlTransaction transaction = connection.BeginTransaction(); // Create the transaction to be used for the rest of the program
             try
