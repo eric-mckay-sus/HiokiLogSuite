@@ -1,6 +1,12 @@
-using HiokiNL2SQLlMark1.Components;
+using HiokiNL2SQLMark1.Components;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection"); // from appsettings.json, no idea how this looks in production
+
+builder.Services.AddDbContext<LogDbContext>(options =>
+    options.UseSqlServer(connectionString));
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

@@ -1,7 +1,79 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@inject LogDbContext Db
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>DB Connection</h1>
 
-Welcome to your new app.
+@if (resultTypes == null)
+{
+    <p><em>Loading data from SQL...</em></p>
+}
+else if (!resultTypes.Any())
+{
+    <p>The table is empty.</p>
+}
+else
+{
+    <h2>Result Types</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in resultTypes)
+            {
+                <tr>
+                    <td>@item.id</td>
+                    <td>@item.resultType.Trim()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (testModes == null)
+{
+    <p><em>Loading data from SQL...</em></p>
+}
+else if (!testModes.Any())
+{
+    <p>Test Modes is empty.</p>
+}
+else
+{
+    <h2>Test Modes</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Mode</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in testModes)
+            {
+                <tr>
+                    <td>@item.id</td>
+                    <td>@item.testMode.Trim()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ResultType> resultTypes;
+    private List<TestMode> testModes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Now you can query the DB directly!
+        resultTypes = await Db.ResultTypes.ToListAsync();
+        testModes = await Db.TestModes.ToListAsync();
+    }
+}

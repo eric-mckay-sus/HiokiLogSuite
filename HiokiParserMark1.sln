@@ -5,7 +5,7 @@ VisualStudioVersion = 17.14.36212.18
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HiokiParserMark1", "HiokiParserMark1\HiokiParserMark1.csproj", "{CB92255C-44D8-4E22-ADAF-52C059B2D204}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HiokiNL2SQLlMark1", "HiokiNL2SQLlMark1\HiokiNL2SQLlMark1.csproj", "{B12C958C-F1FB-4BF4-BAF3-1F928D8FCB06}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HiokiNL2SQLMark1", "HiokiNL2SQLMark1\HiokiNL2SQLMark1.csproj", "{B12C958C-F1FB-4BF4-BAF3-1F928D8FCB06}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
