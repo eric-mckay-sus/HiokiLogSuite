@@ -1,0 +1,115 @@
+﻿@page "/fct"
+@inject LogDbContext Db
+
+<PageTitle>FCT Results</PageTitle>
+
+<h1>Hioki 1220 ICT Function Test Results</h1>
+
+@if (fctView == null)
+{
+    <p><em>Loading data from SQL...</em></p>
+}
+else if (!fctView.Any())
+{
+    <p>The table is empty.</p>
+}
+else
+{
+    <div class="table-container">
+        <div class="res-table-wrapper">
+            <table class="table res-table table-striped text-nowrap">
+                <thead>
+                    <tr>
+                        <th>Barcode</th>
+                        <th>Time</th>
+                        <th>Group</th>
+                        <th>Step</th>
+                        <th>Result</th>
+                        <th>Measurement group</th>
+                        <th>Step comment</th>
+                        <th>Part position</th>
+                        <th>Test mode</th>
+                        <th>High-pin</th>
+                        <th>Low-pin</th>
+                        <th>Reference value</th>
+                        <th>Measured value</th>
+                        <th>High limit</th>
+                        <th>Low limit</th>
+                        <th>ID 1</th>
+                        <th>ID 2</th>
+                        <th>ID 3</th>
+                        <th>ID 4</th>
+                        <th>Input voltage</th>
+                        <th>Communication standard</th>
+                        <th>Execution mode</th>
+                        <th>Device address</th>
+                        <th>Target address</th>
+                        <th>Reference data</th>
+                        <th>Received data</th>
+                        <th>Interface response</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (FctResult item in fctView)
+                    {
+                        <tr>
+                            <td>@item.Barcode</td>
+                            <td>@item.Time?.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@item.Group</td>
+                            <td>@item.Step</td>
+                            <td class="fw-bold">@item.Result</td>
+                            <td>@item.MeasGroup</td>
+                            <td>@item.Comment</td>
+                            <td>@item.Position</td>
+                            <td>@item.Mode</td>
+                            <td class="text-numeric">@item.HighPin</td>
+                            <td class="text-numeric">@item.LowPin</td>
+                            <td class="text-numeric">@(item.RefVal?.ToString() ?? "")</td>
+                            <td class="text-numeric">@(item.MeasVal?.ToString() ?? "")</td>
+                            <td class="text-numeric">@(item.HighLim?.ToString() ?? "")</td>
+                            <td class="text-numeric">@(item.LowLim?.ToString() ?? "")</td>
+                            <td>@item.ID1</td>
+                            <td>@item.ID2</td>
+                            <td>@item.ID3</td>
+                            <td>@item.ID4</td>
+                            <td>@item.InputVolt</td>
+                            <td>@item.CommStand</td>
+                            <td>@item.ExecMode</td>
+                            <td>@item.DevAddress</td>
+                            <td>@item.TarAddress</td>
+                            <td>@item.RefData</td>
+                            <td>@item.ReceiveData</td>
+                            <td>@item.IFResponse</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private List<FctResult> fctView;
+
+    /// <summary>
+    /// When the page is loaded, automatically gets the top 100 FCT entries in the DB, sorted by group then step
+    /// </summary>
+    /// <returns></returns>
+    protected override async Task OnInitializedAsync()
+    {
+        fctView = await Db.FctView.OrderBy(f => f.Group).ThenBy(f => f.Step).Take(100).ToListAsync();
+    }
+}
+
+@* <p role="status">Current count: @currentCount</p>
+
+<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+
+@code {
+    private int currentCount = 0;
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+} *@

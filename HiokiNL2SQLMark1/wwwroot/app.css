@@ -1,5 +1,5 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+html, body, h1, h2 {
+    font-family: sans-serif, 'Helvetica Neue', Helvetica, Arial;
 }
 
 a, .btn-link {
@@ -48,4 +48,63 @@ h1:focus {
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
+}
+
+/* Custom Data Grid Styling */
+.table-container {
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+}
+
+/* Scrollable area with fixed height */
+.res-table-wrapper {
+    max-height: 75vh;
+    overflow: auto;
+    scrollbar-width: thin; /* For Firefox */
+}
+
+/* Professional Table Formatting */
+.res-table {
+    font-size: 0.85rem; /* Smaller font for high density */
+    margin-bottom: 0;
+}
+
+/* Update headers to be centered */
+.res-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8f9fa;
+    color: #495057;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 2px solid #dee2e6;
+    white-space: nowrap;
+    padding: 12px 8px;
+    
+    /* ADD THIS */
+    text-align: center; 
+}
+
+/* Optional: Center the data cells as well */
+.res-table tbody td {
+    padding: 8px;
+    vertical-align: middle;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+    
+    /* ADD THIS if you want data centered too */
+    text-align: center;
+}
+
+/* Keep numeric values right-aligned (overrides the center align above) */
+/* This is a professional standard for comparing decimal places */
+.text-numeric {
+    font-family: 'Roboto Mono', monospace;
+    text-align: right !important; 
+    padding-right: 15px !important;
 }
