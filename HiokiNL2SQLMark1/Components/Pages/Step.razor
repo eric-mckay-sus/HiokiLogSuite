@@ -1,9 +1,57 @@
 ﻿@page "/step"
+@rendermode InteractiveServer
 @inject LogDbContext Db
 
 <PageTitle>Step Results</PageTitle>
 
 <h1>Hioki 1220 ICT Step Test Results</h1>
+
+@* Query Builder Panel *@
+<div class="page-content-wrapper" style="max-width: 100vw; overflow-x: hidden;">
+    <div class="query-builder-panel mb-4 p-3 border rounded bg-light">
+        <div class="row g-3">
+            @* The class div on col affects how wide the field may be *@
+            <div class="col-12 col-sm-6 col-lg-2"> 
+                <label class="form-label fw-bold">Barcode</label>
+                <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fw-bold">Start Date</label>
+                <input type="date" class="form-control" @bind="filterStartDate" />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fw-bold">End Date</label>
+                <input type="date" class="form-control" @bind="filterEndDate" />
+            </div>
+            <div class="col-12 col-sm-6 col-lg-1">
+                <label class="form-label fw-bold">Group</label>
+                <input type="number" class="form-control" step="1" @bind="filterGroup" />
+            </div>
+            <div class="col-12 col-sm-6 col-lg-1">
+                <label class="form-label fw-bold">Step</label>
+                <input type="number" class="form-control" step="1" @bind="filterStep" />
+            </div>
+            <div class="col-12 col-sm-6 col-lg-1">
+                <label class="form-label fw-bold">Part Name</label>
+                <input type="text" class="form-control" @bind="filterPartName" placeholder="e.g. 30AA..." />
+            </div>
+            <div class="col-12 col-sm-6 col-lg-1">
+                <label class="form-label fw-bold">Result</label>
+                <select class="form-select" @bind="filterResult">
+                    <option value="">All Results</option>
+                    <option value="PASS">PASS</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="LOW">LOW</option>
+                    <option value="SURP">SURP</option>
+                </select>
+            </div>
+            <div class="col-10 d-flex justify-content-end gap-2">
+                <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                <button class="btn btn-primary" @onclick="RefreshData">Execute Query</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @if (stepView == null)
 {
@@ -11,7 +59,7 @@
 }
 else if (!stepView.Any())
 {
-    <p>The table is empty.</p>
+    <p>No step records found matching these criteria.</p>
 }
 else
 {
@@ -20,10 +68,10 @@ else
             <table class="table res-table table-striped text-nowrap">
                 <thead>
                     <tr>
-                        <th>Barcode</th>
-                        <th>Time</th>
-                        <th>Group</th>
-                        <th>Step</th>
+                        <th @onclick='() => ToggleSort("Barcode")' style="cursor:pointer">Barcode @(GetSortIcon("Barcode"))</th>
+                        <th @onclick='() => ToggleSort("Time")' style="cursor:pointer">Time @(GetSortIcon("Time"))</th>
+                        <th @onclick='() => ToggleSort("Group")' style="cursor:pointer">Group @(GetSortIcon("Group"))</th>
+                        <th @onclick='() => ToggleSort("Step")' style="cursor:pointer">Step @(GetSortIcon("Step"))</th>
                         <th># of times tested</th>
                         <th>Result</th>
                         <th>Part Name</th>
@@ -69,27 +117,126 @@ else
 }
 
 @code {
-    private List<StepResult> stepView;
+    private List<StepResult>? stepView;
+
+    // Filters
+    private string? filterBarcode;
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+    private string? filterResult;
+    private string? filterPartName;
+    private int? filterStep;
+    private int? filterGroup;
+
+    // Sorting
+    private string currentSortColumn = "";
+    private SortDirection sortDir = SortDirection.None;
+    public enum SortDirection { None, Asc, Desc }
 
     /// <summary>
-    /// When the page is loaded, automatically gets the top 100 step entries in the DB, sorted by group then step
+    /// WHen the page loads, continuously check for query updates
     /// </summary>
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        stepView = await Db.StepView.OrderBy(s => s.Group).ThenBy(s => s.Step).Take(100).ToListAsync();
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Gets the proper arrow for a column based on its sort direction
+    /// </summary>
+    /// <param name="columnName">The column for which to get the sort icon</param>
+    /// <returns></returns>
+    private string GetSortIcon(string columnName)
+    {
+        if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
+        return sortDir == SortDirection.Asc ? "▲" : "▼";
+    }
+
+    /// <summary>
+    /// Toggles through sort options for a column
+    /// </summary>
+    /// <param name="columnName">The column to toggle</param>
+    /// <returns></returns>
+    private async Task ToggleSort(string columnName)
+    {
+        if (currentSortColumn != columnName)
+        {
+            currentSortColumn = columnName;
+            sortDir = SortDirection.Asc;
+        }
+        else
+        {
+            sortDir = sortDir == SortDirection.Asc ? SortDirection.Desc : 
+                      sortDir == SortDirection.Desc ? SortDirection.None : SortDirection.Asc;
+        }
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Gets the query results based on current parameters
+    /// </summary>
+    /// <returns></returns>
+    private async Task RefreshData()
+    {
+        IQueryable<StepResult> query = Db.StepView;
+
+        // Apply filters
+        if (!string.IsNullOrWhiteSpace(filterBarcode))
+            query = query.Where(s => s.Barcode.Contains(filterBarcode));
+
+        if (filterStartDate.HasValue)
+            query = query.Where(s => s.Time >= filterStartDate.Value);
+
+        if (filterEndDate.HasValue)
+            query = query.Where(s => s.Time < filterEndDate.Value.AddDays(1));
+
+        if (!string.IsNullOrWhiteSpace(filterResult))
+            query = query.Where(s => s.Result == filterResult);
+
+        if (!string.IsNullOrWhiteSpace(filterPartName))
+            query = query.Where(s => s.PartName.Contains(filterPartName));
+
+        if (filterGroup != null)
+            query = query.Where(s => s.Group == filterGroup);
+
+        if (filterStep != null)
+            query = query.Where(s => s.Step == filterStep);
+
+        // Apply sorting
+        if (sortDir != SortDirection.None)
+        {
+            query = currentSortColumn switch
+            {
+                "Barcode" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Barcode) : query.OrderByDescending(s => s.Barcode),
+                "Time" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Time) : query.OrderByDescending(s => s.Time),
+                "Group" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Group) : query.OrderByDescending(s => s.Group),
+                "Step" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Step) : query.OrderByDescending(s => s.Step),
+                _ => query
+            };
+        }
+        else
+        {
+            // Default Sort: Group then Step
+            query = query.OrderBy(s => s.Group).ThenBy(s => s.Step);
+        }
+
+        stepView = await query.Take(100).ToListAsync();
+    }
+
+    /// <summary>
+    /// Sets filters to their default values
+    /// </summary>
+    /// <returns></returns>
+    private async Task ClearFilters()
+    {
+        filterBarcode = null;
+        filterStartDate = null;
+        filterEndDate = null;
+        filterResult = null;
+        filterPartName = null;
+        filterGroup = null;
+        filterStep = null;
+        await RefreshData();
     }
 }
-
-@* <p role="status">Current count: @currentCount</p>
-
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
-
-@code {
-    private int currentCount = 0;
-
-    private void IncrementCount()
-    {
-        currentCount++;
-    }
-} *@

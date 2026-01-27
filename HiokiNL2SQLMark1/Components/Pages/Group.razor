@@ -6,13 +6,42 @@
 
 <h1>Hioki 1220 ICT Group Results</h1>
 
+<div class="query-builder-panel mb-4 p-3 border rounded bg-light">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label fw-bold">Barcode</label>
+            <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold">Start Date</label>
+            <input type="date" class="form-control" @bind="filterStartDate" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold">End Date</label>
+            <input type="date" class="form-control" @bind="filterEndDate" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold">Overall Result</label>
+            <select class="form-select" @bind="filterResult">
+                <option value="">All Results</option>
+                <option value="PASS">PASS</option>
+                <option value="FAIL">FAIL</option>
+            </select>
+        </div>
+        <div class="col-12 d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+            <button class="btn btn-primary" @onclick="RefreshData">Execute Query</button>
+        </div>
+    </div>
+</div>
+
 @if (groupView == null)
 {
     <p><em>Loading data from SQL...</em></p>
 }
 else if (!groupView.Any())
 {
-    <p>The table is empty.</p>
+    <p>No group records found matching these criteria.</p>
 }
 else
 {
@@ -21,19 +50,27 @@ else
             <table class="table res-table table-striped text-nowrap">
                 <thead>
                     <tr>
-                        <th>Barcode</th>
-                        <th>Time</th>
-                        <th>Group</th>
+                        <th @onclick='() => ToggleSort("Barcode")' style="cursor:pointer">Barcode @(GetSortIcon("Barcode"))</th>
+                        <th @onclick='() => ToggleSort("Time")' style="cursor:pointer">Time @(GetSortIcon("Time"))</th>
+                        <th @onclick='() => ToggleSort("Group")' style="cursor:pointer">Group @(GetSortIcon("Group"))</th>
                         <th># of times tested</th>
-                        <th>allResult</th>
-                        <th>componentTest</th>
-                        <th>shortTest</th>
-                        <th>openTest</th>
-                        <th>icTest</th>
-                        <th>macroTest</th>
-                        <th>functionTest</th>
+                        <th>Overall Result</th>
+                        <th>Component Test</th>
+                        <th>Short Test</th>
+                        <th>Open Test</th>
+                        <th>IC Test</th>
+                        <th>Macro Test</th>
+                        <th>Function Test</th>
                     </tr>
                 </thead>
+                @code {
+                    // Helper to render the arrow
+                    private string GetSortIcon(string columnName)
+                    {
+                        if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
+                        return sortDir == SortDirection.Asc ? "▲" : "▼";
+                    }
+                }
                 <tbody>
                     @foreach (GroupResult item in groupView)
                     {
@@ -60,25 +97,97 @@ else
 @code {
     private List<GroupResult> groupView;
 
+    // Current available filters
+    private string? filterBarcode;
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+    private string? filterResult;
+    private string currentSortColumn = "";
+    private SortDirection sortDir = SortDirection.None;
+    public enum SortDirection { None, Asc, Desc }
+
     /// <summary>
-    /// When the page is loaded, automatically gets the top 100 group entries in the DB, sorted by time then barcode
+    /// When the page is loaded, continuously get query edits
     /// </summary>
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        groupView = await Db.GroupView.OrderBy(g => g.Time).ThenBy(g => g.Barcode).Take(100).ToListAsync();
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Cycles through sort directions when column is toggled
+    /// </summary>
+    /// <param name="columnName"> The column to be toggled</param>
+    /// <returns></returns>
+    private async Task ToggleSort(string columnName)
+        {
+            if (currentSortColumn != columnName)
+            {
+                currentSortColumn = columnName;
+                sortDir = SortDirection.Asc;
+            }
+            else
+            {
+                // Cycle: Asc -> Desc -> None
+                sortDir = sortDir == SortDirection.Asc ? SortDirection.Desc : 
+                        sortDir == SortDirection.Desc ? SortDirection.None : SortDirection.Asc;
+            }
+            await RefreshData();
+        }
+
+    /// <summary>
+    /// Refreshes the table based on the query
+    /// </summary>
+    /// <returns></returns>
+    private async Task RefreshData(){
+        IQueryable<GroupResult> query = Db.GroupView; // set the context
+
+        // Apply dynamic filters
+        if (!string.IsNullOrWhiteSpace(filterBarcode))
+            query = query.Where(g => g.Barcode.Contains(filterBarcode));
+
+        if (filterStartDate.HasValue)
+            query = query.Where(g => g.Time >= filterStartDate.Value);
+
+        if (filterEndDate.HasValue)
+            // Add 1 day to include the entire end-date day
+            query = query.Where(g => g.Time < filterEndDate.Value.AddDays(1));
+
+        if (!string.IsNullOrWhiteSpace(filterResult))
+            query = query.Where(g => g.AllResult == filterResult);
+
+        // Check for a specified sort direction
+        if (sortDir != SortDirection.None)
+        {
+            query = currentSortColumn switch
+            {
+                "Barcode" => sortDir == SortDirection.Asc ? query.OrderBy(g => g.Barcode) : query.OrderByDescending(g => g.Barcode),
+                "Time" => sortDir == SortDirection.Asc ? query.OrderBy(g => g.Time) : query.OrderByDescending(g => g.Time),
+                "Group" => sortDir == SortDirection.Asc ? query.OrderBy(g => g.Group) : query.OrderByDescending(g => g.Group),
+                _ => query // Default case
+            };
+        }
+        else
+        {
+            // Default sort if no column is selected
+            query = query.OrderByDescending(g => g.Time);
+        }
+
+        groupView = await query.Take(100).ToListAsync();
+    }
+
+
+    /// <summary>
+    /// Clears all filters used in a query
+    /// </summary>
+    /// <returns></returns>
+    private async Task ClearFilters()
+    {
+        filterBarcode = null;
+        filterStartDate = null;
+        filterEndDate = null;
+        filterResult = null;
+        await RefreshData();
     }
 }
-
-@* <p role="status">Current count: @currentCount</p>
-
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
-
-@code {
-    private int currentCount = 0;
-
-    private void IncrementCount()
-    {
-        currentCount++;
-    }
-} *@

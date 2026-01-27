@@ -1,17 +1,66 @@
 ﻿@page "/fct"
+@rendermode InteractiveServer
 @inject LogDbContext Db
 
 <PageTitle>FCT Results</PageTitle>
 
-<h1>Hioki 1220 ICT Function Test Results</h1>
+<h1>Hioki 1220 ICT Functional Test Results</h1>
+
+@* Query Builder Panel *@
+<div class="page-content-wrapper" style="max-width: 100vw; overflow-x: hidden;">
+    <div class="query-builder-panel mb-4 p-3 border rounded bg-light">
+        <div class="row g-3">
+            <div class="col-12 col-sm-6 col-lg-2"> 
+                <label class="form-label fw-bold">Barcode</label>
+                <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fw-bold">Start Date</label>
+                <input type="date" class="form-control" @bind="filterStartDate" />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fw-bold">End Date</label>
+                <input type="date" class="form-control" @bind="filterEndDate" />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-1">
+                <label class="form-label fw-bold">Group</label>
+                <input type="number" class="form-control" @bind="filterGroup" />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-1">
+                <label class="form-label fw-bold">Step</label>
+                <input type="number" class="form-control" @bind="filterStep" />
+            </div>
+            <div class="col-6 col-sm-3 col-lg-1">
+                <label class="form-label fw-bold">Mode</label>
+                <select class="form-select" @bind="filterMode">
+                    <option value="">All Modes</option>
+                    <option value="VoltDC">VoltDC</option>
+                    <option value="FLASH ROM">FLASH ROM</option>
+                </select>
+            </div>
+            <div class="col-6 col-sm-3 col-lg-1">
+                <label class="form-label fw-bold">Result</label>
+                <select class="form-select" @bind="filterResult">
+                    <option value="">All Results</option>
+                    <option value="PASS">PASS</option>
+                    <option value="TRA.">TRA.</option>
+                </select>
+            </div>
+            <div class="col-10 d-flex justify-content-end gap-2">
+                <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                <button class="btn btn-primary" @onclick="RefreshData">Execute</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @if (fctView == null)
 {
-    <p><em>Loading data from SQL...</em></p>
+    <p><em>Loading functional test data...</em></p>
 }
 else if (!fctView.Any())
 {
-    <p>The table is empty.</p>
+    <p>No FCT records found matching these criteria.</p>
 }
 else
 {
@@ -20,41 +69,41 @@ else
             <table class="table res-table table-striped text-nowrap">
                 <thead>
                     <tr>
-                        <th>Barcode</th>
-                        <th>Time</th>
-                        <th>Group</th>
-                        <th>Step</th>
-                        <th>Result</th>
-                        <th>Measurement group</th>
-                        <th>Step comment</th>
-                        <th>Part position</th>
-                        <th>Test mode</th>
+                        <th @onclick='() => ToggleSort("Barcode")' style="cursor:pointer">Barcode @(GetSortIcon("Barcode"))</th>
+                        <th @onclick='() => ToggleSort("Time")' style="cursor:pointer">Time @(GetSortIcon("Time"))</th>
+                        <th @onclick='() => ToggleSort("Group")' style="cursor:pointer">Group @(GetSortIcon("Group"))</th>
+                        <th @onclick='() => ToggleSort("Step")' style="cursor:pointer">Step @(GetSortIcon("Step"))</th>
+                        <th @onclick='() => ToggleSort("Result")' style="cursor:pointer">Result @(GetSortIcon("Result"))</th>
+                        <th>Meas Group</th>
+                        <th>Comment</th>
+                        <th>Position</th>
+                        <th @onclick='() => ToggleSort("Mode")' style="cursor:pointer">Mode @(GetSortIcon("Mode"))</th>
                         <th>High-pin</th>
                         <th>Low-pin</th>
-                        <th>Reference value</th>
-                        <th>Measured value</th>
-                        <th>High limit</th>
-                        <th>Low limit</th>
+                        <th>Ref Val</th>
+                        <th>Meas Val</th>
+                        <th>High Lim</th>
+                        <th>Low Lim</th>
                         <th>ID 1</th>
                         <th>ID 2</th>
                         <th>ID 3</th>
                         <th>ID 4</th>
-                        <th>Input voltage</th>
-                        <th>Communication standard</th>
-                        <th>Execution mode</th>
-                        <th>Device address</th>
-                        <th>Target address</th>
-                        <th>Reference data</th>
-                        <th>Received data</th>
-                        <th>Interface response</th>
+                        <th>Input Volt</th>
+                        <th>Comm Stand</th>
+                        <th>Exec Mode</th>
+                        <th>Dev Addr</th>
+                        <th>Tar Addr</th>
+                        <th>Ref Data</th>
+                        <th>Rec Data</th>
+                        <th>IF Response</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (FctResult item in fctView)
+                    @foreach (var item in fctView)
                     {
                         <tr>
                             <td>@item.Barcode</td>
-                            <td>@item.Time?.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@item.Time</td>
                             <td>@item.Group</td>
                             <td>@item.Step</td>
                             <td class="fw-bold">@item.Result</td>
@@ -62,12 +111,12 @@ else
                             <td>@item.Comment</td>
                             <td>@item.Position</td>
                             <td>@item.Mode</td>
-                            <td class="text-numeric">@item.HighPin</td>
-                            <td class="text-numeric">@item.LowPin</td>
-                            <td class="text-numeric">@(item.RefVal?.ToString() ?? "")</td>
-                            <td class="text-numeric">@(item.MeasVal?.ToString() ?? "")</td>
-                            <td class="text-numeric">@(item.HighLim?.ToString() ?? "")</td>
-                            <td class="text-numeric">@(item.LowLim?.ToString() ?? "")</td>
+                            <td>@item.HighPin</td>
+                            <td>@item.LowPin</td>
+                            <td class="text-numeric">@item.RefVal</td>
+                            <td class="text-numeric">@item.MeasVal</td>
+                            <td class="text-numeric">@item.HighLim</td>
+                            <td class="text-numeric">@item.LowLim</td>
                             <td>@item.ID1</td>
                             <td>@item.ID2</td>
                             <td>@item.ID3</td>
@@ -89,27 +138,106 @@ else
 }
 
 @code {
-    private List<FctResult> fctView;
+    private List<FctResult>? fctView;
 
-    /// <summary>
-    /// When the page is loaded, automatically gets the top 100 FCT entries in the DB, sorted by group then step
-    /// </summary>
-    /// <returns></returns>
+    // Filters
+    private string? filterBarcode;
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+    private string? filterResult;
+    private int? filterGroup;
+    private int? filterStep;
+    private string? filterMode;
+
+    // Sorting
+    private string currentSortColumn = "";
+    private SortDirection sortDir = SortDirection.None;
+    public enum SortDirection { None, Asc, Desc }
+
     protected override async Task OnInitializedAsync()
     {
-        fctView = await Db.FctView.OrderBy(f => f.Group).ThenBy(f => f.Step).Take(100).ToListAsync();
+        await RefreshData();
+    }
+
+    private string GetSortIcon(string columnName)
+    {
+        if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
+        return sortDir == SortDirection.Asc ? "▲" : "▼";
+    }
+
+    private async Task ToggleSort(string columnName)
+    {
+        if (currentSortColumn != columnName)
+        {
+            currentSortColumn = columnName;
+            sortDir = SortDirection.Asc;
+        }
+        else
+        {
+            sortDir = sortDir == SortDirection.Asc ? SortDirection.Desc : 
+                      sortDir == SortDirection.Desc ? SortDirection.None : SortDirection.Asc;
+        }
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        IQueryable<FctResult> query = Db.FctView;
+
+        // Apply filters
+        if (!string.IsNullOrWhiteSpace(filterBarcode))
+            query = query.Where(f => f.Barcode.Contains(filterBarcode));
+
+        if (filterStartDate.HasValue)
+            query = query.Where(f => f.Time >= filterStartDate.Value);
+
+        if (filterEndDate.HasValue)
+            query = query.Where(f => f.Time < filterEndDate.Value.AddDays(1));
+
+        if (!string.IsNullOrWhiteSpace(filterResult))
+            query = query.Where(f => f.Result == filterResult);
+            
+        if (!string.IsNullOrWhiteSpace(filterMode))
+            query = query.Where(f => f.Mode == filterMode);
+
+        if (filterGroup.HasValue)
+            query = query.Where(f => f.Group == filterGroup.Value);
+
+        if (filterStep.HasValue)
+            query = query.Where(f => f.Step == filterStep.Value);
+
+        // Apply sorting
+        if (sortDir != SortDirection.None)
+        {
+            query = currentSortColumn switch
+            {
+                "Barcode" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Barcode) : query.OrderByDescending(f => f.Barcode),
+                "Time" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Time) : query.OrderByDescending(f => f.Time),
+                "Group" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Group) : query.OrderByDescending(f => f.Group),
+                "Step" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Step) : query.OrderByDescending(f => f.Step),
+                "Result" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Result) : query.OrderByDescending(f => f.Result),
+                "Mode" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Mode) : query.OrderByDescending(f => f.Mode),
+                _ => query
+            };
+        }
+        else
+        {
+            // Default Sort for FCT: Latest time, then step order
+            query = query.OrderByDescending(f => f.Time).ThenBy(f => f.Group).ThenBy(f => f.Step);
+        }
+
+        fctView = await query.Take(100).ToListAsync();
+    }
+
+    private async Task ClearFilters()
+    {
+        filterBarcode = null;
+        filterStartDate = null;
+        filterEndDate = null;
+        filterMode = null;
+        filterResult = null;
+        filterGroup = null;
+        filterStep = null;
+        await RefreshData();
     }
 }
-
-@* <p role="status">Current count: @currentCount</p>
-
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
-
-@code {
-    private int currentCount = 0;
-
-    private void IncrementCount()
-    {
-        currentCount++;
-    }
-} *@
