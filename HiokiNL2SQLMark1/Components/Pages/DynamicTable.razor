@@ -4,35 +4,38 @@
 
 @if (Items != null && Items.Any())
 {
-    <div class="table-responsive">
-        <table class="table table-hover table-striped table-sm mt-3">
-            <thead class="table-dark">
-                <tr>
-                    @foreach (var prop in typeof(TItem).GetProperties())
-                    {
-                        var attribute = prop.GetCustomAttribute<ColumnAttribute>();
-                        var displayName = attribute?.Name ?? prop.Name;
-                        <th>@displayName</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var item in Items)
-                {
-                    <tr>
-                        @foreach (var prop in typeof(TItem).GetProperties())
+    <div class="table-responsive-wrapper">
+        <div class="table-container">
+            <div class="res-table-wrapper">
+                <table class="table res-table table-striped text-nowrap">
+                    <thead class="table-dark">
+                        <tr>
+                            @foreach (var prop in typeof(TItem).GetProperties())
+                            {
+                                var attribute = prop.GetCustomAttribute<ColumnAttribute>();
+                                var displayName = attribute?.Name ?? prop.Name;
+                                <th>@displayName</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Items)
                         {
-                            <td>@prop.GetValue(item)</td>
+                            <tr>
+                                @foreach (var prop in typeof(TItem).GetProperties())
+                                {
+                                    <td>@prop.GetValue(item)</td>
+                                }
+                            </tr>
                         }
-                    </tr>
-                }
-            </tbody>
-        </table>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 }
 
 @code {
-    // This is the missing piece:
     [Parameter]
     public IEnumerable<TItem>? Items { get; set; }
 }

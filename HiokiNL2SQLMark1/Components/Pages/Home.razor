@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject LogDbContext Db
 @using RegEx = System.Text.RegularExpressions
+@using System.Threading.Tasks
 
 <PageTitle>Power Search</PageTitle>
 
@@ -11,7 +12,9 @@
     <div class="input-group">
         <span class="input-group-text bg-dark text-white font-monospace">>_</span>
         <input type="text" class="form-control form-control-lg font-monospace" 
-               @bind="commandInput" 
+               @bind="commandInput"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown" 
                placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
         <button class="btn btn-primary" @onclick="async () => await ExecutePowerSearch()">Search</button>
     </div>
@@ -148,6 +151,14 @@ else if (currentType == "fct" && fctResults != null)
         filters.Remove("step");
         filters.Remove("mode");
         return query;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ExecutePowerSearch();
+        }
     }
 
     /// <summary>
