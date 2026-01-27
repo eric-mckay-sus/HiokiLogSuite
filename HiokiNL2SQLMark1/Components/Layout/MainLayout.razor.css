@@ -49,6 +49,24 @@ main {
 @media (min-width: 641px) {
     .page {
         flex-direction: row;
+        width: 100vw;
+        overflow: hidden;
+    }
+
+    main {
+        width: 0; 
+        flex: 1 1 auto;
+        min-width: 0; 
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* Stops the table from expanding the main body */
+    }
+
+    /* Target the article specifically where @Body is rendered */
+    article.content {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden; /* Force horizontal scroll only on the table wrapper in Step.razor */
     }
 
     .sidebar {
@@ -94,3 +112,24 @@ main {
         right: 0.75rem;
         top: 0.5rem;
     }
+
+/* Prevent the master horizontal scroll at the root */
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Ensure the main content area doesn't expand from negative row margins */
+main {
+    max-width: 100%;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* This targets the specific Bootstrap row bleed */
+.row {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+}
