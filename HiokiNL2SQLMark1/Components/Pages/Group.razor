@@ -97,7 +97,7 @@ else
                                 <td>@item.Time</td>
                                 <td>@item.Group</td>
                                 <td>@item.TimesTested</td>
-                                <td class="fw-bold">@item.AllResult</td>
+                                <td class="fw-bold">@item.Result</td>
                                 <td>@item.ComponentTest</td>
                                 <td>@item.ShortTest</td>
                                 <td>@item.OpenTest</td>
@@ -233,7 +233,7 @@ else
             query = query.Where(g => g.Time < filterEndDate.Value.AddDays(1));
 
         if (!string.IsNullOrWhiteSpace(filterResult))
-            query = query.Where(g => g.AllResult == filterResult);
+            query = query.Where(g => g.Result == filterResult);
 
         // Get size of this query to display
         totalCount = await query.CountAsync();

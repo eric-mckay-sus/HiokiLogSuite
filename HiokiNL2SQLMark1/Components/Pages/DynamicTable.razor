@@ -1,0 +1,38 @@
+@typeparam TItem
+@using System.Reflection
+@using System.ComponentModel.DataAnnotations.Schema
+
+@if (Items != null && Items.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-striped table-sm mt-3">
+            <thead class="table-dark">
+                <tr>
+                    @foreach (var prop in typeof(TItem).GetProperties())
+                    {
+                        var attribute = prop.GetCustomAttribute<ColumnAttribute>();
+                        var displayName = attribute?.Name ?? prop.Name;
+                        <th>@displayName</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Items)
+                {
+                    <tr>
+                        @foreach (var prop in typeof(TItem).GetProperties())
+                        {
+                            <td>@prop.GetValue(item)</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    // This is the missing piece:
+    [Parameter]
+    public IEnumerable<TItem>? Items { get; set; }
+}

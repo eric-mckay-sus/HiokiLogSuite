@@ -24,8 +24,27 @@ public class TestMode
     public string? testMode {get; set;}
 }
 
+public interface IHiokiLog
+{
+    string? Barcode { get; set; }
+    DateTime? Time { get; set; }
+    int? Group { get; set; }
+    string? Result { get; set; }
+}
+
+public interface IStepFCT : IHiokiLog
+{
+    int? Step { get; set; }
+    public string? Position { get; set; }
+    public string? Mode { get; set; }
+    public double? HighLim { get; set; }
+    public double? LowLim { get; set; }
+    public double? RefVal { get; set; }
+    public double? MeasVal { get; set; }
+}
+
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group))]
-public class GroupResult
+public class GroupResult : IHiokiLog
 {
     [Column("Barcode")] // technically this doesn't do anything, but keeps consistency with ones that need renamed
     public string? Barcode { get; set; }
@@ -40,7 +59,7 @@ public class GroupResult
     public int? TimesTested { get; set; }
 
     [Column("allResult")]
-    public string? AllResult { get; set; }
+    public string? Result { get; set; }
 
     [Column("componentTest")]
     public string? ComponentTest { get; set; }
@@ -62,7 +81,7 @@ public class GroupResult
 }
 
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
-public class StepResult
+public class StepResult : IStepFCT
 {
     [Column("Barcode")]
     public string? Barcode { get; set; }
@@ -117,7 +136,7 @@ public class StepResult
 }
 
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
-public class FctResult
+public class FctResult : IStepFCT
 {
     [Column("Barcode")]
     public string? Barcode { get; set; }

@@ -1,79 +1,235 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @inject LogDbContext Db
+@using RegEx = System.Text.RegularExpressions
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Power Search</PageTitle>
 
-<h1>Hioki 1220 ICT</h1>
+<h1>Hioki 1220 ICT Power Search</h1>
 
-@if (resultTypes == null)
-{
-    <p><em>Loading data from SQL...</em></p>
-}
-else if (!resultTypes.Any())
-{
-    <p>The table is empty.</p>
-}
-else
-{
-    <h2>Result Types</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Type</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in resultTypes)
-            {
-                <tr>
-                    <td>@item.id</td>
-                    <td>@item.resultType.Trim()</td>
-                </tr>
+<div class="command-container mb-4">
+    <div class="input-group">
+        <span class="input-group-text bg-dark text-white font-monospace">>_</span>
+        <input type="text" class="form-control form-control-lg font-monospace" 
+               @bind="commandInput" 
+               placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
+        <button class="btn btn-primary" @onclick="async () => await ExecutePowerSearch()">Search</button>
+    </div>
+    <div class="d-flex gap-2 mb-2">
+    <button class="btn btn-sm @(currentType == "group" ? "btn-primary" : "btn-outline-secondary")" 
+        @onclick='() => SetType("group")'>Groups</button>
+    <button class="btn btn-sm @(currentType == "step" ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType("step")'>Steps</button>
+    <button class="btn btn-sm @(currentType == "fct" ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType("fct")'>FCT</button>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted">
+            Supported keys: 
+            <span class="badge bg-secondary">in:</span> 
+            <span class="badge bg-secondary">barcode:</span> 
+            <span class="badge bg-secondary">result:</span> 
+            <span class="badge bg-secondary">group:</span> 
+            <span class="badge bg-secondary">after:</span>
+            <span class="badge bg-secondary">before:</span>
+            @if (currentType == "group"){
+            <span class="badge bg-secondary">comp:</span>
+            <span class="badge bg-secondary">short:</span>
+            <span class="badge bg-secondary">macro:</span>
+            <span class="badge bg-secondary">ic:</span>
+            <span class="badge bg-secondary">function:</span>
+            } else{
+            <span class="badge bg-secondary">step:</span>
+            <span class="badge bg-secondary">mode:</span>
             }
-        </tbody>
-    </table>
+        </small>
+    </div>
+</div>
+
+@if (currentType == "group" && groupResults != null)
+{
+    <DynamicTable TItem="GroupResult" Items="groupResults" />
+}
+else if (currentType == "step" && stepResults != null)
+{
+    <DynamicTable TItem="StepResult" Items="stepResults" />
+}
+else if (currentType == "fct" && fctResults != null)
+{
+    <DynamicTable TItem="FctResult" Items="fctResults" />
 }
 
-@if (testModes == null)
-{
-    <p><em>Loading data from SQL...</em></p>
-}
-else if (!testModes.Any())
-{
-    <p>Test Modes is empty.</p>
-}
-else
-{
-    <h2>Test Modes</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Mode</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in testModes)
-            {
-                <tr>
-                    <td>@item.id</td>
-                    <td>@item.testMode.Trim()</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+@code{
+    string commandInput = ""; // The input received from the search bar
+    string currentType = "group";
+    string[] availableTypes = ["group", "step", "fct"];
+    Dictionary<string, string>? filters;
+    List<GroupResult>? groupResults;
+    List<StepResult>? stepResults;
+    List<FctResult>? fctResults;
 
-@code {
-    private List<ResultType> resultTypes;
-    private List<TestMode> testModes;
-
-    protected override async Task OnInitializedAsync()
+    /// <summary>
+    /// Parses a string for key-value pairs
+    /// </summary>
+    /// <param name="rawInput">The string to parse</param>
+    /// <returns>A dictionary containing the key-value pairs to filter with</returns>
+    private Dictionary<string, string> ParseQuery(string rawInput)
     {
-        // Now you can query the DB directly!
-        resultTypes = await Db.ResultTypes.ToListAsync();
-        testModes = await Db.TestModes.ToListAsync();
+        filters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(rawInput)) return filters;
+
+        // Regex to find key:value pairs, supporting quoted values like name:"Part A"
+        RegEx.MatchCollection? matches = RegEx.Regex.Matches(rawInput, @"(\w+):(""[^""]*""|\S+)");
+
+        foreach (RegEx.Match match in matches)
+        {
+            string? key = match.Groups[1].Value.ToLower();
+            string? value = match.Groups[2].Value.Trim('"');
+            if(key == "in" && availableTypes.Contains(value.ToLower())){ // if we've identified the table, no need to add to the parameter list
+                currentType = value;
+            } else{ // otherwise, put it in the dictionary to construct a where clause
+                filters[key] = value;
+            }
+        }
+        return filters;
+    }
+
+    /// <summary>
+    /// Sets the current type to the input string
+    /// </summary>
+    /// <param name="toType">The target type</param>
+    private void SetType(string toType){
+        currentType = toType;
+    }
+
+    /// <summary>
+    /// Applies barcode, time, group, and result filters from list (if applicable)
+    /// This way, they don't need to be handled in each branch
+    /// </summary>
+    /// <typeparam name="T">GroupResult, StepResult, or FctResult</typeparam>
+    /// <param name="query">The current query</param>
+    /// <param name="filters">The list of filters</param>
+    /// <returns></returns>
+    private IQueryable<T> ApplyGlobalFilters<T>(IQueryable<T> query) 
+    where T : class, IHiokiLog
+    {
+        foreach (KeyValuePair<string, string> filter in filters)
+        {
+            query = filter.Key.ToLower() switch
+            {
+                "barcode" => query.Where(x => x.Barcode.Contains(filter.Value)),
+                "after"   => DateTime.TryParse(filter.Value, out DateTime d) ? query.Where(x => x.Time >= d) : query,
+                "before"  => DateTime.TryParse(filter.Value, out DateTime d) ? query.Where(x => x.Time <= d) : query,
+                "group"   => int.TryParse(filter.Value, out int g) ? query.Where(x => x.Group == g) : query,
+                "result"  => query.Where(x => x.Result.Contains(filter.Value)),
+                _ => query
+            };
+        }
+        filters.Remove("barcode");
+        filters.Remove("after");
+        filters.Remove("before");
+        filters.Remove("group");
+        filters.Remove("result");
+        return query;
+    }
+
+    private IQueryable<T> ApplyStepFctFilters<T>(IQueryable<T> query) 
+    where T : class, IStepFCT
+    {
+        foreach (KeyValuePair<string, string> filter in filters)
+        {
+            query = filter.Key.ToLower() switch
+            {
+                "step"   => int.TryParse(filter.Value, out int s) ? query.Where(x => x.Step == s) : query,
+                "mode" => query.Where(x => x.Mode.Contains(filter.Value)),
+                _ => query
+            };
+        }
+        filters.Remove("step");
+        filters.Remove("mode");
+        return query;
+    }
+
+    /// <summary>
+    /// Gets the results of a search through the filters applied by the search bar
+    /// </summary>
+    ///<precondition>commandInput has a value</precondition>
+    /// <returns></returns>
+    private async Task ExecutePowerSearch()
+    {
+        filters = ParseQuery(commandInput);
+
+        switch(currentType.ToLower()){ // split before determining type
+            case "group":
+                IQueryable<GroupResult>? gQuery = ApplyGlobalFilters(Db.GroupView.AsQueryable());
+                gQuery = ApplyGroupFilters(gQuery);
+                groupResults = await gQuery.OrderByDescending(x => x.Time).Take(100).ToListAsync();
+                break;
+            case "step": 
+                IQueryable<StepResult>? sQuery = ApplyGlobalFilters(Db.StepView.AsQueryable());
+                sQuery = ApplyStepFctFilters(sQuery);
+                sQuery = ApplyStepFilters(sQuery);
+                stepResults = await sQuery.OrderByDescending(x => x.Time).Take(100).ToListAsync();
+                break;
+            case "fct": 
+                IQueryable<FctResult>? fQuery = ApplyGlobalFilters(Db.FctView.AsQueryable());
+                fQuery = ApplyStepFctFilters(fQuery);
+                fQuery = ApplyFctFilters(fQuery);
+                fctResults = await fQuery.OrderByDescending(x => x.Time).Take(100).ToListAsync();
+                break;
+                // no need for default because type guaranteed to be valid at this point
+        }
+    }
+
+    /// <summary>
+    /// Applies filters unique to the group table
+    /// </summary>
+    /// <param name="query">The query to which the WHERE clauses should be appended</param>
+    /// <param name="filters">The dictionary of filters left to apply</param>
+    /// <returns>The queryable list of group filters as WHERE clauses</returns>
+    private IQueryable<GroupResult> ApplyGroupFilters(IQueryable<GroupResult> query){
+        foreach (KeyValuePair<string, string> filter in filters)
+        {
+            query = filter.Key.ToLower() switch
+            {
+                "comp"     => query.Where(x => x.ComponentTest.Contains(filter.Value)),
+                "short"    => query.Where(x => x.ShortTest.Contains(filter.Value)),
+                "open"     => query.Where(x => x.OpenTest.Contains(filter.Value)),
+                "ic"       => query.Where(x => x.IcTest.Contains(filter.Value)),
+                "macro"    => query.Where(x => x.MacroTest.Contains(filter.Value)),
+                "function" => query.Where(x => x.FunctionTest.Contains(filter.Value)),
+                _ => query
+            };
+        }
+        return query;
+    }
+
+    /// <summary>
+    /// Applies filters unique to the step table
+    /// </summary>
+    /// <param name="query">The query to which the WHERE clauses should be appended</param>
+    /// <param name="filters">The dictionary of filters left to apply</param>
+    /// <returns>The queryable list of step filters as WHERE clauses</returns>
+    private IQueryable<StepResult> ApplyStepFilters(IQueryable<StepResult> query){
+        foreach (KeyValuePair<string, string> filter in filters)
+        {
+            query = filter.Key.ToLower() switch
+            {
+                "step" => int.TryParse(filter.Value, out int s) ? query.Where(x => x.Step == s) : query,
+                "part" => query.Where(x => x.PartName.Contains(filter.Value)),                
+                _ => query
+            };
+        }
+        return query;
+    }
+
+    /// <summary>
+    /// Applies filters unique to the FCT table
+    /// </summary>
+    /// <param name="query">The query to which the WHERE clauses should be appended</param>
+    /// <param name="filters">The dictionary of filters left to apply</param>
+    /// <returns>The queryable list of FCT filters as WHERE clauses</returns>
+    private IQueryable<FctResult> ApplyFctFilters(IQueryable<FctResult> query){
+        return query;
     }
 }

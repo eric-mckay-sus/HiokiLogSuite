@@ -229,3 +229,13 @@ h1:focus {
     min-width: 1200px; /* Adjust this to the minimum width your columns need */
     width: 100%;
 }
+
+.power-results {
+    font-family: 'Roboto Mono', 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+}
+
+.power-results tr:hover {
+    background-color: #fff3cd !important; /* Highlight row on hover for tracking */
+    cursor: crosshair;
+}
