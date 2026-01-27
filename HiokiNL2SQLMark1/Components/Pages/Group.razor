@@ -8,19 +8,19 @@
 
 <div class="query-builder-panel mb-4 p-3 border rounded bg-light  style="max-width: 100%; overflow-x: hidden;">
     <div class="row g-3">
-        <div class="col-md-3">
+        <div class="col-3">
             <label class="form-label fw-bold">Barcode</label>
             <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
         </div>
-        <div class="col-md-3">
+        <div class="col-3">
             <label class="form-label fw-bold">Start Date</label>
             <input type="date" class="form-control" @bind="filterStartDate" />
         </div>
-        <div class="col-md-3">
+        <div class="col-3">
             <label class="form-label fw-bold">End Date</label>
             <input type="date" class="form-control" @bind="filterEndDate" />
         </div>
-        <div class="col-md-3">
+        <div class="col-3">
             <label class="form-label fw-bold">Overall Result</label>
             <select class="form-select" @bind="filterResult">
                 <option value="">All Results</option>

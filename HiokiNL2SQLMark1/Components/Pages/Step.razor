@@ -40,21 +40,20 @@
                 <label class="form-label fw-bold">Mode</label>
                 <select class="form-select" @bind="filterMode">
                     <option value="">All Modes</option>
-                    <option value="C-CC">C-CC</option>
-                    <option value="C-CV">C-CV</option>
-                    <option value="C-AC1.6K">C-AC1.6K</option>
-                    <option value="C-AC160">C-AC160	</option>
-                    <option value="R-AC160">R-AC160</option>
+                    @foreach (string? m in modeCache)
+                    {
+                        <option value="@m">@m</option>
+                    }
                 </select>
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Result</label>
                 <select class="form-select" @bind="filterResult">
                     <option value="">All Results</option>
-                    <option value="PASS">PASS</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="LOW">LOW</option>
-                    <option value="SURP">SURP</option>
+                    @foreach (string? r in resultCache)
+                    {
+                        <option value="@r">@r</option>
+                    }
                 </select>
             </div>
             <div class="col-12 d-flex justify-content-end gap-2">
@@ -179,6 +178,8 @@ else
 
 @code {
     private List<StepResult>? stepView;
+    private List<string?> modeCache = new();
+    private List<string?> resultCache = new();
 
     // Filters
     private string? filterBarcode;
@@ -202,11 +203,25 @@ else
     private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
 
     /// <summary>
-    /// When the page loads, continuously check for query updates
+    /// When the page loads, check the available result types and modes, then perform the default query
     /// </summary>
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
+        modeCache = await Db.StepView
+            .Select(s => s.Mode)
+            .Where(m => m != null)
+            .Distinct()
+            .OrderBy(m => m)
+            .ToListAsync();
+
+        resultCache = await Db.StepView
+            .Select(s => s.Result)
+            .Where(r => r != null)
+            .Distinct()
+            .OrderBy(r => r)
+            .ToListAsync();
+
         await RefreshData();
     }
 
