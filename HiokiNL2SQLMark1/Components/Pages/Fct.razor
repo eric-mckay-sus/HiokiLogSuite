@@ -154,17 +154,31 @@ else
     private SortDirection sortDir = SortDirection.None;
     public enum SortDirection { None, Asc, Desc }
 
+    /// <summary>
+    /// WHen the page loads, continuously check for query updates
+    /// </summary>
+    /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
         await RefreshData();
     }
 
+    /// <summary>
+    /// Gets the proper arrow for a column based on its sort direction
+    /// </summary>
+    /// <param name="columnName">The column for which to get the sort icon</param>
+    /// <returns></returns>
     private string GetSortIcon(string columnName)
     {
         if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
         return sortDir == SortDirection.Asc ? "▲" : "▼";
     }
 
+    /// <summary>
+    /// Toggles through sort options for a column
+    /// </summary>
+    /// <param name="columnName">The column to toggle</param>
+    /// <returns></returns>
     private async Task ToggleSort(string columnName)
     {
         if (currentSortColumn != columnName)
@@ -180,6 +194,10 @@ else
         await RefreshData();
     }
 
+    /// <summary>
+    /// Gets the query results based on current parameters
+    /// </summary>
+    /// <returns></returns>
     private async Task RefreshData()
     {
         IQueryable<FctResult> query = Db.FctView;
@@ -229,6 +247,10 @@ else
         fctView = await query.Take(100).ToListAsync();
     }
 
+    /// <summary>
+    /// Sets filters to their default values
+    /// </summary>
+    /// <returns></returns>
     private async Task ClearFilters()
     {
         filterBarcode = null;

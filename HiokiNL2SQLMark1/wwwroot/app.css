@@ -75,7 +75,7 @@ h1:focus {
     margin-bottom: 0;
 }
 
-/* Update headers to be centered */
+/* Center headers */
 .res-table thead th {
     position: sticky;
     top: 0;
@@ -89,18 +89,15 @@ h1:focus {
     white-space: nowrap;
     padding: 12px 8px;
     
-    /* ADD THIS */
     text-align: center; 
 }
 
-/* Optional: Center the data cells as well */
 .res-table tbody td {
     padding: 8px;
     vertical-align: middle;
     color: #333;
     border-bottom: 1px solid #f0f0f0;
     
-    /* ADD THIS if you want data centered too */
     text-align: center;
 }
 
@@ -132,11 +129,6 @@ h1:focus {
     font-size: 0.9rem;
 }
 
-.btn-primary {
-    background-color: #0056b3;
-    font-weight: 500;
-}
-
 /* Prevents the parent from expanding beyond the window width */
 .page-content-wrapper {
     display: flex;
@@ -157,4 +149,46 @@ h1:focus {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border: 1px solid #dee2e6;
+}
+
+/* Custom Pagination Styling to match Hioki Theme */
+.pagination {
+    gap: 2px; /* Slight separation */
+}
+
+.pagination .page-link {
+    color: #1b6ec2;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    font-size: 0.85rem;
+    padding: 8px 14px;
+    transition: all 0.2s;
+    border-radius: 2px; /* Matching your form-control radius */
+}
+
+.pagination .page-item.active .page-link {
+    z-index: 3;
+    color: #fff;
+    background-color: #1b6ec2; /* Matches your btn-primary */
+    border-color: #1861ac;
+}
+
+.pagination .page-link:hover {
+    background-color: #f8f9fa;
+    color: #0056b3;
+    border-color: #dee2e6;
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #6c757d;
+    pointer-events: none;
+    background-color: #fcfcfc;
+    border-color: #dee2e6;
+    opacity: 0.6;
+}
+
+/* Specific focus state to match your existing focus rule */
+.pagination .page-link:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+    outline: none;
 }

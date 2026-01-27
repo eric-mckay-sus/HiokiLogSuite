@@ -36,6 +36,17 @@
                 <input type="text" class="form-control" @bind="filterPartName" placeholder="e.g. 30AA..." />
             </div>
             <div class="col-12 col-sm-6 col-lg-1">
+                <label class="form-label fw-bold">Mode</label>
+                <select class="form-select" @bind="filterMode">
+                    <option value="">All Modes</option>
+                    <option value="C-CC">C-CC</option>
+                    <option value="C-CV">C-CV</option>
+                    <option value="C-AC1.6K">C-AC1.6K</option>
+                    <option value="C-AC160">C-AC160	</option>
+                    <option value="R-AC160">R-AC160</option>
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-1">
                 <label class="form-label fw-bold">Result</label>
                 <select class="form-select" @bind="filterResult">
                     <option value="">All Results</option>
@@ -78,7 +89,7 @@ else
                         <th>High-pin</th>
                         <th>Low-pin</th>
                         <th>Part position</th>
-                        <th>Mode</th>
+                        <th @onclick='() => ToggleSort("Mode")' style="cursor:pointer">Mode @(GetSortIcon("Mode"))</th>
                         <th>Measurement range</th>
                         <th>High limit</th>
                         <th>Low limit</th>
@@ -127,6 +138,7 @@ else
     private string? filterPartName;
     private int? filterStep;
     private int? filterGroup;
+    private string? filterMode;
 
     // Sorting
     private string currentSortColumn = "";
@@ -197,6 +209,9 @@ else
         if (!string.IsNullOrWhiteSpace(filterPartName))
             query = query.Where(s => s.PartName.Contains(filterPartName));
 
+        if (!string.IsNullOrWhiteSpace(filterMode))
+            query = query.Where(s => s.Mode.Contains(filterMode));
+
         if (filterGroup != null)
             query = query.Where(s => s.Group == filterGroup);
 
@@ -235,6 +250,7 @@ else
         filterEndDate = null;
         filterResult = null;
         filterPartName = null;
+        filterMode = null;
         filterGroup = null;
         filterStep = null;
         await RefreshData();
