@@ -9,7 +9,7 @@
 <h1>Hioki 1220 ICT Power Search</h1>
 
 <div class="command-container mb-4">
-    <div class="input-group">
+    <div class="input-group mb-0">
         <span class="input-group-text bg-dark text-white font-monospace">>_</span>
         <input type="text" class="form-control form-control-lg font-monospace" 
                @bind="commandInput"
@@ -18,33 +18,59 @@
                placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
         <button class="btn btn-primary" @onclick="async () => await ExecutePowerSearch()">Search</button>
     </div>
-    <div class="d-flex gap-2 mb-2">
-    <button class="btn btn-sm @(currentType == "group" ? "btn-primary" : "btn-outline-secondary")" 
-        @onclick='() => SetType("group")'>Groups</button>
-    <button class="btn btn-sm @(currentType == "step" ? "btn-primary" : "btn-outline-secondary")" 
-            @onclick='() => SetType("step")'>Steps</button>
-    <button class="btn btn-sm @(currentType == "fct" ? "btn-primary" : "btn-outline-secondary")" 
-            @onclick='() => SetType("fct")'>FCT</button>
+    <div class="d-flex gap-2 mt-0 mb-2 filter-row">
+        <button class="btn btn-sm @(currentType == "all" ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType("all")'>All</button>
+        <button class="btn btn-sm @(currentType == "group" ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType("group")'>Groups</button>
+        <button class="btn btn-sm @(currentType == "step" ? "btn-primary" : "btn-outline-secondary")" 
+                @onclick='() => SetType("step")'>Steps</button>
+        <button class="btn btn-sm @(currentType == "fct" ? "btn-primary" : "btn-outline-secondary")" 
+                @onclick='() => SetType("fct")'>FCT</button>
     </div>
     <div class="mt-2">
-        <small class="text-muted">
-            Supported keys: 
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            Supported keys for this mode:
             <span class="badge bg-secondary">in:</span> 
             <span class="badge bg-secondary">barcode:</span> 
-            <span class="badge bg-secondary">result:</span> 
-            <span class="badge bg-secondary">group:</span> 
-            <span class="badge bg-secondary">after:</span>
+            <span class="badge bg-secondary">group:</span>
             <span class="badge bg-secondary">before:</span>
+            <span class="badge bg-secondary">after:</span>
+            <span class="badge bg-secondary">result:</span> 
             @if (currentType == "group"){
             <span class="badge bg-secondary">comp:</span>
             <span class="badge bg-secondary">short:</span>
             <span class="badge bg-secondary">macro:</span>
             <span class="badge bg-secondary">ic:</span>
             <span class="badge bg-secondary">function:</span>
-            } else{
-            <span class="badge bg-secondary">step:</span>
-            <span class="badge bg-secondary">mode:</span>
+            } else {
+                @if (currentType != "all") {
+                <span class="badge bg-secondary">step:</span>
+                <span class="badge bg-secondary">mode:</span>
+                }
+                @if (currentType == "step") {
+                    <span class="badge bg-secondary">part:</span>
+                }
             }
+        </small>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            All supported keys:
+            <span class="badge bg-light text-dark">in:</span> 
+            <span class="badge bg-light text-dark">barcode:</span> 
+            <span class="badge bg-light text-dark">group:</span> 
+            <span class="badge bg-light text-dark">before:</span>
+            <span class="badge bg-light text-dark">after:</span>
+            <span class="badge bg-light text-dark">result:</span> 
+            <span class="badge bg-light text-dark">step:</span>
+            <span class="badge bg-light text-dark">mode:</span>
+            <span class="badge bg-light text-dark">part:</span>
+            <span class="badge bg-light text-dark">comp:</span>
+            <span class="badge bg-light text-dark">short:</span>
+            <span class="badge bg-light text-dark">macro:</span>
+            <span class="badge bg-light text-dark">ic:</span>
+            <span class="badge bg-light text-dark">function:</span>
         </small>
     </div>
 </div>
@@ -64,8 +90,8 @@ else if (currentType == "fct" && fctResults != null)
 
 @code{
     string commandInput = ""; // The input received from the search bar
-    string currentType = "group";
-    string[] availableTypes = ["group", "step", "fct"];
+    string currentType = "all";
+    string[] availableTypes = ["all", "group", "step", "fct"];
     Dictionary<string, string>? filters;
     List<GroupResult>? groupResults;
     List<StepResult>? stepResults;
@@ -226,7 +252,6 @@ else if (currentType == "fct" && fctResults != null)
         {
             query = filter.Key.ToLower() switch
             {
-                "step" => int.TryParse(filter.Value, out int s) ? query.Where(x => x.Step == s) : query,
                 "part" => query.Where(x => x.PartName.Contains(filter.Value)),                
                 _ => query
             };

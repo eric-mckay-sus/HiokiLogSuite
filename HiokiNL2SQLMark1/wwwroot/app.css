@@ -196,7 +196,6 @@ h1:focus {
 /* Ensure the main container never exceeds the screen width */
 .page-container {
     max-width: 100%;
-    overflow-x: hidden; /* Prevent the whole page from horizontal scrolling */
     display: flex;
     flex-direction: column;
 }
@@ -210,7 +209,7 @@ h1:focus {
     position: sticky;
     bottom: 0;
     background: white; /* Prevent table rows from showing through */
-    padding: 10px 0;
+    padding-top: 10px 0;
     z-index: 20;
     border-top: 1px solid #dee2e6;
 }
@@ -238,4 +237,23 @@ h1:focus {
 .power-results tr:hover {
     background-color: #fff3cd !important; /* Highlight row on hover for tracking */
     cursor: crosshair;
+}
+
+.badge {
+    position: relative;
+    top: -1.5px;
+}
+
+.badge.bg-light {
+    background-color: #e4e4e4 !important;
+}
+
+.d-flex.gap-2 button.btn-sm {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none; /* Optional: removes the double border look */
+}
+
+.filter-row {
+    margin-left: 2.7rem; 
 }
