@@ -1,10 +1,12 @@
 ﻿@page "/group"
+@using Microsoft.EntityFrameworkCore.Metadata.Conventions
 @rendermode InteractiveServer
-@inject LogDbContext Db
+
+@inherits LogTableBase<GroupResult>
 
 <PageTitle>Group Results</PageTitle>
 
-<h1>Hioki 1220 ICT Group Results</h1>
+<h1>Hioki 1220 ICT Group Test Results</h1>
 
 <div class="query-builder-panel mb-4 p-3 border rounded bg-light  style="max-width: 100%; overflow-x: hidden;">
     <div class="row g-3">
@@ -20,7 +22,11 @@
             <label class="form-label fw-bold">End Date</label>
             <input type="date" class="form-control" @bind="filterEndDate" />
         </div>
-        <div class="col-3">
+        <div class="col-1">
+                <label class="form-label fw-bold">Group</label>
+                <input type="number" class="form-control" step="1" @bind="filterGroup" />
+            </div>
+        <div class="col-2">
             <label class="form-label fw-bold">Overall Result</label>
             <select class="form-select" @bind="filterResult">
                 <option value="">All Results</option>
@@ -36,11 +42,11 @@
     </div>
 </div>
 
-@if (groupView == null)
+@if (DataView == null)
 {
     <p><em>Loading data from SQL...</em></p>
 }
-else if (!groupView.Any())
+else if (!DataView.Any())
 {
     <p>No group records found matching these criteria.</p>
 }
@@ -90,7 +96,7 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (GroupResult item in groupView)
+                        @foreach (GroupResult item in DataView)
                         {
                             <tr>
                                 <td>@item.Barcode</td>
@@ -112,7 +118,7 @@ else
         </div>
     </div>
     @* One for the top, and one for the bottom to ensure visibility*@
-    <div class="pagination mt-3 mb-5 d-flex justify-content-between align-items-center gap-2">
+    <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
         <div class="text-muted" style="font-size: 0.85rem;">
             Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
             <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
@@ -123,13 +129,13 @@ else
             <ul class="pagination mb-0">
                 <li class="page-item @(currentPage == 1 ? "disabled" : "")">
                     <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        <span aria-hidden="true">&laquo;</span> Previous
+                        &laquo; Previous
                     </button>
                 </li>
 
                 <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page <span aria-hidden="true">&raquo;</span>
+                        Next Page &raquo;
                     </button>
                 </li>
             </ul>
@@ -138,25 +144,8 @@ else
 }
 
 @code {
-    private List<GroupResult> groupView;
-
-    // Filters
-    private string? filterBarcode;
-    private DateTime? filterStartDate;
-    private DateTime? filterEndDate;
-    private string? filterResult;
-    // Sorts
-    private string currentSortColumn = "";
-    private SortDirection sortDir = SortDirection.None;
-    public enum SortDirection { None, Asc, Desc }
-    //Pages
-    private int currentPage = 1;
-    private int pageSize = 100;
-    private int totalCount = 0;
-    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
-
     /// <summary>
-    /// When the page is loaded, continuously get query edits
+    /// When the page loads, checks the available result types and modes, then performs the default query
     /// </summary>
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
@@ -165,113 +154,18 @@ else
     }
 
     /// <summary>
-    /// Jumps to the specified new page
+    /// Sets the base query to GroupView so LogTableBase.cs can take over
     /// </summary>
-    /// <param name="newPage">The page number to jump to</param>
-    /// <returns></returns>
-    private async Task ChangePage(int newPage)
-    {
-        if (newPage != currentPage && newPage >= 1 && newPage <= totalPages)
-        {
-            currentPage = newPage;
-            await RefreshData(keepPage: true);
-        }
-    }
+    /// <returns>A fresh IQueryable<GroupResult></returns>
+    protected override IQueryable<GroupResult> GetBaseQuery() => Db.GroupView;
 
     /// <summary>
-    /// Helper to render the arrow
+    /// Group-specific filters go here (none at the moment)
     /// </summary>
-    /// <param name="columnName">The column for which to update the sort icon</param>
-    /// <returns></returns>
-    private string GetSortIcon(string columnName)
+    /// <param name="query">The query to which the filters should be appended</param>
+    /// <returns>An IQueryable<GroupResult> with filters applied</returns>
+    protected override IQueryable<GroupResult> ApplyFilters(IQueryable<GroupResult> query)
     {
-        if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
-        return sortDir == SortDirection.Asc ? "▲" : "▼";
-    }
-
-    /// <summary>
-    /// Cycles through sort directions when column is toggled
-    /// </summary>
-    /// <param name="columnName">The column to be toggled</param>
-    /// <returns></returns>
-    private async Task ToggleSort(string columnName)
-    {
-        if (currentSortColumn != columnName)
-        {
-            currentSortColumn = columnName;
-            sortDir = SortDirection.Asc;
-        }
-        else
-        {
-            // Cycle: Asc -> Desc -> None
-            sortDir = sortDir == SortDirection.Asc ? SortDirection.Desc : 
-                    sortDir == SortDirection.Desc ? SortDirection.None : SortDirection.Asc;
-        }
-        await RefreshData(); // because the parameters change, we wish to reset to page 1
-    }
-
-    /// <summary>
-    /// Refreshes the table based on the query and page number
-    /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
-    /// </summary>
-    /// <param name="keepPage">Whether to keep the current page</param>
-    /// <returns></returns>
-    private async Task RefreshData(bool keepPage=false){
-        if (!keepPage) currentPage = 1; // Reset to page 1 if filters/sort change
-
-        IQueryable<GroupResult> query = Db.GroupView; // set the context
-
-        // Apply filters
-        if (!string.IsNullOrWhiteSpace(filterBarcode))
-            query = query.Where(g => g.Barcode.Contains(filterBarcode));
-
-        if (filterStartDate.HasValue)
-            query = query.Where(g => g.Time >= filterStartDate.Value);
-
-        if (filterEndDate.HasValue)
-            // Add 1 day to include the entire end-date day
-            query = query.Where(g => g.Time < filterEndDate.Value.AddDays(1));
-
-        if (!string.IsNullOrWhiteSpace(filterResult))
-            query = query.Where(g => g.Result == filterResult);
-
-        // Get size of this query to display
-        totalCount = await query.CountAsync();
-
-        // Check for sort direction
-        if (sortDir != SortDirection.None)
-        {
-            query = currentSortColumn switch
-            {
-                "Barcode" => sortDir == SortDirection.Asc ? query.OrderBy(g => g.Barcode) : query.OrderByDescending(g => g.Barcode),
-                "Time" => sortDir == SortDirection.Asc ? query.OrderBy(g => g.Time) : query.OrderByDescending(g => g.Time),
-                "Group" => sortDir == SortDirection.Asc ? query.OrderBy(g => g.Group) : query.OrderByDescending(g => g.Group),
-                _ => query // Default case
-            };
-        }
-        else
-        {
-            // Default sort if no column is selected
-            query = query.OrderByDescending(g => g.Time);
-        }
-
-        groupView = await query
-            .Skip((currentPage-1) * pageSize) // calculate the number of entries to skip
-            .Take(pageSize)
-            .ToListAsync();
-    }
-
-
-    /// <summary>
-    /// Clears all filters used in a query
-    /// </summary>
-    /// <returns></returns>
-    private async Task ClearFilters()
-    {
-        filterBarcode = null;
-        filterStartDate = null;
-        filterEndDate = null;
-        filterResult = null;
-        await RefreshData();
+        return base.ApplyFilters(query);
     }
 }

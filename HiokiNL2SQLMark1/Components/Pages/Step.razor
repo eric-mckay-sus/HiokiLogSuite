@@ -150,6 +150,7 @@ else
             </div>
         </div>
     </div>
+    @* One for the top, and one for the bottom to ensure visibility*@
     <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
         <div class="text-muted" style="font-size: 0.85rem;">
             Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
@@ -200,7 +201,7 @@ else
     private int currentPage = 1;
     private int pageSize = 100;
     private int totalCount = 0;
-    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
+    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize); // dynamically computes page count whenever totalCount or pageSize update
 
     /// <summary>
     /// When the page loads, check the available result types and modes, then perform the default query
@@ -214,7 +215,6 @@ else
             .Distinct()
             .OrderBy(m => m)
             .ToListAsync();
-
         resultCache = await Db.StepView
             .Select(s => s.Result)
             .Where(r => r != null)
