@@ -89,20 +89,16 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
         {
             var query = GetBaseQuery();
             
-            var modeTask = query
+            modeCache = await query
                 .Select("Mode")
                 .Distinct()
-                .OrderBy("Mode")
+                .OrderBy("it")
                 .ToDynamicListAsync<string>();
-            var resultTask = query
+            resultCache = await query
                 .Select("Result")
                 .Distinct()
-                .OrderBy("Result")
+                .OrderBy("it")
                 .ToDynamicListAsync<string>();;
-            
-            await Task.WhenAll(modeTask, resultTask); // Parallelize because server time is the rate limiting step
-            modeCache = modeTask.Result;
-            resultCache = resultTask.Result;
         }
     }
 

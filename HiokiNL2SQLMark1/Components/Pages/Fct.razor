@@ -68,125 +68,16 @@ else if (!DataView.Any())
 }
 else
 {
-    <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
-        <div class="text-muted" style="font-size: 0.85rem;">
-            Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
-            <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
-            <strong>@totalCount</strong> results
-        </div>
-
-        <nav aria-label="Page navigation">
-            <ul class="pagination mb-0">
-                <li class="page-item @(currentPage == 1 ? ".disabled" : "")">
-                    <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        &laquo; Previous
-                    </button>
-                </li>
-
-                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
-                    <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page &raquo;
-                    </button>
-                </li>
-            </ul>
-        </nav>
-    </div>
-    <div class="table-responsive-wrapper">
-        <div class="table-container">
-            <div class="res-table-wrapper">
-                <table class="table res-table table-striped text-nowrap">
-                    <thead>
-                        <tr>
-                            <th @onclick='() => ToggleSort("Barcode")' style="cursor:pointer">Barcode @(GetSortIcon("Barcode"))</th>
-                            <th @onclick='() => ToggleSort("Time")' style="cursor:pointer">Time @(GetSortIcon("Time"))</th>
-                            <th @onclick='() => ToggleSort("Group")' style="cursor:pointer">Group @(GetSortIcon("Group"))</th>
-                            <th @onclick='() => ToggleSort("Step")' style="cursor:pointer">Step @(GetSortIcon("Step"))</th>
-                            <th @onclick='() => ToggleSort("Result")' style="cursor:pointer">Result @(GetSortIcon("Result"))</th>
-                            <th>Meas Group</th>
-                            <th>Comment</th>
-                            <th>Position</th>
-                            <th @onclick='() => ToggleSort("Mode")' style="cursor:pointer">Mode @(GetSortIcon("Mode"))</th>
-                            <th>High-pin</th>
-                            <th>Low-pin</th>
-                            <th>Ref Val</th>
-                            <th>Meas Val</th>
-                            <th>High Lim</th>
-                            <th>Low Lim</th>
-                            <th>ID 1</th>
-                            <th>ID 2</th>
-                            <th>ID 3</th>
-                            <th>ID 4</th>
-                            <th>Input Volt</th>
-                            <th>Comm Stand</th>
-                            <th>Exec Mode</th>
-                            <th>Dev Addr</th>
-                            <th>Tar Addr</th>
-                            <th>Ref Data</th>
-                            <th>Rec Data</th>
-                            <th>IF Response</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (FctResult item in DataView)
-                        {
-                            <tr>
-                                <td>@item.Barcode</td>
-                                <td>@item.Time</td>
-                                <td>@item.Group</td>
-                                <td>@item.Step</td>
-                                <td class="fw-bold">@item.Result</td>
-                                <td>@item.MeasGroup</td>
-                                <td>@item.Comment</td>
-                                <td>@item.Position</td>
-                                <td>@item.Mode</td>
-                                <td>@item.HighPin</td>
-                                <td>@item.LowPin</td>
-                                <td class="text-numeric">@item.RefVal</td>
-                                <td class="text-numeric">@item.MeasVal</td>
-                                <td class="text-numeric">@item.HighLim</td>
-                                <td class="text-numeric">@item.LowLim</td>
-                                <td>@item.ID1</td>
-                                <td>@item.ID2</td>
-                                <td>@item.ID3</td>
-                                <td>@item.ID4</td>
-                                <td>@item.InputVolt</td>
-                                <td>@item.CommStand</td>
-                                <td>@item.ExecMode</td>
-                                <td>@item.DevAddress</td>
-                                <td>@item.TarAddress</td>
-                                <td>@item.RefData</td>
-                                <td>@item.ReceiveData</td>
-                                <td>@item.IFResponse</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
-        <div class="text-muted" style="font-size: 0.85rem;">
-            Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
-            <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
-            <strong>@totalCount</strong> results
-        </div>
-
-        <nav aria-label="Page navigation">
-            <ul class="pagination mb-0">
-                <li class="page-item @(currentPage == 1 ? ".disabled" : "")">
-                    <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        &laquo; Previous
-                    </button>
-                </li>
-
-                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
-                    <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page &raquo;
-                    </button>
-                </li>
-            </ul>
-        </nav>
-    </div>
+    <MasterTable TItem="FctResult" 
+              Items="DataView"
+              CurrentPage="currentPage"
+              TotalPages="TotalPages"
+              TotalCount="totalCount"
+              PageSize="pageSize"
+              OnPageChange="ChangePage"
+              CurrentSortColumn="@currentSortColumn"
+              OnSort="ToggleSort"
+              GetSortIcon="GetSortIcon" />
 }
 
 @code {

@@ -52,95 +52,16 @@ else if (!DataView.Any())
 }
 else
 {
-    @* One for the top, and one for the bottom to ensure visibility*@
-    <div class="pagination mt-3 mb-5 d-flex justify-content-between align-items-center gap-2">
-        <div class="text-muted" style="font-size: 0.85rem;">
-            Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
-            <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
-            <strong>@totalCount</strong> results
-        </div>
-
-        <nav aria-label="Page navigation">
-            <ul class="pagination mb-0">
-                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                    <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        <span aria-hidden="true">&laquo;</span> Previous
-                    </button>
-                </li>
-
-                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
-                    <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page <span aria-hidden="true">&raquo;</span>
-                    </button>
-                </li>
-            </ul>
-        </nav>
-    </div>
-    <div class="table-responsive-wrapper">
-        <div class="table-container">
-            <div class="res-table-wrapper">
-                <table class="table res-table table-striped text-nowrap">
-                    <thead>
-                        <tr>
-                            <th @onclick='() => ToggleSort("Barcode")' style="cursor:pointer">Barcode @(GetSortIcon("Barcode"))</th>
-                            <th @onclick='() => ToggleSort("Time")' style="cursor:pointer">Time @(GetSortIcon("Time"))</th>
-                            <th @onclick='() => ToggleSort("Group")' style="cursor:pointer">Group @(GetSortIcon("Group"))</th>
-                            <th># of times tested</th>
-                            <th>Overall Result</th>
-                            <th>Component Test</th>
-                            <th>Short Test</th>
-                            <th>Open Test</th>
-                            <th>IC Test</th>
-                            <th>Macro Test</th>
-                            <th>Function Test</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (GroupResult item in DataView)
-                        {
-                            <tr>
-                                <td>@item.Barcode</td>
-                                <td>@item.Time</td>
-                                <td>@item.Group</td>
-                                <td>@item.TimesTested</td>
-                                <td class="fw-bold">@item.Result</td>
-                                <td>@item.ComponentTest</td>
-                                <td>@item.ShortTest</td>
-                                <td>@item.OpenTest</td>
-                                <td>@item.IcTest</td>
-                                <td>@item.MacroTest</td>
-                                <td>@item.FunctionTest</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    @* One for the top, and one for the bottom to ensure visibility*@
-    <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
-        <div class="text-muted" style="font-size: 0.85rem;">
-            Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
-            <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
-            <strong>@totalCount</strong> results
-        </div>
-
-        <nav aria-label="Page navigation">
-            <ul class="pagination mb-0">
-                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                    <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        &laquo; Previous
-                    </button>
-                </li>
-
-                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
-                    <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page &raquo;
-                    </button>
-                </li>
-            </ul>
-        </nav>
-    </div>
+    <MasterTable TItem="GroupResult" 
+              Items="DataView"
+              CurrentPage="currentPage"
+              TotalPages="TotalPages"
+              TotalCount="totalCount"
+              PageSize="pageSize"
+              OnPageChange="ChangePage"
+              CurrentSortColumn="@currentSortColumn"
+              OnSort="ToggleSort"
+              GetSortIcon="GetSortIcon" />
 }
 
 @code {

@@ -74,106 +74,16 @@ else if (!DataView.Any())
 }
 else
 {
-    <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
-        <div class="text-muted" style="font-size: 0.85rem;">
-            Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
-            <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
-            <strong>@totalCount</strong> results
-        </div>
-
-        <nav aria-label="Page navigation">
-            <ul class="pagination mb-0">
-                <li class="page-item @(currentPage == 1 ? ".disabled" : "")">
-                    <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        &laquo; Previous
-                    </button>
-                </li>
-
-                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
-                    <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page &raquo;
-                    </button>
-                </li>
-            </ul>
-        </nav>
-    </div>
-    <div class="table-responsive-wrapper">
-        <div class="table-container">
-            <div class="res-table-wrapper">
-                <table class="table res-table table-striped text-nowrap">
-                    <thead>
-                        <tr>
-                            <th @onclick='() => ToggleSort("Barcode")' style="cursor:pointer">Barcode @(GetSortIcon("Barcode"))</th>
-                            <th @onclick='() => ToggleSort("Time")' style="cursor:pointer">Time @(GetSortIcon("Time"))</th>
-                            <th @onclick='() => ToggleSort("Group")' style="cursor:pointer">Group @(GetSortIcon("Group"))</th>
-                            <th @onclick='() => ToggleSort("Step")' style="cursor:pointer">Step @(GetSortIcon("Step"))</th>
-                            <th># of times tested</th>
-                            <th>Result</th>
-                            <th>Part Name</th>
-                            <th>High-pin</th>
-                            <th>Low-pin</th>
-                            <th>Part pos</th>
-                            <th @onclick='() => ToggleSort("Mode")' style="cursor:pointer">Mode @(GetSortIcon("Mode"))</th>
-                            <th>Meas range</th>
-                            <th>High limit</th>
-                            <th>Low limit</th>
-                            <th>Actual (mounted) value</th>
-                            <th>Reference value</th>
-                            <th>Measured value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (StepResult item in DataView)
-                        {
-                            <tr>
-                                <td>@item.Barcode</td>
-                                <td>@item.Time</td>
-                                <td>@item.Group</td>
-                                <td>@item.Step</td>
-                                <td>@item.TimesTested</td>
-                                <td class="fw-bold">@item.Result</td>
-                                <td>@item.PartName</td>
-                                <td>@item.HighPin</td>
-                                <td>@item.LowPin</td>
-                                <td>@item.Position</td>
-                                <td>@item.Mode</td>
-                                <td>@item.MeasRange</td>
-                                <td class="text-numeric">@item.HighLim</td>
-                                <td class="text-numeric">@item.LowLim</td>
-                                <td class="text-numeric">@item.ActualVal</td>
-                                <td class="text-numeric">@item.RefVal</td>
-                                <td class="text-numeric">@item.MeasVal</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    @* One for the top, and one for the bottom to ensure visibility*@
-    <div class="pagination-container d-flex justify-content-between align-items-center mb-3">
-        <div class="text-muted" style="font-size: 0.85rem;">
-            Showing <strong>@((currentPage - 1) * pageSize + 1)</strong> to 
-            <strong>@(Math.Min(currentPage * pageSize, totalCount))</strong> of 
-            <strong>@totalCount</strong> results
-        </div>
-
-        <nav aria-label="Page navigation">
-            <ul class="pagination mb-0">
-                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                    <button class="btn btn-outline-secondary" @onclick="() => ChangePage(currentPage - 1)">
-                        &laquo; Previous
-                    </button>
-                </li>
-
-                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
-                    <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
-                        Next Page &raquo;
-                    </button>
-                </li>
-            </ul>
-        </nav>
-    </div>
+    <MasterTable TItem="StepResult" 
+              Items="DataView"
+              CurrentPage="currentPage"
+              TotalPages="TotalPages"
+              TotalCount="totalCount"
+              PageSize="pageSize"
+              OnPageChange="ChangePage"
+              CurrentSortColumn="@currentSortColumn"
+              OnSort="ToggleSort"
+              GetSortIcon="GetSortIcon" />
 }
 </div>
 

@@ -10,19 +10,19 @@
                 <table class="table res-table table-striped text-nowrap">
                     <thead class="table-dark">
                         <tr>
-                            @foreach (var prop in typeof(TItem).GetProperties())
+                            @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
                             {
-                                var attribute = prop.GetCustomAttribute<ColumnAttribute>();
-                                var displayName = attribute?.Name ?? prop.Name;
+                                ColumnAttribute? attribute = prop.GetCustomAttribute<ColumnAttribute>();
+                                string? displayName = attribute?.Name ?? prop.Name;
                                 <th>@displayName</th>
                             }
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var item in Items)
+                        @foreach (TItem item in Items)
                         {
                             <tr>
-                                @foreach (var prop in typeof(TItem).GetProperties())
+                                @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
                                 {
                                     <td>@prop.GetValue(item)</td>
                                 }

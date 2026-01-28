@@ -1,0 +1,71 @@
+@typeparam TItem
+@using System.Reflection
+@using System.ComponentModel.DataAnnotations.Schema
+
+@* PAGINATION TOP *@
+<div class="pagination d-flex justify-content-between align-items-center mb-3">
+    <div class="text-muted">Showing @StartRecord to @EndRecord of @TotalCount</div>
+    <nav>
+        <ul class="pagination">
+            <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                <button class="btn btn-outline-secondary" @onclick="() => OnPageChange.InvokeAsync(CurrentPage - 1)">&laquo; Previous</button>
+            </li>
+            <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                <button class="btn btn-primary" @onclick="() => OnPageChange.InvokeAsync(CurrentPage + 1)">Next &raquo;</button>
+            </li>
+        </ul>
+    </nav>
+</div>
+
+<div class="table-responsive-wrapper">
+    <table class="table res-table table-striped text-nowrap">
+        <thead class="table-dark">
+            <tr>
+                @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
+                {
+                    ColumnAttribute? attribute = prop.GetCustomAttribute<ColumnAttribute>();
+                    string? displayName = attribute?.Name ?? prop.Name;
+                    
+                    <th @onclick="() => OnSort.InvokeAsync(prop.Name)" style="cursor:pointer">
+                        @displayName @SortIcon(prop.Name)
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (TItem item in Items ?? Array.Empty<TItem>())
+            {
+                <tr>
+                    @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
+                    {
+                        <td>@prop.GetValue(item)</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter] public IEnumerable<TItem>? Items { get; set; }
+    
+    // Pagination Params
+    [Parameter] public int CurrentPage { get; set; }
+    [Parameter] public int TotalPages { get; set; }
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public int PageSize { get; set; }
+    [Parameter] public EventCallback<int> OnPageChange { get; set; }
+
+    // Sorting Params
+    [Parameter] public string CurrentSortColumn { get; set; } = "";
+    [Parameter] public string SortIconString { get; set; } = "↕"; // Logic passed from parent
+    [Parameter] public EventCallback<string> OnSort { get; set; }
+    
+    // Helpers for display
+    private int StartRecord => (CurrentPage - 1) * PageSize + 1;
+    private int EndRecord => Math.Min(CurrentPage * PageSize, TotalCount);
+
+    // We can pass the parent's GetSortIcon result into the component
+    [Parameter] public Func<string, string> GetSortIcon { get; set; } = (col) => "";
+    private string SortIcon(string col) => GetSortIcon?.Invoke(col) ?? "";
+}
