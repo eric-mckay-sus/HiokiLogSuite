@@ -21,13 +21,17 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     protected int currentPage = 1;
     protected int pageSize = 100;
     protected int totalCount;
-    protected int totalPages => (int)Math.Ceiling((double)totalCount / pageSize); // dynamically computes page count whenever totalCount or pageSize update
+    protected int TotalPages => (int)Math.Ceiling((double)totalCount / pageSize); // dynamically computes page count whenever totalCount or pageSize update
 
     // For sorting
     protected string currentSortColumn = "";
     protected enum SortDirection { None, Asc, Desc }
     protected SortDirection sortDir = SortDirection.None;
+    
+    // Data storage
     protected List<T> DataView = [];
+    protected List<string> modeCache = [];
+    protected List<string> resultCache = [];
 
     /// <summary>
     /// Jumps to the specified new page
@@ -36,7 +40,7 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// <returns></returns>
     protected async Task ChangePage(int newPage)
     {
-        if (newPage != currentPage && newPage >= 1 && newPage <= totalPages)
+        if (newPage != currentPage && newPage >= 1 && newPage <= TotalPages)
         {
             currentPage = newPage;
             await RefreshData(keepPage: true);
@@ -72,6 +76,34 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
             currentSortColumn = "";
         }
         await RefreshData(); // because the parameters change, we wish to reset to page 1
+    }
+
+    /// <summary>
+    /// Initializes the test mode and result type caches for step & FCT tables
+    /// </summary>
+    /// <param name="isStep">Whether to load caches for step table (versus FCT table)</param>
+    /// <returns></returns>
+    protected async Task InitializeCaches()
+    {
+        if (typeof(IStepFCT).IsAssignableFrom(typeof(T))) // verifies that there is a mode and result column in the target table
+        {
+            var query = GetBaseQuery();
+            
+            var modeTask = query
+                .Select("Mode")
+                .Distinct()
+                .OrderBy("Mode")
+                .ToDynamicListAsync<string>();
+            var resultTask = query
+                .Select("Result")
+                .Distinct()
+                .OrderBy("Result")
+                .ToDynamicListAsync<string>();;
+            
+            await Task.WhenAll(modeTask, resultTask); // Parallelize because server time is the rate limiting step
+            modeCache = modeTask.Result;
+            resultCache = resultTask.Result;
+        }
     }
 
     /// <summary>
@@ -142,12 +174,6 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Gets the context to determine what table and attributes to check against
-    /// </summary>
-    /// <returns>A queryable object that implements IHiokiLog</returns>
-    protected abstract IQueryable<T> GetBaseQuery();
-
-    /// <summary>
     /// 
     /// </summary>
     /// <returns></returns>
@@ -160,4 +186,10 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
         filterResult = null;
         await RefreshData();
     }
+
+    /// <summary>
+    /// Gets the context to determine what table and attributes to check against
+    /// </summary>
+    /// <returns>A queryable object that implements IHiokiLog</returns>
+    protected abstract IQueryable<T> GetBaseQuery();
 }

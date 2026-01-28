@@ -1,7 +1,6 @@
 ﻿@page "/fct"
-@using System.Diagnostics.Eventing.Reader
 @rendermode InteractiveServer
-@inject LogDbContext Db
+@inherits LogTableBase<FctResult>
 
 <PageTitle>FCT Results</PageTitle>
 
@@ -59,11 +58,11 @@
     </div>
 </div>
 
-@if (fctView == null)
+@if (DataView == null)
 {
     <p><em>Loading functional test data...</em></p>
 }
-else if (!fctView.Any())
+else if (!DataView.Any())
 {
     <p>No FCT records found matching these criteria.</p>
 }
@@ -84,7 +83,7 @@ else
                     </button>
                 </li>
 
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
                         Next Page &raquo;
                     </button>
@@ -128,7 +127,7 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var item in fctView)
+                        @foreach (FctResult item in DataView)
                         {
                             <tr>
                                 <td>@item.Barcode</td>
@@ -180,7 +179,7 @@ else
                     </button>
                 </li>
 
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
                         Next Page &raquo;
                     </button>
@@ -191,29 +190,9 @@ else
 }
 
 @code {
-    private List<FctResult>? fctView;
-    private List<string?> modeCache = new();
-    private List<string?> resultCache = new();
-
-    // Filters
-    private string? filterBarcode;
-    private DateTime? filterStartDate;
-    private DateTime? filterEndDate;
-    private string? filterResult;
-    private int? filterGroup;
+    // FCT specific filters
     private int? filterStep;
     private string? filterMode;
-
-    // Sorting
-    private string currentSortColumn = "";
-    private SortDirection sortDir = SortDirection.None;
-    public enum SortDirection { None, Asc, Desc }
-
-    //Pages
-    private int currentPage = 1;
-    private int pageSize = 100;
-    private int totalCount = 0;
-    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
 
     /// <summary>
     /// When the page loads, check the available result types and modes, then perform the default query
@@ -221,142 +200,43 @@ else
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        modeCache = await Db.StepView
-            .Select(s => s.Mode)
-            .Where(m => m != null)
-            .Distinct()
-            .OrderBy(m => m)
-            .ToListAsync();
-
-        resultCache = await Db.StepView
-            .Select(s => s.Result)
-            .Where(r => r != null)
-            .Distinct()
-            .OrderBy(r => r)
-            .ToListAsync();
+        await InitializeCaches();
         await RefreshData();
     }
 
     /// <summary>
-    /// Gets the proper arrow for a column based on its sort direction
+    /// Sets the base query to FctView so LogTableBase.cs can take over
     /// </summary>
-    /// <param name="columnName">The column for which to get the sort icon</param>
-    /// <returns></returns>
-    private string GetSortIcon(string columnName)
-    {
-        if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
-        return sortDir == SortDirection.Asc ? "▲" : "▼";
-    }
+    /// <returns>A fresh IQueryable<FctResult></returns>
+    protected override IQueryable<FctResult> GetBaseQuery() => Db.FctView;
 
     /// <summary>
-    /// Toggles through sort options for a column
+    /// Applies FCT table specific filters (i.e. step number and test mode)
     /// </summary>
-    /// <param name="columnName">The column to toggle</param>
-    /// <returns></returns>
-    private async Task ToggleSort(string columnName)
+    /// <param name="query">The query to which the filters should be appended</param>
+    /// <returns>An IQueryable<FctResult> with filters applied</returns>
+    protected override IQueryable<FctResult> ApplyFilters(IQueryable<FctResult> query)
     {
-        if (currentSortColumn != columnName)
-        {
-            currentSortColumn = columnName;
-            sortDir = SortDirection.Asc;
-        }
-        else
-        {
-            sortDir = sortDir == SortDirection.Asc ? SortDirection.Desc : 
-                      sortDir == SortDirection.Desc ? SortDirection.None : SortDirection.Asc;
-        }
-        await RefreshData();
-    }
+        query = base.ApplyFilters(query);
 
-/// <summary>
-    /// Jumps to the specified new page
-    /// </summary>
-    /// <param name="newPage">The page number to jump to</param>
-    /// <returns></returns>
-    private async Task ChangePage(int newPage)
-    {
-        if (newPage != currentPage && newPage >= 1 && newPage <= totalPages)
-        {
-            currentPage = newPage;
-            await RefreshData(keepPage: true);
-        }
-    }
-
-    /// <summary>
-    /// Refreshes the table based on the query and page number
-    /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
-    /// </summary>
-    /// <param name="keepPage">Whether to keep the current page</param>
-    /// <returns></returns>
-    private async Task RefreshData(bool keepPage=false)
-    {
-        if (!keepPage) currentPage = 1; // Reset to page 1 if filters/sort change
-
-        IQueryable<FctResult> query = Db.FctView;
-
-        // Apply filters
-        if (!string.IsNullOrWhiteSpace(filterBarcode))
-            query = query.Where(f => f.Barcode.Contains(filterBarcode));
-
-        if (filterStartDate.HasValue)
-            query = query.Where(f => f.Time >= filterStartDate.Value);
-
-        if (filterEndDate.HasValue)
-            query = query.Where(f => f.Time < filterEndDate.Value.AddDays(1));
-
-        if (!string.IsNullOrWhiteSpace(filterResult))
-            query = query.Where(f => f.Result == filterResult);
-            
-        if (!string.IsNullOrWhiteSpace(filterMode))
-            query = query.Where(f => f.Mode == filterMode);
-
-        if (filterGroup.HasValue)
-            query = query.Where(f => f.Group == filterGroup.Value);
-
-        if (filterStep.HasValue)
+        // Apply FCT table specific filters
+        if (filterStep.HasValue){
             query = query.Where(f => f.Step == filterStep.Value);
-
-        // Get size of this query to display
-        totalCount = await query.CountAsync();
-
-        // Apply sorting
-        if (sortDir != SortDirection.None)
-        {
-            query = currentSortColumn switch
-            {
-                "Barcode" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Barcode) : query.OrderByDescending(f => f.Barcode),
-                "Time" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Time) : query.OrderByDescending(f => f.Time),
-                "Group" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Group) : query.OrderByDescending(f => f.Group),
-                "Step" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Step) : query.OrderByDescending(f => f.Step),
-                "Result" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Result) : query.OrderByDescending(f => f.Result),
-                "Mode" => sortDir == SortDirection.Asc ? query.OrderBy(f => f.Mode) : query.OrderByDescending(f => f.Mode),
-                _ => query
-            };
+        }            
+        if (!string.IsNullOrWhiteSpace(filterMode)){
+            query = query.Where(f => f.Mode == filterMode);
         }
-        else
-        {
-            // Default Sort for FCT: Latest time, then step order
-            query = query.OrderByDescending(f => f.Time).ThenBy(f => f.Group).ThenBy(f => f.Step);
-        }
-
-        fctView = await query
-            .Skip((currentPage-1) * pageSize) // calculate the number of entries to skip
-            .Take(pageSize)
-            .ToListAsync();
+        return query;
     }
 
     /// <summary>
     /// Sets filters to their default values
     /// </summary>
     /// <returns></returns>
-    private async Task ClearFilters()
+    protected override async Task ClearFilters()
     {
-        filterBarcode = null;
-        filterStartDate = null;
-        filterEndDate = null;
+        await base.ClearFilters();
         filterMode = null;
-        filterResult = null;
-        filterGroup = null;
         filterStep = null;
         await RefreshData();
     }

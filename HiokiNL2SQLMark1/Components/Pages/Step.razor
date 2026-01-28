@@ -1,6 +1,6 @@
 ﻿@page "/step"
 @rendermode InteractiveServer
-@inject LogDbContext Db
+@inherits LogTableBase<StepResult>
 
 <PageTitle>Step Results</PageTitle>
 
@@ -64,11 +64,11 @@
     </div>
 </div>
 
-@if (stepView == null)
+@if (DataView == null)
 {
     <p><em>Loading data from SQL...</em></p>
 }
-else if (!stepView.Any())
+else if (!DataView.Any())
 {
     <p>No step records found matching these criteria.</p>
 }
@@ -89,7 +89,7 @@ else
                     </button>
                 </li>
 
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
                         Next Page &raquo;
                     </button>
@@ -123,7 +123,7 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (StepResult item in stepView)
+                        @foreach (StepResult item in DataView)
                         {
                             <tr>
                                 <td>@item.Barcode</td>
@@ -166,7 +166,7 @@ else
                     </button>
                 </li>
 
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
                         Next Page &raquo;
                     </button>
@@ -178,30 +178,10 @@ else
 </div>
 
 @code {
-    private List<StepResult>? stepView;
-    private List<string?> modeCache = new();
-    private List<string?> resultCache = new();
-
-    // Filters
-    private string? filterBarcode;
-    private DateTime? filterStartDate;
-    private DateTime? filterEndDate;
-    private string? filterResult;
+    // Step-table specific filters
     private string? filterPartName;
     private int? filterStep;
-    private int? filterGroup;
     private string? filterMode;
-
-    // Sorting
-    private string currentSortColumn = "";
-    private SortDirection sortDir = SortDirection.None;
-    public enum SortDirection { None, Asc, Desc }
-
-    //Pages
-    private int currentPage = 1;
-    private int pageSize = 100;
-    private int totalCount = 0;
-    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize); // dynamically computes page count whenever totalCount or pageSize update
 
     /// <summary>
     /// When the page loads, check the available result types and modes, then perform the default query
@@ -209,144 +189,45 @@ else
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        modeCache = await Db.StepView
-            .Select(s => s.Mode)
-            .Where(m => m != null)
-            .Distinct()
-            .OrderBy(m => m)
-            .ToListAsync();
-        resultCache = await Db.StepView
-            .Select(s => s.Result)
-            .Where(r => r != null)
-            .Distinct()
-            .OrderBy(r => r)
-            .ToListAsync();
-
+        await InitializeCaches();
         await RefreshData();
     }
 
     /// <summary>
-    /// Gets the proper arrow for a column based on its sort direction
+    /// Sets the base query to StepView so LogTableBase.cs can take over
     /// </summary>
-    /// <param name="columnName">The column for which to get the sort icon</param>
-    /// <returns></returns>
-    private string GetSortIcon(string columnName)
-    {
-        if (currentSortColumn != columnName || sortDir == SortDirection.None) return "↕";
-        return sortDir == SortDirection.Asc ? "▲" : "▼";
-    }
-
+    /// <returns>A fresh IQueryable<StepResult></returns>
+    protected override IQueryable<StepResult> GetBaseQuery() => Db.StepView;
+    
     /// <summary>
-    /// Toggles through sort options for a column
+    /// Applies step table specific filters (i.e. step number, part name, and test mode)
     /// </summary>
-    /// <param name="columnName">The column to toggle</param>
-    /// <returns></returns>
-    private async Task ToggleSort(string columnName)
+    /// <param name="query">The query to which the filters should be appended</param>
+    /// <returns>An IQueryable<StepResult> with filters applied</returns>
+    protected override IQueryable<StepResult> ApplyFilters(IQueryable<StepResult> query)
     {
-        if (currentSortColumn != columnName)
-        {
-            currentSortColumn = columnName;
-            sortDir = SortDirection.Asc;
-        }
-        else
-        {
-            sortDir = sortDir == SortDirection.Asc ? SortDirection.Desc : 
-                      sortDir == SortDirection.Desc ? SortDirection.None : SortDirection.Asc;
-        }
-        await RefreshData();
-    }
-
-    /// <summary>
-    /// Jumps to the specified new page
-    /// </summary>
-    /// <param name="newPage">The page number to jump to</param>
-    /// <returns></returns>
-    private async Task ChangePage(int newPage)
-    {
-        if (newPage != currentPage && newPage >= 1 && newPage <= totalPages)
-        {
-            currentPage = newPage;
-            await RefreshData(keepPage: true);
-        }
-    }
-
-    /// <summary>
-    /// Refreshes the table based on the query and page number
-    /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
-    /// </summary>
-    /// <param name="keepPage">Whether to keep the current page</param>
-    /// <returns></returns>
-    private async Task RefreshData(bool keepPage=false)
-    {
-        if (!keepPage) currentPage = 1; // Reset to page 1 if filters/sort change
-
-        IQueryable<StepResult> query = Db.StepView;
-
-        // Apply filters
-        if (!string.IsNullOrWhiteSpace(filterBarcode))
-            query = query.Where(s => s.Barcode.Contains(filterBarcode));
-
-        if (filterStartDate.HasValue)
-            query = query.Where(s => s.Time >= filterStartDate.Value);
-
-        if (filterEndDate.HasValue)
-            query = query.Where(s => s.Time < filterEndDate.Value.AddDays(1));
-
-        if (!string.IsNullOrWhiteSpace(filterResult))
-            query = query.Where(s => s.Result == filterResult);
-
-        if (!string.IsNullOrWhiteSpace(filterPartName))
-            query = query.Where(s => s.PartName.Contains(filterPartName));
-
-        if (!string.IsNullOrWhiteSpace(filterMode))
-            query = query.Where(s => s.Mode.Contains(filterMode));
-
-        if (filterGroup != null)
-            query = query.Where(s => s.Group == filterGroup);
-
-        if (filterStep != null)
+        query = base.ApplyFilters(query);
+        if (filterStep != null){
             query = query.Where(s => s.Step == filterStep);
-
-        // Get size of this query to display
-        totalCount = await query.CountAsync();
-
-        // Apply sorting
-        if (sortDir != SortDirection.None)
-        {
-            query = currentSortColumn switch
-            {
-                "Barcode" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Barcode) : query.OrderByDescending(s => s.Barcode),
-                "Time" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Time) : query.OrderByDescending(s => s.Time),
-                "Group" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Group) : query.OrderByDescending(s => s.Group),
-                "Step" => sortDir == SortDirection.Asc ? query.OrderBy(s => s.Step) : query.OrderByDescending(s => s.Step),
-                _ => query
-            };
         }
-        else
-        {
-            // Default Sort: Group then Step
-            query = query.OrderBy(s => s.Group).ThenBy(s => s.Step);
+        if (!string.IsNullOrWhiteSpace(filterPartName)){
+            query = query.Where(s => s.PartName.Contains(filterPartName));
         }
-
-        stepView = await query
-            .Skip((currentPage-1) * pageSize) // calculate the number of entries to skip
-            .Take(pageSize)
-            .ToListAsync();
+        if (!string.IsNullOrWhiteSpace(filterMode)){
+            query = query.Where(s => s.Mode.Contains(filterMode));
+        }
+        return query;
     }
 
     /// <summary>
     /// Sets filters to their default values
     /// </summary>
     /// <returns></returns>
-    private async Task ClearFilters()
+    protected override async Task ClearFilters()
     {
-        filterBarcode = null;
-        filterStartDate = null;
-        filterEndDate = null;
-        filterResult = null;
+        await base.ClearFilters();
         filterPartName = null;
         filterMode = null;
-        filterGroup = null;
         filterStep = null;
         await RefreshData();
     }

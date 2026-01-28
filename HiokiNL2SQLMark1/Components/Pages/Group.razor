@@ -68,7 +68,7 @@ else
                     </button>
                 </li>
 
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
                         Next Page <span aria-hidden="true">&raquo;</span>
                     </button>
@@ -133,7 +133,7 @@ else
                     </button>
                 </li>
 
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
                     <button class="btn btn-primary" @onclick="() => ChangePage(currentPage + 1)">
                         Next Page &raquo;
                     </button>
@@ -158,14 +158,4 @@ else
     /// </summary>
     /// <returns>A fresh IQueryable<GroupResult></returns>
     protected override IQueryable<GroupResult> GetBaseQuery() => Db.GroupView;
-
-    /// <summary>
-    /// Group-specific filters go here (none at the moment)
-    /// </summary>
-    /// <param name="query">The query to which the filters should be appended</param>
-    /// <returns>An IQueryable<GroupResult> with filters applied</returns>
-    protected override IQueryable<GroupResult> ApplyFilters(IQueryable<GroupResult> query)
-    {
-        return base.ApplyFilters(query);
-    }
 }
