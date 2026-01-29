@@ -30,15 +30,15 @@
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" step="1" @bind="FilterStep" />
+                <input type="number" class="form-control" step="1" @bind="Logic.FilterStep" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Part Name</label>
-                <input type="text" class="form-control" @bind="FilterPartName" placeholder="e.g. 30AA..." />
+                <input type="text" class="form-control" @bind="Logic.FilterPartName" placeholder="e.g. 30AA..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="FilterMode">
+                <select class="form-select" @bind="Logic.FilterMode">
                     <option value="">All Modes</option>
                     @foreach (string? m in Logic.modeCache)
                     {
@@ -88,57 +88,13 @@ else
 </div>
 
 @code {
-    // Step-table specific filters
-    private string? FilterPartName;
-    private int? FilterStep;
-    private string? FilterMode;
+    new StepTableLogic Logic => (StepTableLogic)base.Logic;
 
-    /// <summary>
-    /// When the page loads, check the available result types and modes, then perform the default query
-    /// </summary>
-    /// <returns></returns>
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        base.OnInitialized();
-        await RefreshData();
+        // Initialize with the specialized logic class
+        base.Logic = new StepTableLogic(DbFactory, GetBaseQuery);
     }
 
-    /// <summary>
-    /// Sets the base query to StepView so LogTableBase.cs can take over
-    /// </summary>
-    /// <returns>A fresh IQueryable<StepResult></returns>
     protected override IQueryable<StepResult> GetBaseQuery(LogDbContext db) => db.StepView;
-    
-    /// <summary>
-    /// Applies step table specific filters (i.e. step number, part name, and test mode)
-    /// </summary>
-    /// <param name="query">The query to which the filters should be appended</param>
-    /// <returns>An IQueryable<StepResult> with filters applied</returns>
-    protected override IQueryable<StepResult> ApplyFilters(IQueryable<StepResult> query)
-    {
-        query = base.ApplyFilters(query);
-        if (FilterStep != null){
-            query = query.Where(s => s.Step == FilterStep);
-        }
-        if (!string.IsNullOrWhiteSpace(FilterPartName)){
-            query = query.Where(s => s.PartName.Contains(FilterPartName));
-        }
-        if (!string.IsNullOrWhiteSpace(FilterMode)){
-            query = query.Where(s => s.Mode.Contains(FilterMode));
-        }
-        return query;
-    }
-
-    /// <summary>
-    /// Sets filters to their default values
-    /// </summary>
-    /// <returns></returns>
-    protected override async Task ClearFilters()
-    {
-        await base.ClearFilters();
-        FilterPartName = null;
-        FilterMode = null;
-        FilterStep = null;
-        await RefreshData();
-    }
 }

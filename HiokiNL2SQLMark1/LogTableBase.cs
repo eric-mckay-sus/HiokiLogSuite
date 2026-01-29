@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Dynamic.Core;
 
 /// <summary>
 /// This abstract class compiles the similar methods used between all tables
@@ -59,24 +58,10 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     public async Task ToggleSort(string column) => await Logic.ToggleSort(column);
 
     /// <summary>
-    /// Applies the five filters common between all three pages
-    /// </summary>
-    /// <param name="query">The query to which the filters should be appended</param>
-    /// <returns>An IQueryable object with filters applied</returns>
-    protected virtual IQueryable<T> ApplyFilters(IQueryable<T> query) => Logic.ApplyFilters(query);
-
-    /// <summary>
-    /// Applies type-specific filters from dictionary. Override in subclasses for table-specific filters.
-    /// </summary>
-    /// <param name="filterDict">Dictionary of remaining filters to apply</param>
-    /// <returns></returns>
-    protected virtual Task ApplyTypeSpecificFiltersFromDictionary(Dictionary<string, string> filterDict) => Logic.ApplyTypeSpecificFiltersFromDictionary(filterDict);
-
-    /// <summary>
-    /// 
+    /// Clears all filters on a query
     /// </summary>
     /// <returns></returns>
-    protected virtual async Task ClearFilters() => await Logic.ClearFilters();
+    public virtual async Task ClearFilters() => await Logic.ClearFilters();
 
     /// <summary>
     /// Gets the context to determine what table and attributes to check against

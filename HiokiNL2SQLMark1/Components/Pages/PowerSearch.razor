@@ -76,19 +76,21 @@
 
 @if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView != null)
 {
-
+    <h2>Group Results</h2>
     <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
                  CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
                  OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" />
 }
 @if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView != null)
 {
+    <h2>Step Results</h2>
     <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
                  CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
                  OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" />
 }
 @if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView != null)
 {
+    <h2>FCT Results</h2>
     <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
                  CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
                  OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" />
@@ -100,9 +102,9 @@
     string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
     string[] supportedTags = new[] { "in:", "barcode:", "group:", "before:", "after:", "result:", "step:", "mode:", "part:", "comp:", "short:", "macro:", "ic:", "function:" }; // all available tags
     Dictionary<string, string>? filters; // the key-value pairs parsed from command input
-    LogTableLogic<GroupResult> GroupLogic; // to handle group results
-    LogTableLogic<StepResult> StepLogic; // to handle step results
-    LogTableLogic<FctResult> FctLogic; // to handle FCT results
+    GroupTableLogic GroupLogic; // to handle group results
+    StepTableLogic StepLogic; // to handle step results
+    FctTableLogic FctLogic; // to handle FCT results
 
     /// <summary>
     /// Upon navigating to the power search page, load the sub-classes
@@ -110,9 +112,9 @@
     protected override void OnInitialized()
     {
         // Manually "Inject" the DB context to all three
-        GroupLogic = new LogTableLogic<GroupResult>(DbFactory, (db) => db.GroupView);
-        StepLogic = new LogTableLogic<StepResult>(DbFactory, (db) => db.StepView);
-        FctLogic = new LogTableLogic<FctResult>(DbFactory, (db) => db.FctView);
+        GroupLogic = new GroupTableLogic(DbFactory, (db) => db.GroupView);
+        StepLogic = new StepTableLogic(DbFactory, (db) => db.StepView);
+        FctLogic = new FctTableLogic(DbFactory, (db) => db.FctView);
     }
 
     /// <summary>
@@ -121,10 +123,10 @@
     /// <returns></returns>
     private async Task ExecutePowerSearch()
     {
-        filters = ParseQuery(commandInput);
         GroupLogic.ClearData();
         StepLogic.ClearData();
         FctLogic.ClearData();
+        filters = ParseQuery(commandInput);
 
         List<Task>? tasks = new List<Task>();
 

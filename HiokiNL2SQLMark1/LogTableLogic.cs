@@ -133,17 +133,23 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         await RefreshData(); // because the parameters change, we wish to reset to page 1
     }
 
-    /// <summary>
-    /// Sets filters to null and reloads the query
-    /// </summary>
-    /// <returns></returns>
-    public virtual async Task ClearFilters()
+    public virtual void ResetFilterState()
     {
         FilterBarcode = null;
         FilterStartDate = null;
         FilterEndDate = null;
         FilterGroup = null;
         FilterResult = null;
+        CurrentPage = 1;
+    }
+
+    /// <summary>
+    /// Sets filters to null and reloads the query
+    /// </summary>
+    /// <returns></returns>
+    public virtual async Task ClearFilters()
+    {
+        ResetFilterState();
         await RefreshData();
     }
 
@@ -163,7 +169,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// </summary>
     /// <param name="filterDict">Dictionary containing filter keys and values</param>
     /// <returns></returns>
-    public async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
+    public virtual async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
         foreach (var (key, value) in filterDict)
         {
@@ -176,8 +182,6 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
                 case "group" when int.TryParse(value, out var i):       FilterGroup = i; break;
             }
         }
-        // Allow subclasses to handle type-specific filters
-        await ApplyTypeSpecificFiltersFromDictionary(filterDict);
         await RefreshData();
     }
 
@@ -212,21 +216,11 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         }
     }
 
-    /// <summary>
-    /// Applies type-specific filters from dictionary. Override in subclasses for table-specific filters.
-    /// </summary>
-    /// <param name="filterDict">Dictionary of remaining filters to apply</param>
-    /// <returns></returns>
-    public virtual Task ApplyTypeSpecificFiltersFromDictionary(Dictionary<string, string> filterDict)
-    {
-        // Base implementation does nothing; override in subclasses for specific behavior
-        return Task.CompletedTask;
-    }
-
     public void ClearData()
     {
         DataView = [];
         TotalCount = 0;
         CurrentPage = 1;
+        ResetFilterState();
     }
 }

@@ -28,11 +28,11 @@
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" @bind="FilterStep" />
+                <input type="number" class="form-control" @bind="Logic.FilterStep" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="FilterMode">
+                <select class="form-select" @bind="Logic.FilterMode">
                     <option value="">All Modes</option>
                     @foreach (string? m in Logic.modeCache)
                     {
@@ -81,53 +81,13 @@ else
 }
 
 @code {
-    // FCT specific filters
-    private int? FilterStep;
-    private string? FilterMode;
+    new FctTableLogic Logic => (FctTableLogic)base.Logic;
 
-    /// <summary>
-    /// When the page loads, check the available result types and modes, then perform the default query
-    /// </summary>
-    /// <returns></returns>
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        await RefreshData();
+        // Initialize with the specialized logic class
+        base.Logic = new FctTableLogic(DbFactory, GetBaseQuery);
     }
 
-    /// <summary>
-    /// Sets the base query to FctView so LogTableBase.cs can take over
-    /// </summary>
-    /// <returns>A fresh IQueryable<FctResult></returns>
     protected override IQueryable<FctResult> GetBaseQuery(LogDbContext db) => db.FctView;
-
-    /// <summary>
-    /// Applies FCT table specific filters (i.e. step number and test mode)
-    /// </summary>
-    /// <param name="query">The query to which the filters should be appended</param>
-    /// <returns>An IQueryable<FctResult> with filters applied</returns>
-    protected override IQueryable<FctResult> ApplyFilters(IQueryable<FctResult> query)
-    {
-        query = base.ApplyFilters(query);
-
-        // Apply FCT table specific filters
-        if (FilterStep.HasValue){
-            query = query.Where(f => f.Step == FilterStep.Value);
-        }            
-        if (!string.IsNullOrWhiteSpace(FilterMode)){
-            query = query.Where(f => f.Mode == FilterMode);
-        }
-        return query;
-    }
-
-    /// <summary>
-    /// Sets filters to their default values
-    /// </summary>
-    /// <returns></returns>
-    protected override async Task ClearFilters()
-    {
-        await base.ClearFilters();
-        FilterMode = null;
-        FilterStep = null;
-        await RefreshData();
-    }
 }
