@@ -10,11 +10,11 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
 {
     protected LogTableLogic<T> Logic { get; set; } = default!; // Where all the logic lives
     [Inject] public IDbContextFactory<LogDbContext> DbFactory { get; set; } = default!; // creates a new LogDbContext when necessary
-    protected List<T> DataView => Logic.DataView;
+    protected List<T> DataView => Logic.DataView; // Pass through the table representation from LogTableLogic
 
     protected override void OnInitialized()
     {
-        Logic = new LogTableLogic<T>(DbFactory, (db) => GetBaseQuery(db));
+        Logic = new LogTableLogic<T>(DbFactory, GetBaseQuery);
     }
 
     protected override async Task OnInitializedAsync()
@@ -59,13 +59,6 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     public async Task ToggleSort(string column) => await Logic.ToggleSort(column);
 
     /// <summary>
-    /// Maps a dictionary of filter key-value pairs to the individual filter properties
-    /// </summary>
-    /// <param name="filterDict">Dictionary containing filter keys and values</param>
-    /// <returns></returns>
-    public async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict) => await Logic.ApplyFiltersFromDictionary(filterDict);
-
-    /// <summary>
     /// Applies the five filters common between all three pages
     /// </summary>
     /// <param name="query">The query to which the filters should be appended</param>
@@ -78,13 +71,6 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// <param name="filterDict">Dictionary of remaining filters to apply</param>
     /// <returns></returns>
     protected virtual Task ApplyTypeSpecificFiltersFromDictionary(Dictionary<string, string> filterDict) => Logic.ApplyTypeSpecificFiltersFromDictionary(filterDict);
-
-    /// <summary>
-    /// Uses dynamic LINQ to draft a SQL ORDER BY based on the current sort
-    /// </summary>
-    /// <param name="query">The query to which the sorts should be appended</param>
-    /// <returns>An IQueryable object with sorts applied</returns>
-    protected IQueryable<T> ApplySorting(IQueryable<T> query) => Logic.ApplySorting(query);
 
     /// <summary>
     /// 

@@ -69,7 +69,7 @@
     private int StartRecord => (CurrentPage - 1) * PageSize + 1;
     private int EndRecord => Math.Min(CurrentPage * PageSize, TotalCount);
 
-    // We can pass the parent's GetSortIcon result into the component
+    // Use the parent's GetSortIcon() to render the arrow
     [Parameter] public Func<string, string> GetSortIcon { get; set; } = (col) => "";
     private string SortIcon(string col) => GetSortIcon?.Invoke(col) ?? "";
 }

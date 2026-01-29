@@ -1,29 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations.Schema;
 
+/// <summary>
+/// Represents the state of the database in a way friendly to EFCore
+/// </summary>
+/// <param name="options">The server details and login credentials</param>
 public class LogDbContext(DbContextOptions<LogDbContext> options) : DbContext(options)
 {
-
     // One set per table
-    public DbSet<ResultType> ResultTypes { get; set; } //TODO cut this after demo
-    public DbSet<TestMode> TestModes { get; set; } //TODO cut this after demo
     public DbSet<GroupResult> GroupView { get; set; }
     public DbSet<StepResult> StepView { get; set; }
     public DbSet<FctResult> FctView { get; set; }
 }
 
-public class ResultType
-{
-    public byte id { get; set; }
-    public string? resultType {get; set;}
-}
-
-public class TestMode
-{
-    public byte id { get; set; }
-    public string? testMode {get; set;}
-}
-
+/// <summary>
+/// The fields common between group, step, and FCT tables
+/// </summary>
 public interface IHiokiLog
 {
     string? Barcode { get; set; }
@@ -32,6 +24,9 @@ public interface IHiokiLog
     string? Result { get; set; }
 }
 
+/// <summary>
+/// The fields common between the step and FCT tables only
+/// </summary>
 public interface IStepFCT : IHiokiLog
 {
     int? Step { get; set; }
@@ -43,6 +38,10 @@ public interface IStepFCT : IHiokiLog
     public double? MeasVal { get; set; }
 }
 
+/// <summary>
+/// Represents one row of GroupResults in the DB
+/// NOTE: VERY SENSITIVE TO COL NAME CHANGES
+/// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group))]
 public class GroupResult : IHiokiLog
 {
@@ -80,6 +79,10 @@ public class GroupResult : IHiokiLog
     public string? FunctionTest { get; set; }
 }
 
+/// <summary>
+/// Represents one row of StepResults in the DB
+/// NOTE: VERY SENSITIVE TO COL NAME CHANGES
+/// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
 public class StepResult : IStepFCT
 {
@@ -135,6 +138,10 @@ public class StepResult : IStepFCT
     public double? MeasVal { get; set; }
 }
 
+/// <summary>
+/// Represents one row of FctResults in the DB
+/// NOTE: VERY SENSITIVE TO COL NAME CHANGES
+/// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
 public class FctResult : IStepFCT
 {

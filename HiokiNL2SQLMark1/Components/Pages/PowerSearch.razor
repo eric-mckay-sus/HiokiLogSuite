@@ -31,16 +31,38 @@
                 @onclick='() => SetType("fct")'>FCT</button>
     </div>
     <div class="mt-2">
-    <small class="text-muted d-inline-flex flex-wrap gap-1">
-        Supported keys for this mode:
-        @foreach (string key in GetSupportedKeysThisMode())
-        {
-            <span class="badge @GetBadgeClass(key)" 
-                  style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
-                  @onclick="() => AppendKey(key)">@key</span>
-        }
-    </small>
-</div>
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            Supported keys for this mode:
+            @foreach (string key in GetSupportedKeysThisMode())
+            {
+                <span class="badge @GetBadgeClass(key)" 
+                    style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
+                    @onclick="() => AppendKey(key)">@key</span>
+            }
+        </small>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            Quick Ranges:
+            <span class="badge bg-info text-dark" style="cursor: pointer;" @onclick='() => AppendKey("after:last24h")'>Last 24h</span>
+            
+            Shifts (Today):
+            <span class="badge bg-warning text-dark" style="cursor: pointer;" @onclick='() => AppendShift("after", "shift1")'>S1</span>
+            <span class="badge bg-warning text-dark" style="cursor: pointer;" @onclick='() => AppendShift("after", "shift2")'>S2</span>
+            <span class="badge bg-warning text-dark" style="cursor: pointer;" @onclick='() => AppendShift("after", "shift3")'>S3</span>
+        </small>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            Date Shortcuts:
+            <span class="badge bg-info text-dark" style="cursor: pointer;" 
+                @onclick='() => AppendKey("after:today")'>After Today</span>
+            <span class="badge bg-info text-dark" style="cursor: pointer;" 
+                @onclick='() => AppendKey("after:yesterday")'>After Yesterday</span>
+            <span class="badge bg-info text-dark" style="cursor: pointer;" 
+                @onclick='() => AppendKey("after:lastweek")'>Last 7 Days</span>
+        </small>
+    </div>
     <div class="mt-2">
     <small class="text-muted d-inline-flex flex-wrap gap-1">
         All supported keys:
@@ -73,15 +95,18 @@
 }
 
 @code{
-    string CurrentType = "all";
-    string commandInput = "";
-    string[] availableTypes = ["all", "group", "step", "fct"];
-    string[] supportedTags = new[] { "in:", "barcode:", "group:", "before:", "after:", "result:", "step:", "mode:", "part:", "comp:", "short:", "macro:", "ic:", "function:" };
-    Dictionary<string, string>? filters;
-    LogTableLogic<GroupResult> GroupLogic;
-    LogTableLogic<StepResult> StepLogic;
-    LogTableLogic<FctResult> FctLogic;
+    string CurrentType = "all"; // the table to check
+    string commandInput = ""; // the input from the search bar
+    string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
+    string[] supportedTags = new[] { "in:", "barcode:", "group:", "before:", "after:", "result:", "step:", "mode:", "part:", "comp:", "short:", "macro:", "ic:", "function:" }; // all available tags
+    Dictionary<string, string>? filters; // the key-value pairs parsed from command input
+    LogTableLogic<GroupResult> GroupLogic; // to handle group results
+    LogTableLogic<StepResult> StepLogic; // to handle step results
+    LogTableLogic<FctResult> FctLogic; // to handle FCT results
 
+    /// <summary>
+    /// Upon navigating to the power search page, load the sub-classes
+    /// </summary>
     protected override void OnInitialized()
     {
         // Manually "Inject" the DB context to all three
@@ -90,30 +115,35 @@
         FctLogic = new LogTableLogic<FctResult>(DbFactory, (db) => db.FctView);
     }
 
+    /// <summary>
+    /// Parse search bar input, update the model, then tell the view  
+    /// </summary>
+    /// <returns></returns>
     private async Task ExecutePowerSearch()
     {
         filters = ParseQuery(commandInput);
         GroupLogic.ClearData();
         StepLogic.ClearData();
         FctLogic.ClearData();
-        
+
         List<Task>? tasks = new List<Task>();
 
-        if (CurrentType == "all" || CurrentType == "group")
+        if (CurrentType == "all" || CurrentType == "group"){
             tasks.Add(GroupLogic.ApplyFiltersFromDictionary(filters));
-
-        if (CurrentType == "all" || CurrentType == "step")
+        } 
+        if (CurrentType == "all" || CurrentType == "step"){
             tasks.Add(StepLogic.ApplyFiltersFromDictionary(filters));
-
-        if (CurrentType == "all" || CurrentType == "fct")
+        }
+        if (CurrentType == "all" || CurrentType == "fct"){
             tasks.Add(FctLogic.ApplyFiltersFromDictionary(filters));
-
+        }
         await Task.WhenAll(tasks);
-            StateHasChanged();
+        StateHasChanged();
     }
 
     /// <summary>
-    /// Parses a string for key-value pairs
+    /// Parses a string for key-value pairs. Upon finding the "in" key, immediately updates the table reference
+    /// Catches date aliases and calls TranslateDateAlias() to handle them
     /// </summary>
     /// <param name="rawInput">The string to parse</param>
     /// <returns>A dictionary containing the key-value pairs to filter with</returns>
@@ -129,6 +159,12 @@
         {
             string? key = match.Groups[1].Value.ToLower();
             string? value = match.Groups[2].Value.Trim('"');
+
+            if (key == "before" || key == "after")
+            {
+                value = TranslateDateAlias(value);
+            }
+
             if(key == "in" && availableTypes.Contains(value.ToLower())){ // if we've identified the table, no need to add to the parameter list
                 CurrentType = value;
             } else{ // otherwise, put it in the dictionary to construct a where clause
@@ -139,13 +175,64 @@
     }
 
     /// <summary>
-    /// Sets the current type to the input string
+    /// Translates aliases like "today", "last24h", and "shift2" to valid datetimes
     /// </summary>
-    /// <param name="toType">The target type</param>
+    /// <param name="alias">the alias to translate to a datetime</param>
+    /// <returns>The datetime referred to by the alias</returns>
+    private string TranslateDateAlias(string alias)
+    {
+        DateTime now = DateTime.Today;
+
+        return alias.ToLower() switch
+        {
+            "today"     => now.ToString("yyyy-MM-dd"),
+            "yesterday" => now.AddDays(-1).ToString("yyyy-MM-dd"),
+            "lastweek"  => now.AddDays(-7).ToString("yyyy-MM-dd"),
+            "last24h"   => now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"),
+            "shift1"    => "07:00:00", // adjust as needed
+            "shift2"    => "15:00:00",
+            "shift3"    => "23:00:00",
+            _           => alias // If it's not an alias, return the original string (e.g., 2024-01-01)
+        };
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="key"></param>
+    /// <param name="shiftAlias"></param>
+    /// <returns></returns>
+    private async Task AppendShift(string key, string shiftAlias)
+    {
+        string datePart = DateTime.Today.ToString("yyyy-MM-dd");
+        string timePart = TranslateDateAlias(shiftAlias);
+
+        // Combine into a quoted string so the Regex parser sees it as one value
+        // Format: after:"2024-01-29 06:00:00"
+        string fullValue = $"{key}:\"{datePart} {timePart}\"";
+
+        if (commandInput.Contains(fullValue, StringComparison.OrdinalIgnoreCase)) return;
+
+        commandInput = string.IsNullOrWhiteSpace(commandInput) 
+            ? fullValue 
+            : commandInput.TrimEnd() + " " + fullValue;
+
+        await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+    }
+
+    /// <summary>
+    /// Helper for quick select table tabs
+    /// </summary>
+    /// <param name="toType">The target table</param>
     private void SetType(string toType){
         CurrentType = toType;
     }
 
+    /// <summary>
+    /// Binds the enter key to submission when search bar is active
+    /// </summary>
+    /// <param name="e">the key to handle</param>
+    /// <returns></returns>
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
@@ -154,10 +241,15 @@
         }
     }
 
+    /// <summary>
+    /// Gets the list of all supported tags for the current mode
+    /// Irrelevant when the "in" key is used
+    /// </summary>
+    /// <returns>The tags applicable to the current table</returns>
     private List<string> GetSupportedKeysThisMode()
     {
         List<string>? keys = new List<string> { "in:", "barcode:", "group:", "before:", "after:", "result:" };
-        
+
         if (CurrentType == "group")
         {
             keys.AddRange(new[] { "comp:", "short:", "macro:", "ic:", "function:" });
@@ -176,7 +268,11 @@
         return keys;
     }
 
-    // Toggles color if the key is present in the input string
+    /// <summary>
+    /// Toggles color if the key is present in the input string
+    /// </summary>
+    /// <param name="key">The tag to check against the search bar contents</param>
+    /// <returns>The badge style reflecting its activation state</returns>
     private string GetBadgeClass(string key)
     {
         return commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) 
@@ -184,7 +280,11 @@
             : "bg-secondary";
     }
 
-    // Appends the key to the search bar
+    /// <summary>
+    /// Appends the input key to the search bar
+    /// </summary>
+    /// <param name="key">The tag to be appended to the search</param>
+    /// <returns></returns>
     private async Task AppendKey(string key)
     {
         // Check if the key is already present (case-insensitive)

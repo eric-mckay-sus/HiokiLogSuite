@@ -2,13 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq.Dynamic.Core;
 
 /// <summary>
-/// This abstract class compiles the similar methods used between all tables
+/// Holds all the methods necessary to store a table
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector) where T : class, IHiokiLog
 {
-    private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory;
-    private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector;
+    private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory; // generates a new DbContext on demand (thread-safe)
+    private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
 
     // Shared filters
     public string? FilterBarcode;
@@ -34,7 +34,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public List<string> resultCache = [];
 
     /// <summary>
-    /// Applies filters and sorts, then refreshes the table based on the query and page number
+    /// Applies filters and sorts, then reloads the table based on the query and page number
     /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
@@ -165,31 +165,15 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <returns></returns>
     public async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
-        foreach (KeyValuePair<string, string> filter in filterDict)
+        foreach (var (key, value) in filterDict)
         {
-            switch (filter.Key.ToLower())
+            switch (key.ToLower())
             {
-                case "barcode":
-                    FilterBarcode = filter.Value;
-                    break;
-                case "after":
-                    if (DateTime.TryParse(filter.Value, out DateTime afterDate))
-                        FilterStartDate = afterDate;
-                    break;
-                case "before":
-                    if (DateTime.TryParse(filter.Value, out DateTime beforeDate))
-                        FilterEndDate = beforeDate;
-                    break;
-                case "group":
-                    if (int.TryParse(filter.Value, out int groupNum))
-                        FilterGroup = groupNum;
-                    break;
-                case "result":
-                    FilterResult = filter.Value;
-                    break;
-                // All other filters are handled by subclasses
-                default:
-                    break;
+                case "barcode": FilterBarcode = value; break;
+                case "result":  FilterResult = value; break;
+                case "after" when DateTime.TryParse(value, out var d):  FilterStartDate = d; break;
+                case "before" when DateTime.TryParse(value, out var d): FilterEndDate = d; break;
+                case "group" when int.TryParse(value, out var i):       FilterGroup = i; break;
             }
         }
         // Allow subclasses to handle type-specific filters
@@ -198,7 +182,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     }
 
     /// <summary>
-    /// Initializes the test mode and result type caches for step & FCT tables
+    /// Initializes the test mode and result type caches (for step & FCT tables)
     /// </summary>
     /// <param name="isStep">Whether to load caches for step table (versus FCT table)</param>
     /// <returns></returns>
