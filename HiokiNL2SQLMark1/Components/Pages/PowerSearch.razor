@@ -1,0 +1,179 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using RegEx = System.Text.RegularExpressions
+@using System.Threading.Tasks
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<LogDbContext> DbFactory
+
+<PageTitle>Power Search</PageTitle>
+
+<h1>Hioki 1220 ICT Power Search</h1>
+
+<div class="command-container mb-4">
+    <div class="input-group mb-0">
+        <span class="input-group-text bg-dark text-white font-monospace">>_</span>
+        <input type="text" class="form-control form-control-lg font-monospace" 
+               @bind="commandInput"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown" 
+               placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
+        <button class="btn btn-primary" @onclick="async () => await ExecutePowerSearch()">Search</button>
+    </div>
+    <div class="d-flex gap-2 mt-0 mb-2 filter-row">
+        <button class="btn btn-sm @(CurrentType == "all" ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType("all")'>All</button>
+        <button class="btn btn-sm @(CurrentType == "group" ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType("group")'>Groups</button>
+        <button class="btn btn-sm @(CurrentType == "step" ? "btn-primary" : "btn-outline-secondary")" 
+                @onclick='() => SetType("step")'>Steps</button>
+        <button class="btn btn-sm @(CurrentType == "fct" ? "btn-primary" : "btn-outline-secondary")" 
+                @onclick='() => SetType("fct")'>FCT</button>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            Supported keys for this mode:
+            <span class="badge bg-secondary">in:</span> 
+            <span class="badge bg-secondary">barcode:</span> 
+            <span class="badge bg-secondary">group:</span>
+            <span class="badge bg-secondary">before:</span>
+            <span class="badge bg-secondary">after:</span>
+            <span class="badge bg-secondary">result:</span> 
+            @if (CurrentType == "group"){
+            <span class="badge bg-secondary">comp:</span>
+            <span class="badge bg-secondary">short:</span>
+            <span class="badge bg-secondary">macro:</span>
+            <span class="badge bg-secondary">ic:</span>
+            <span class="badge bg-secondary">function:</span>
+            } else {
+                @if (CurrentType != "all") {
+                <span class="badge bg-secondary">step:</span>
+                <span class="badge bg-secondary">mode:</span>
+                }
+                @if (CurrentType == "step") {
+                    <span class="badge bg-secondary">part:</span>
+                }
+            }
+        </small>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex flex-wrap gap-1">
+            All supported keys:
+            <span class="badge bg-light text-dark">in:</span> 
+            <span class="badge bg-light text-dark">barcode:</span> 
+            <span class="badge bg-light text-dark">group:</span> 
+            <span class="badge bg-light text-dark">before:</span>
+            <span class="badge bg-light text-dark">after:</span>
+            <span class="badge bg-light text-dark">result:</span> 
+            <span class="badge bg-light text-dark">step:</span>
+            <span class="badge bg-light text-dark">mode:</span>
+            <span class="badge bg-light text-dark">part:</span>
+            <span class="badge bg-light text-dark">comp:</span>
+            <span class="badge bg-light text-dark">short:</span>
+            <span class="badge bg-light text-dark">macro:</span>
+            <span class="badge bg-light text-dark">ic:</span>
+            <span class="badge bg-light text-dark">function:</span>
+        </small>
+    </div>
+</div>
+
+@if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView != null)
+{
+
+    <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
+                 CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
+                 OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" />
+}
+@if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView != null)
+{
+    <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
+                 CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
+                 OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" />
+}
+@if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView != null)
+{
+    <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
+                 CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
+                 OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" />
+}
+
+@code{
+    string CurrentType = "all";
+    string commandInput = "";
+    string[] availableTypes = ["all", "group", "step", "fct"];
+    Dictionary<string, string>? filters;
+    LogTableLogic<GroupResult> GroupLogic;
+    LogTableLogic<StepResult> StepLogic;
+    LogTableLogic<FctResult> FctLogic;
+
+    protected override void OnInitialized()
+    {
+        // Manually "Inject" the DB context to all three
+        GroupLogic = new LogTableLogic<GroupResult>(DbFactory, (db) => db.GroupView);
+        StepLogic = new LogTableLogic<StepResult>(DbFactory, (db) => db.StepView);
+        FctLogic = new LogTableLogic<FctResult>(DbFactory, (db) => db.FctView);
+    }
+
+    private async Task ExecutePowerSearch()
+    {
+        filters = ParseQuery(commandInput);
+        GroupLogic.ClearData();
+        StepLogic.ClearData();
+        FctLogic.ClearData();
+        
+        List<Task>? tasks = new List<Task>();
+
+        if (CurrentType == "all" || CurrentType == "group")
+            tasks.Add(GroupLogic.ApplyFiltersFromDictionary(filters));
+
+        if (CurrentType == "all" || CurrentType == "step")
+            tasks.Add(StepLogic.ApplyFiltersFromDictionary(filters));
+
+        if (CurrentType == "all" || CurrentType == "fct")
+            tasks.Add(FctLogic.ApplyFiltersFromDictionary(filters));
+
+        await Task.WhenAll(tasks);
+            StateHasChanged();
+    }
+
+    /// <summary>
+    /// Parses a string for key-value pairs
+    /// </summary>
+    /// <param name="rawInput">The string to parse</param>
+    /// <returns>A dictionary containing the key-value pairs to filter with</returns>
+    private Dictionary<string, string> ParseQuery(string rawInput)
+    {
+        filters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(rawInput)) return filters;
+
+        // Regex to find key:value pairs, supporting quoted values like name:"Part A"
+        RegEx.MatchCollection? matches = RegEx.Regex.Matches(rawInput, @"(\w+):(""[^""]*""|\S+)");
+
+        foreach (RegEx.Match match in matches)
+        {
+            string? key = match.Groups[1].Value.ToLower();
+            string? value = match.Groups[2].Value.Trim('"');
+            if(key == "in" && availableTypes.Contains(value.ToLower())){ // if we've identified the table, no need to add to the parameter list
+                CurrentType = value;
+            } else{ // otherwise, put it in the dictionary to construct a where clause
+                filters[key] = value;
+            }
+        }
+        return filters;
+    }
+
+    /// <summary>
+    /// Sets the current type to the input string
+    /// </summary>
+    /// <param name="toType">The target type</param>
+    private void SetType(string toType){
+        CurrentType = toType;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ExecutePowerSearch();
+        }
+    }
+}

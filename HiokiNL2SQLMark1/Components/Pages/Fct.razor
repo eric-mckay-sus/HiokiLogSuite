@@ -12,29 +12,29 @@
         <div class="row g-3">
             <div class="col-2"> 
                 <label class="form-label fw-bold">Barcode</label>
-                <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
+                <input type="text" class="form-control" @bind="Logic.FilterBarcode" placeholder="Scan or type..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Start Date</label>
-                <input type="date" class="form-control" @bind="filterStartDate" />
+                <input type="date" class="form-control" @bind="Logic.FilterStartDate" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">End Date</label>
-                <input type="date" class="form-control" @bind="filterEndDate" />
+                <input type="date" class="form-control" @bind="Logic.FilterEndDate" />
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Group</label>
-                <input type="number" class="form-control" @bind="filterGroup" />
+                <input type="number" class="form-control" @bind="Logic.FilterGroup" />
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" @bind="filterStep" />
+                <input type="number" class="form-control" @bind="FilterStep" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="filterMode">
+                <select class="form-select" @bind="FilterMode">
                     <option value="">All Modes</option>
-                    @foreach (string? m in modeCache)
+                    @foreach (string? m in Logic.modeCache)
                     {
                         <option value="@m">@m</option>
                     }
@@ -42,9 +42,9 @@
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Result</label>
-                <select class="form-select" @bind="filterResult">
+                <select class="form-select" @bind="Logic.FilterResult">
                     <option value="">All Results</option>
-                    @foreach (string? r in resultCache)
+                    @foreach (string? r in Logic.resultCache)
                     {
                         <option value="@r">@r</option>
                     }
@@ -70,20 +70,20 @@ else
 {
     <MasterTable TItem="FctResult" 
               Items="DataView"
-              CurrentPage="currentPage"
-              TotalPages="TotalPages"
-              TotalCount="totalCount"
-              PageSize="pageSize"
+              CurrentPage="Logic.CurrentPage"
+              TotalPages="Logic.TotalPages"
+              TotalCount="Logic.TotalCount"
+              PageSize="Logic.PageSize"
               OnPageChange="ChangePage"
-              CurrentSortColumn="@currentSortColumn"
+              CurrentSortColumn="@Logic.CurrentSortColumn"
               OnSort="ToggleSort"
               GetSortIcon="GetSortIcon" />
 }
 
 @code {
     // FCT specific filters
-    private int? filterStep;
-    private string? filterMode;
+    private int? FilterStep;
+    private string? FilterMode;
 
     /// <summary>
     /// When the page loads, check the available result types and modes, then perform the default query
@@ -91,7 +91,6 @@ else
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        await InitializeCaches();
         await RefreshData();
     }
 
@@ -99,7 +98,7 @@ else
     /// Sets the base query to FctView so LogTableBase.cs can take over
     /// </summary>
     /// <returns>A fresh IQueryable<FctResult></returns>
-    protected override IQueryable<FctResult> GetBaseQuery() => Db.FctView;
+    protected override IQueryable<FctResult> GetBaseQuery(LogDbContext db) => db.FctView;
 
     /// <summary>
     /// Applies FCT table specific filters (i.e. step number and test mode)
@@ -111,11 +110,11 @@ else
         query = base.ApplyFilters(query);
 
         // Apply FCT table specific filters
-        if (filterStep.HasValue){
-            query = query.Where(f => f.Step == filterStep.Value);
+        if (FilterStep.HasValue){
+            query = query.Where(f => f.Step == FilterStep.Value);
         }            
-        if (!string.IsNullOrWhiteSpace(filterMode)){
-            query = query.Where(f => f.Mode == filterMode);
+        if (!string.IsNullOrWhiteSpace(FilterMode)){
+            query = query.Where(f => f.Mode == FilterMode);
         }
         return query;
     }
@@ -127,8 +126,8 @@ else
     protected override async Task ClearFilters()
     {
         await base.ClearFilters();
-        filterMode = null;
-        filterStep = null;
+        FilterMode = null;
+        FilterStep = null;
         await RefreshData();
     }
 }

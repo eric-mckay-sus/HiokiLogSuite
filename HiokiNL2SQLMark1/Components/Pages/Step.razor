@@ -14,33 +14,33 @@
             @* div class col-____ tells Blazor it can use ____ columns out of 12 *@
             <div class="col-4"> 
                 <label class="form-label fw-bold">Barcode</label>
-                <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
+                <input type="text" class="form-control" @bind="Logic.FilterBarcode" placeholder="Scan or type..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Start Date</label>
-                <input type="date" class="form-control" @bind="filterStartDate" />
+                <input type="date" class="form-control" @bind="Logic.FilterStartDate" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">End Date</label>
-                <input type="date" class="form-control" @bind="filterEndDate" />
+                <input type="date" class="form-control" @bind="Logic.FilterEndDate" />
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Group</label>
-                <input type="number" class="form-control" step="1" @bind="filterGroup" />
+                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup" />
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" step="1" @bind="filterStep" />
+                <input type="number" class="form-control" step="1" @bind="FilterStep" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Part Name</label>
-                <input type="text" class="form-control" @bind="filterPartName" placeholder="e.g. 30AA..." />
+                <input type="text" class="form-control" @bind="FilterPartName" placeholder="e.g. 30AA..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="filterMode">
+                <select class="form-select" @bind="FilterMode">
                     <option value="">All Modes</option>
-                    @foreach (string? m in modeCache)
+                    @foreach (string? m in Logic.modeCache)
                     {
                         <option value="@m">@m</option>
                     }
@@ -48,9 +48,9 @@
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Result</label>
-                <select class="form-select" @bind="filterResult">
+                <select class="form-select" @bind="Logic.FilterResult">
                     <option value="">All Results</option>
-                    @foreach (string? r in resultCache)
+                    @foreach (string? r in Logic.resultCache)
                     {
                         <option value="@r">@r</option>
                     }
@@ -76,12 +76,12 @@ else
 {
     <MasterTable TItem="StepResult" 
               Items="DataView"
-              CurrentPage="currentPage"
-              TotalPages="TotalPages"
-              TotalCount="totalCount"
-              PageSize="pageSize"
+              CurrentPage="Logic.CurrentPage"
+              TotalPages="Logic.TotalPages"
+              TotalCount="Logic.TotalCount"
+              PageSize="Logic.PageSize"
               OnPageChange="ChangePage"
-              CurrentSortColumn="@currentSortColumn"
+              CurrentSortColumn="@Logic.CurrentSortColumn"
               OnSort="ToggleSort"
               GetSortIcon="GetSortIcon" />
 }
@@ -89,9 +89,9 @@ else
 
 @code {
     // Step-table specific filters
-    private string? filterPartName;
-    private int? filterStep;
-    private string? filterMode;
+    private string? FilterPartName;
+    private int? FilterStep;
+    private string? FilterMode;
 
     /// <summary>
     /// When the page loads, check the available result types and modes, then perform the default query
@@ -99,7 +99,7 @@ else
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        await InitializeCaches();
+        base.OnInitialized();
         await RefreshData();
     }
 
@@ -107,7 +107,7 @@ else
     /// Sets the base query to StepView so LogTableBase.cs can take over
     /// </summary>
     /// <returns>A fresh IQueryable<StepResult></returns>
-    protected override IQueryable<StepResult> GetBaseQuery() => Db.StepView;
+    protected override IQueryable<StepResult> GetBaseQuery(LogDbContext db) => db.StepView;
     
     /// <summary>
     /// Applies step table specific filters (i.e. step number, part name, and test mode)
@@ -117,14 +117,14 @@ else
     protected override IQueryable<StepResult> ApplyFilters(IQueryable<StepResult> query)
     {
         query = base.ApplyFilters(query);
-        if (filterStep != null){
-            query = query.Where(s => s.Step == filterStep);
+        if (FilterStep != null){
+            query = query.Where(s => s.Step == FilterStep);
         }
-        if (!string.IsNullOrWhiteSpace(filterPartName)){
-            query = query.Where(s => s.PartName.Contains(filterPartName));
+        if (!string.IsNullOrWhiteSpace(FilterPartName)){
+            query = query.Where(s => s.PartName.Contains(FilterPartName));
         }
-        if (!string.IsNullOrWhiteSpace(filterMode)){
-            query = query.Where(s => s.Mode.Contains(filterMode));
+        if (!string.IsNullOrWhiteSpace(FilterMode)){
+            query = query.Where(s => s.Mode.Contains(FilterMode));
         }
         return query;
     }
@@ -136,9 +136,9 @@ else
     protected override async Task ClearFilters()
     {
         await base.ClearFilters();
-        filterPartName = null;
-        filterMode = null;
-        filterStep = null;
+        FilterPartName = null;
+        FilterMode = null;
+        FilterStep = null;
         await RefreshData();
     }
 }

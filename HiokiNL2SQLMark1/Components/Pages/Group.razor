@@ -12,23 +12,23 @@
     <div class="row g-3">
         <div class="col-3">
             <label class="form-label fw-bold">Barcode</label>
-            <input type="text" class="form-control" @bind="filterBarcode" placeholder="Scan or type..." />
+            <input type="text" class="form-control" @bind="Logic.FilterBarcode" placeholder="Scan or type..." />
         </div>
         <div class="col-3">
             <label class="form-label fw-bold">Start Date</label>
-            <input type="date" class="form-control" @bind="filterStartDate" />
+            <input type="date" class="form-control" @bind="Logic.FilterStartDate" />
         </div>
         <div class="col-3">
             <label class="form-label fw-bold">End Date</label>
-            <input type="date" class="form-control" @bind="filterEndDate" />
+            <input type="date" class="form-control" @bind="Logic.FilterEndDate" />
         </div>
         <div class="col-1">
                 <label class="form-label fw-bold">Group</label>
-                <input type="number" class="form-control" step="1" @bind="filterGroup" />
+                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup" />
             </div>
         <div class="col-2">
             <label class="form-label fw-bold">Overall Result</label>
-            <select class="form-select" @bind="filterResult">
+            <select class="form-select" @bind="Logic.FilterResult">
                 <option value="">All Results</option>
                 <option value="PASS">PASS</option>
                 <option value="FAIL">FAIL</option>
@@ -54,12 +54,12 @@ else
 {
     <MasterTable TItem="GroupResult" 
               Items="DataView"
-              CurrentPage="currentPage"
-              TotalPages="TotalPages"
-              TotalCount="totalCount"
-              PageSize="pageSize"
+              CurrentPage="Logic.CurrentPage"
+              TotalPages="Logic.TotalPages"
+              TotalCount="Logic.TotalCount"
+              PageSize="Logic.PageSize"
               OnPageChange="ChangePage"
-              CurrentSortColumn="@currentSortColumn"
+              CurrentSortColumn="@Logic.CurrentSortColumn"
               OnSort="ToggleSort"
               GetSortIcon="GetSortIcon" />
 }
@@ -78,5 +78,5 @@ else
     /// Sets the base query to GroupView so LogTableBase.cs can take over
     /// </summary>
     /// <returns>A fresh IQueryable<GroupResult></returns>
-    protected override IQueryable<GroupResult> GetBaseQuery() => Db.GroupView;
+    protected override IQueryable<GroupResult> GetBaseQuery(LogDbContext db) => db.GroupView;
 }
