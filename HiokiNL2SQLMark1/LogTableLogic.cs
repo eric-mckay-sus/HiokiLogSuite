@@ -205,21 +205,26 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public async Task InitializeCaches()
     {
         if (typeof(IStepFCT).IsAssignableFrom(typeof(T))) // verifies that there is a mode and result column in the target table
-        {            
+        {
+            List<Task>? tasks = [];
             using var db = await _dbFactory.CreateDbContextAsync();
             // Re-create the base query using this local context instance
             var query = _querySelector(db).AsNoTracking();
 
-            modeCache = await query
+            var modeTask = query
                 .Select("Mode")
                 .Distinct()
                 .OrderBy("it")
                 .ToDynamicListAsync<string>();
-            resultCache = await query
+            var resultTask = query
                 .Select("Result")
                 .Distinct()
                 .OrderBy("it")
                 .ToDynamicListAsync<string>();;
+            
+            var results = await Task.WhenAll(modeTask, resultTask);
+            modeCache = results[0];
+            resultCache = results[1];
         }
     }
 

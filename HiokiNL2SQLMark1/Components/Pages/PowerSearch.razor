@@ -4,6 +4,7 @@
 @using System.Threading.Tasks
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<LogDbContext> DbFactory
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Power Search</PageTitle>
 
@@ -12,7 +13,7 @@
 <div class="command-container mb-4">
     <div class="input-group mb-0">
         <span class="input-group-text bg-dark text-white font-monospace">>_</span>
-        <input type="text" class="form-control form-control-lg font-monospace" 
+        <input type="text" id="searchBar" class="form-control form-control-lg font-monospace" 
                @bind="commandInput"
                @bind:event="oninput"
                @onkeydown="HandleKeyDown" 
@@ -30,50 +31,25 @@
                 @onclick='() => SetType("fct")'>FCT</button>
     </div>
     <div class="mt-2">
-        <small class="text-muted d-inline-flex flex-wrap gap-1">
-            Supported keys for this mode:
-            <span class="badge bg-secondary">in:</span> 
-            <span class="badge bg-secondary">barcode:</span> 
-            <span class="badge bg-secondary">group:</span>
-            <span class="badge bg-secondary">before:</span>
-            <span class="badge bg-secondary">after:</span>
-            <span class="badge bg-secondary">result:</span> 
-            @if (CurrentType == "group"){
-            <span class="badge bg-secondary">comp:</span>
-            <span class="badge bg-secondary">short:</span>
-            <span class="badge bg-secondary">macro:</span>
-            <span class="badge bg-secondary">ic:</span>
-            <span class="badge bg-secondary">function:</span>
-            } else {
-                @if (CurrentType != "all") {
-                <span class="badge bg-secondary">step:</span>
-                <span class="badge bg-secondary">mode:</span>
-                }
-                @if (CurrentType == "step") {
-                    <span class="badge bg-secondary">part:</span>
-                }
-            }
-        </small>
-    </div>
+    <small class="text-muted d-inline-flex flex-wrap gap-1">
+        Supported keys for this mode:
+        @foreach (string key in GetSupportedKeysThisMode())
+        {
+            <span class="badge @GetBadgeClass(key)" 
+                  style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
+                  @onclick="() => AppendKey(key)">@key</span>
+        }
+    </small>
+</div>
     <div class="mt-2">
-        <small class="text-muted d-inline-flex flex-wrap gap-1">
-            All supported keys:
-            <span class="badge bg-light text-dark">in:</span> 
-            <span class="badge bg-light text-dark">barcode:</span> 
-            <span class="badge bg-light text-dark">group:</span> 
-            <span class="badge bg-light text-dark">before:</span>
-            <span class="badge bg-light text-dark">after:</span>
-            <span class="badge bg-light text-dark">result:</span> 
-            <span class="badge bg-light text-dark">step:</span>
-            <span class="badge bg-light text-dark">mode:</span>
-            <span class="badge bg-light text-dark">part:</span>
-            <span class="badge bg-light text-dark">comp:</span>
-            <span class="badge bg-light text-dark">short:</span>
-            <span class="badge bg-light text-dark">macro:</span>
-            <span class="badge bg-light text-dark">ic:</span>
-            <span class="badge bg-light text-dark">function:</span>
-        </small>
-    </div>
+    <small class="text-muted d-inline-flex flex-wrap gap-1">
+        All supported keys:
+        @foreach (string key in supportedTags)
+        {
+            <span class="badge @(commandInput.Contains(key) ? "bg-primary" : "bg-light text-dark")">@key</span>
+        }
+    </small>
+</div>
 </div>
 
 @if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView != null)
@@ -100,6 +76,7 @@
     string CurrentType = "all";
     string commandInput = "";
     string[] availableTypes = ["all", "group", "step", "fct"];
+    string[] supportedTags = new[] { "in:", "barcode:", "group:", "before:", "after:", "result:", "step:", "mode:", "part:", "comp:", "short:", "macro:", "ic:", "function:" };
     Dictionary<string, string>? filters;
     LogTableLogic<GroupResult> GroupLogic;
     LogTableLogic<StepResult> StepLogic;
@@ -175,5 +152,57 @@
         {
             await ExecutePowerSearch();
         }
+    }
+
+    private List<string> GetSupportedKeysThisMode()
+    {
+        List<string>? keys = new List<string> { "in:", "barcode:", "group:", "before:", "after:", "result:" };
+        
+        if (CurrentType == "group")
+        {
+            keys.AddRange(new[] { "comp:", "short:", "macro:", "ic:", "function:" });
+        }
+        else
+        {
+            if (CurrentType != "all")
+            {
+                keys.AddRange(new[] { "step:", "mode:" });
+            }
+            if (CurrentType == "step")
+            {
+                keys.Add("part:");
+            }
+        }
+        return keys;
+    }
+
+    // Toggles color if the key is present in the input string
+    private string GetBadgeClass(string key)
+    {
+        return commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) 
+            ? "bg-primary" 
+            : "bg-secondary";
+    }
+
+    // Appends the key to the search bar
+    private async Task AppendKey(string key)
+    {
+        // Check if the key is already present (case-insensitive)
+        if (commandInput.Contains(key, StringComparison.OrdinalIgnoreCase))
+        {
+            return; // Do nothing
+        }
+
+        if (string.IsNullOrWhiteSpace(commandInput))
+        {
+            commandInput = key;
+        }
+        else
+        {
+            commandInput = commandInput.TrimEnd() + " " + key;
+        }
+
+        // Trigger the JS helper to put the cursor back in the box
+        await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
     }
 }

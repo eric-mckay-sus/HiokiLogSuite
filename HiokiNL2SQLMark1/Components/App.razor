@@ -15,6 +15,19 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
+
+    <script>
+        window.focusElement = (elementId) => {
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.focus();
+            // Moves cursor to the end of the text
+            const val = el.value;
+            el.value = '';
+            el.value = val;
+        }
+    };
+    </script>
 </body>
 
 </html>
