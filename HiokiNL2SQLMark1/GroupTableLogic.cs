@@ -63,10 +63,4 @@ public class GroupTableLogic : LogTableLogic<GroupResult>
 
         base.ResetFilterState();
     }
-
-    public override async Task ClearFilters()
-    {
-        ResetFilterState();
-        await base.ClearFilters();
-    }
 }

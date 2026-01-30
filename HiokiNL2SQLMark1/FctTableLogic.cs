@@ -45,10 +45,4 @@ public class FctTableLogic : LogTableLogic<FctResult>
         FilterStep = null;
         base.ResetFilterState();
     }
-
-    public override async Task ClearFilters()
-    {
-        ResetFilterState();
-        await base.ClearFilters();
-    }
 }

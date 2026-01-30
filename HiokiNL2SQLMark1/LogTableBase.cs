@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// This abstract class compiles the similar methods used between all tables
+/// This abstract class forms the interface between a page and LogTableLogic
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog

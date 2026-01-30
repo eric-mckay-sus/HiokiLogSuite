@@ -133,26 +133,6 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         await RefreshData(); // because the parameters change, we wish to reset to page 1
     }
 
-    public virtual void ResetFilterState()
-    {
-        FilterBarcode = null;
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterGroup = null;
-        FilterResult = null;
-        CurrentPage = 1;
-    }
-
-    /// <summary>
-    /// Sets filters to null and reloads the query
-    /// </summary>
-    /// <returns></returns>
-    public virtual async Task ClearFilters()
-    {
-        ResetFilterState();
-        await RefreshData();
-    }
-
     /// <summary>
     /// Helper to render the arrow
     /// </summary>
@@ -216,6 +196,34 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         }
     }
 
+    /// <summary>
+    /// Resets the common filters
+    /// Override to reset table-specific filters
+    /// </summary>
+    public virtual void ResetFilterState()
+    {
+        FilterBarcode = null;
+        FilterStartDate = null;
+        FilterEndDate = null;
+        FilterGroup = null;
+        FilterResult = null;
+        CurrentPage = 1;
+    }
+
+    /// <summary>
+    /// Resets filters AND reloads the query
+    /// Only bind to the CLEAR button
+    /// </summary>
+    /// <returns></returns>
+    public async Task ClearFilters()
+    {
+        ResetFilterState();
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Resets the entire model without refreshing (prepare for new query)
+    /// </summary>
     public void ClearData()
     {
         DataView = [];

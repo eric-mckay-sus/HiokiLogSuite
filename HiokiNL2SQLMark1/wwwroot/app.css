@@ -248,6 +248,10 @@ h1:focus {
     background-color: #e4e4e4 !important;
 }
 
+.badge.bg-info {
+    background-color: #23d3ffa4 !important;
+}
+
 .d-flex.gap-2 button.btn-sm {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
@@ -255,5 +259,27 @@ h1:focus {
 }
 
 .filter-row {
-    margin-left: 2.7rem; 
+    margin-left: 3rem; 
+}
+
+/* Remove the dividing borders */
+#searchBar {
+    border-right: none;
+}
+
+.clear-addon {
+    background-color: white !important;
+    border-left: none !important;
+    padding-right: 15px;
+}
+
+/* Maintain the blue highlight across both elements when focused */
+#searchBar:focus {
+    box-shadow: none; /* Hide default highlight */
+    border-color: #dee2e6; /* Match default border */
+}
+
+.input-group:focus-within {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    border-radius: 0.375rem;
 }

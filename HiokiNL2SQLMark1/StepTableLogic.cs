@@ -51,10 +51,4 @@ public class StepTableLogic : LogTableLogic<StepResult>
         FilterStep = null;
         base.ResetFilterState();
     }
-
-    public override async Task ClearFilters()
-    {
-        ResetFilterState();
-        await base.ClearFilters();
-    }
 }

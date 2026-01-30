@@ -10,32 +10,49 @@
 
 <h1>Hioki 1220 ICT Power Search</h1>
 
+@if (errorMessages != null && errorMessages.Count != 0)
+{
+        @foreach(string message in errorMessages){
+            <div class="alert alert-warning alert-dismissible fade show mb-2" role="alert">
+            <strong><i class="bi bi-exclamation-triangle" style="font-size: 1rem;"></i></strong> @message
+            <button type="button" class="btn-close" @onclick="() => errorMessages.Remove(message)"></button>
+            </div>
+        }
+}
 <div class="command-container mb-4">
     <div class="input-group mb-0">
-        <span class="input-group-text bg-dark text-white font-monospace">>_</span>
+        <span class="input-group-text bg-dark text-white font-monospace"><i class="bi bi-chevron-right" style="font-size: 1.5rem;"></i></span>
+    
         <input type="text" id="searchBar" class="form-control form-control-lg font-monospace" 
-               @bind="commandInput"
-               @bind:event="oninput"
-               @onkeydown="HandleKeyDown" 
-               placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
-        <button class="btn btn-primary" @onclick="async () => await ExecutePowerSearch()">Search</button>
+            @bind="commandInput"
+            @bind:event="oninput"
+            @onkeydown="HandleKeyDown" 
+            placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
+
+        <span class="input-group-text clear-addon">
+            @if (!string.IsNullOrEmpty(commandInput))
+            {
+                <button type="button" class="btn-close" aria-label="Clear" 
+                        @onclick="ClearSearchBar" 
+                        style="font-size: 0.8rem;"></button>
+            }
+        </span>
+        <button class="btn btn-primary px-4 d-flex align-items-center"
+                @onclick="async () => await ExecutePowerSearch()">
+                <i class="bi bi-arrow-right" style="font-size: 1.5rem;"></i></button>
     </div>
     <div class="d-flex gap-2 mt-0 mb-2 filter-row">
-        <button class="btn btn-sm @(CurrentType == "all" ? "btn-primary" : "btn-outline-secondary")" 
-            @onclick='() => SetType("all")'>All</button>
-        <button class="btn btn-sm @(CurrentType == "group" ? "btn-primary" : "btn-outline-secondary")" 
-            @onclick='() => SetType("group")'>Groups</button>
-        <button class="btn btn-sm @(CurrentType == "step" ? "btn-primary" : "btn-outline-secondary")" 
-                @onclick='() => SetType("step")'>Steps</button>
-        <button class="btn btn-sm @(CurrentType == "fct" ? "btn-primary" : "btn-outline-secondary")" 
-                @onclick='() => SetType("fct")'>FCT</button>
+        @foreach(string type in availableTypes){
+            <button class="btn btn-sm @(CurrentType == type ? "btn-primary" : "btn-outline-secondary")" 
+            @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type.Substring(1))</button>
+        }
     </div>
     <div class="mt-2">
         <small class="text-muted d-inline-flex flex-wrap gap-1">
             Supported keys for this mode:
             @foreach (string key in GetSupportedKeysThisMode())
             {
-                <span class="badge @GetBadgeClass(key)" 
+                <span class="badge @GetBadgeClass(key, true)" 
                     style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
                     @onclick="() => AppendKey(key)">@key</span>
             }
@@ -43,32 +60,20 @@
     </div>
     <div class="mt-2">
         <small class="text-muted d-inline-flex flex-wrap gap-1">
-            Quick Ranges:
-            <span class="badge bg-info text-dark" style="cursor: pointer;" @onclick='() => AppendKey("after:last24h")'>Last 24h</span>
-            
-            Shifts (Today):
-            <span class="badge bg-warning text-dark" style="cursor: pointer;" @onclick='() => AppendShift("after", "shift1")'>S1</span>
-            <span class="badge bg-warning text-dark" style="cursor: pointer;" @onclick='() => AppendShift("after", "shift2")'>S2</span>
-            <span class="badge bg-warning text-dark" style="cursor: pointer;" @onclick='() => AppendShift("after", "shift3")'>S3</span>
+            Date Aliases:
+            @foreach(string alias in dateAliases)
+            {
+                <span class="badge bg-info text-dark" style="cursor: pointer;" @onclick='() => AppendShortcut("after", alias)'>@alias</span>
+            }
         </small>
     </div>
-    <div class="mt-2">
-        <small class="text-muted d-inline-flex flex-wrap gap-1">
-            Date Shortcuts:
-            <span class="badge bg-info text-dark" style="cursor: pointer;" 
-                @onclick='() => AppendKey("after:today")'>After Today</span>
-            <span class="badge bg-info text-dark" style="cursor: pointer;" 
-                @onclick='() => AppendKey("after:yesterday")'>After Yesterday</span>
-            <span class="badge bg-info text-dark" style="cursor: pointer;" 
-                @onclick='() => AppendKey("after:lastweek")'>Last 7 Days</span>
-        </small>
-    </div>
+    
     <div class="mt-2">
     <small class="text-muted d-inline-flex flex-wrap gap-1">
         All supported keys:
-        @foreach (string key in supportedTags)
+        @foreach (string key in supportedTagsAll)
         {
-            <span class="badge @(commandInput.Contains(key) ? "bg-primary" : "bg-light text-dark")">@key</span>
+            <span class="badge @GetBadgeClass(key, false)">@key</span>
         }
     </small>
 </div>
@@ -97,21 +102,43 @@
 }
 
 @code{
+    /// <summary>
+    /// The methods and state necessary to run and display a power search
+    /// </summary>
     string CurrentType = "all"; // the table to check
     string commandInput = ""; // the input from the search bar
-    string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
-    string[] supportedTags = new[] { "in:", "barcode:", "group:", "before:", "after:", "result:", "step:", "mode:", "part:", "comp:", "short:", "macro:", "ic:", "function:" }; // all available tags
+    List<string> errorMessages = []; // the text of the error message, if applicable
+    readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
+    readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",];
+    readonly static string[] supportedTagsUniversal = ["in", "barcode", "group", "before", "after", "result"]; // tags available to all tables
+    readonly static string[] supportedTagsGroup = ["comp", "short", "macro", "ic", "function"]; // tags available to group table only
+    readonly static string[] supportedTagsStepFct = ["step", "mode"];
+    readonly static string[] supportedTagsStep = [..supportedTagsStepFct, "part"]; // tags available to step table only
+    readonly static string[] supportedTagsFct = supportedTagsStepFct; // tags available to FCT table only (alias)
+    readonly static string[] supportedTagsAll = // Use LINQ instead of hard-coding to clarify semantics. This is only run once, so it's relatively low-cost
+    new[] { supportedTagsUniversal, supportedTagsGroup, supportedTagsStep, supportedTagsFct }
+    .SelectMany(x => x)
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
     Dictionary<string, string>? filters; // the key-value pairs parsed from command input
     GroupTableLogic GroupLogic; // to handle group results
     StepTableLogic StepLogic; // to handle step results
     FctTableLogic FctLogic; // to handle FCT results
+
+    // Regex to find key:value pairs. \w+ detects the key text, \s* surrounding the colon detects whitespace, : is the literal colon,
+    // " is a literal quote, [^"]* iterates over non-quote characters, " is again a literal quote, | is for OR, and \S+ detects the value text
+    // Verbatim strings (those starting with @) switch the normal escape character of backslash (\) for quote ("), which is why it appears twice
+    // Parentheses and brackets are for grouping the regex itself. Regex OR is a short-circuiting operation
+    // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH
+    string pattern = @"(\w+)\s*:\s*(""[^""]*""|\S+)";
 
     /// <summary>
     /// Upon navigating to the power search page, load the sub-classes
     /// </summary>
     protected override void OnInitialized()
     {
-        // Manually "Inject" the DB context to all three
+        // Manually "inject" the DB context to all three
         GroupLogic = new GroupTableLogic(DbFactory, (db) => db.GroupView);
         StepLogic = new StepTableLogic(DbFactory, (db) => db.StepView);
         FctLogic = new FctTableLogic(DbFactory, (db) => db.FctView);
@@ -127,6 +154,10 @@
         StepLogic.ClearData();
         FctLogic.ClearData();
         filters = ParseQuery(commandInput);
+        if (errorMessages.Count > 0) // if there was an error, don't continue
+        {
+            return;
+        }
 
         List<Task>? tasks = new List<Task>();
 
@@ -146,31 +177,83 @@
     /// <summary>
     /// Parses a string for key-value pairs. Upon finding the "in" key, immediately updates the table reference
     /// Catches date aliases and calls TranslateDateAlias() to handle them
+    /// Continues upon finding an error in order to find and inform the user of all of them
     /// </summary>
     /// <param name="rawInput">The string to parse</param>
     /// <returns>A dictionary containing the key-value pairs to filter with</returns>
     private Dictionary<string, string> ParseQuery(string rawInput)
     {
+        errorMessages.Clear(); // on the off chance ParseQuery is called outside ExecutePowerSearch
         filters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(rawInput)) return filters;
 
-        // Regex to find key:value pairs, supporting quoted values like name:"Part A"
-        RegEx.MatchCollection? matches = RegEx.Regex.Matches(rawInput, @"(\w+):(""[^""]*""|\S+)");
+        // In the first pass, look for the "in" keyword to ensure further filters are applicable
+        RegEx.Match? contextMatch = RegEx.Regex.Match(rawInput, @"in\s*:\s*(\w+)", RegEx.RegexOptions.IgnoreCase);
+        if (contextMatch.Success)
+        {
+            string targetType = contextMatch.Groups[1].Value.ToLower();
+            if (availableTypes.Contains(targetType))
+            {
+                CurrentType = targetType;
+            }
+            else
+            {
+                errorMessages.Add($"'{targetType}' is not a valid table. The 'in' keyword only accepts the values 'all', 'group', 'step', or 'fct'.");
+            }
+        }
+
+        // Now the type is certain, we can enumerate all the valid keys
+        List<string>? allowedKeys = GetSupportedKeysThisMode();
+        RegEx.MatchCollection? matches = RegEx.Regex.Matches(rawInput, pattern);
+        int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
 
         foreach (RegEx.Match match in matches)
         {
-            string? key = match.Groups[1].Value.ToLower();
-            string? value = match.Groups[2].Value.Trim('"');
-
-            if (key == "before" || key == "after")
+            // Store the substring of unparsed input
+            string gap = rawInput.Substring(lastIndex, match.Index - lastIndex).Trim();
+            if (!string.IsNullOrWhiteSpace(gap))
             {
-                value = TranslateDateAlias(value);
+                errorMessages.Add($"Unrecognized input: '{gap}'. Did you forget a tag?");
             }
 
-            if(key == "in" && availableTypes.Contains(value.ToLower())){ // if we've identified the table, no need to add to the parameter list
-                CurrentType = value;
-            } else{ // otherwise, put it in the dictionary to construct a where clause
-                filters[key] = value;
+            string? key = match.Groups[1].Value.ToLower();
+            string? value = match.Groups[2].Value.Trim('"'); // cut the quotes, if the regex found them
+
+            // Validate if key is supported by system
+            if (!supportedTagsAll.Contains(key))
+            {
+                errorMessages.Add($"The tag '{key}' wasn't recognized. Try using the table and key options below the search bar");
+            } 
+            // Validate if key is supported by the selected table
+            else if (!allowedKeys.Contains(key) && key != "in")
+            {
+                errorMessages.Add($"The tag '{key}:' is not available when searching '{CurrentType}'. Either search a different table or remove this tag");
+            }
+            // Validate if filter was already used in this search. If it was, proceed, but notify the user
+            else if (filters.ContainsKey(key))
+            {
+                errorMessages.Add($"Duplicate tag detected: '{key}:'. Only the last value will be used.");
+                filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(value) : value;
+            }
+            // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
+            else if (key != "in") // we didn't actually remove "in", we just ignored it
+            {
+                filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(value) : value;
+            }
+                lastIndex = match.Index + match.Length;
+        }
+
+        // Check if there is any unparsed input (that didn't match the pattern)
+        if (lastIndex < rawInput.Length)
+        {
+            string trailing = rawInput.Substring(lastIndex).Trim();
+            if (!string.IsNullOrWhiteSpace(trailing))
+            {
+                // Check if it's a "tag:" without a value
+                if (trailing.EndsWith(":"))
+                    errorMessages.Add($"Tag '{trailing}' is missing a value.");
+                else
+                    errorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
             }
         }
         return filters;
@@ -191,33 +274,29 @@
             "yesterday" => now.AddDays(-1).ToString("yyyy-MM-dd"),
             "lastweek"  => now.AddDays(-7).ToString("yyyy-MM-dd"),
             "last24h"   => now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"),
-            "shift1"    => "07:00:00", // adjust as needed
-            "shift2"    => "15:00:00",
-            "shift3"    => "23:00:00",
-            _           => alias // If it's not an alias, return the original string (e.g., 2024-01-01)
+            "shift1"    => DateTime.Today.AddHours(7).ToString("yyyy-MM-dd HH:mm:ss"), // adjust as needed, this is approximate
+            "shift2"    => DateTime.Today.AddHours(15).ToString("yyyy-MM-dd HH:mm:ss"),
+            "shift3"    => DateTime.Today.AddHours(23).ToString("yyyy-MM-dd HH:mm:ss"),
+            _           => alias // If it's not an alias, hopefully it's already a datetime. Return the original string (e.g., 2024-01-01)
         };
     }
 
     /// <summary>
-    /// 
+    /// Helper to append the datetime associated with a date shortcut to keep AppendKey for key checking only
     /// </summary>
-    /// <param name="key"></param>
+    /// <param name="key"> The key to append</param>
     /// <param name="shiftAlias"></param>
     /// <returns></returns>
-    private async Task AppendShift(string key, string shiftAlias)
+    private async Task AppendShortcut(string key, string shortcut)
     {
-        string datePart = DateTime.Today.ToString("yyyy-MM-dd");
-        string timePart = TranslateDateAlias(shiftAlias);
+        bool keyAllowed = await AppendKey(key); // first, pass to AppendKey to check
+        string date = $"\"{TranslateDateAlias(shortcut)}\"";
 
-        // Combine into a quoted string so the Regex parser sees it as one value
-        // Format: after:"2024-01-29 06:00:00"
-        string fullValue = $"{key}:\"{datePart} {timePart}\"";
-
-        if (commandInput.Contains(fullValue, StringComparison.OrdinalIgnoreCase)) return;
+        if (commandInput.Contains(date, StringComparison.OrdinalIgnoreCase)) return;
 
         commandInput = string.IsNullOrWhiteSpace(commandInput) 
-            ? fullValue 
-            : commandInput.TrimEnd() + " " + fullValue;
+            ? date 
+            : commandInput.TrimEnd() + date;
 
         await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
     }
@@ -226,85 +305,72 @@
     /// Helper for quick select table tabs
     /// </summary>
     /// <param name="toType">The target table</param>
-    private void SetType(string toType){
-        CurrentType = toType;
-    }
+    private void SetType(string toType) => CurrentType = toType;
 
     /// <summary>
-    /// Binds the enter key to submission when search bar is active
+    /// Helper for search bar X button
+    /// </summary>
+    private void ClearSearchBar() => commandInput = "";
+
+    /// <summary>
+    /// Helper to bind the enter key to submission when search bar is active
     /// </summary>
     /// <param name="e">the key to handle</param>
     /// <returns></returns>
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await ExecutePowerSearch();
-        }
+    private async Task HandleKeyDown(KeyboardEventArgs e){
+        if(e.Key == "Enter") await ExecutePowerSearch();
     }
 
     /// <summary>
     /// Gets the list of all supported tags for the current mode
-    /// Irrelevant when the "in" key is used
+    /// This list does not detect when the "in" key is used
     /// </summary>
     /// <returns>The tags applicable to the current table</returns>
     private List<string> GetSupportedKeysThisMode()
     {
-        List<string>? keys = new List<string> { "in:", "barcode:", "group:", "before:", "after:", "result:" };
-
-        if (CurrentType == "group")
+        var specificTags = CurrentType switch
         {
-            keys.AddRange(new[] { "comp:", "short:", "macro:", "ic:", "function:" });
-        }
-        else
-        {
-            if (CurrentType != "all")
-            {
-                keys.AddRange(new[] { "step:", "mode:" });
-            }
-            if (CurrentType == "step")
-            {
-                keys.Add("part:");
-            }
-        }
-        return keys;
+            "group" => supportedTagsGroup,
+            "step"  => supportedTagsStep,
+            "fct"   => supportedTagsFct,
+            _       => Array.Empty<string>()
+        };
+        return supportedTagsUniversal
+        .Concat(specificTags)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
     }
 
     /// <summary>
-    /// Toggles color if the key is present in the input string
+    /// Toggles color depending on whether the input key is present in the search bar
     /// </summary>
     /// <param name="key">The tag to check against the search bar contents</param>
     /// <returns>The badge style reflecting its activation state</returns>
-    private string GetBadgeClass(string key)
-    {
-        return commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) 
-            ? "bg-primary" 
-            : "bg-secondary";
+    private string GetBadgeClass(string key, bool thisMode){
+        if (thisMode){
+            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "bg-primary" : "bg-secondary";
+        } else {
+            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "bg-primary" : "bg-light text-dark";
+        }
     }
-
     /// <summary>
-    /// Appends the input key to the search bar
+    /// Appends the input key to the search bar if not currently there
     /// </summary>
     /// <param name="key">The tag to be appended to the search</param>
     /// <returns></returns>
-    private async Task AppendKey(string key)
+    private async Task<bool> AppendKey(string key)
     {
         // Check if the key is already present (case-insensitive)
         if (commandInput.Contains(key, StringComparison.OrdinalIgnoreCase))
         {
-            return; // Do nothing
+            return false; // Do nothing; we don't want to duplicate it
         }
 
-        if (string.IsNullOrWhiteSpace(commandInput))
-        {
-            commandInput = key;
-        }
-        else
-        {
-            commandInput = commandInput.TrimEnd() + " " + key;
-        }
+        // If the search bar is currently empty, append right away, otherwise ensure there is a space between the current last character and the key
+        commandInput = string.IsNullOrWhiteSpace(commandInput) ? $"{key}:" : $"{commandInput.TrimEnd()} {key}:";
 
         // Trigger the JS helper to put the cursor back in the box
         await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+        return true;
     }
 }
