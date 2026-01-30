@@ -59,9 +59,10 @@ body {
         border-radius: 4px;
         height: 3rem;
         align-items: center;
-        text-align: right;
-        line-height: 3rem;
+        text-align: left;           /* Change to left for standard look */
+        padding: 0 1.5rem;          /* Adds 1.5rem padding to Left and Right */
         width: 100%;
+        transition: background-color 0.2s;
     }
 
 .nav-item ::deep a.active {

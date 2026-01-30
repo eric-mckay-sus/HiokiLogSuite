@@ -71,7 +71,7 @@
     <div class="mt-2">
     <small class="text-muted d-inline-flex flex-wrap gap-1">
         All supported keys:
-        @foreach (string key in supportedTagsAll)
+        @foreach (string key in AllTags)
         {
             <span class="badge @GetBadgeClass(key, false)">@key</span>
         }
@@ -110,21 +110,41 @@
     List<string> errorMessages = []; // the text of the error message, if applicable
     readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
     readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",];
-    readonly static string[] supportedTagsUniversal = ["in", "barcode", "group", "before", "after", "result"]; // tags available to all tables
-    readonly static string[] supportedTagsGroup = ["comp", "short", "macro", "ic", "function"]; // tags available to group table only
-    readonly static string[] supportedTagsStepFct = ["step", "mode"];
-    readonly static string[] supportedTagsStep = [..supportedTagsStepFct, "part"]; // tags available to step table only
-    readonly static string[] supportedTagsFct = supportedTagsStepFct; // tags available to FCT table only (alias)
-    readonly static string[] supportedTagsAll = // Use LINQ instead of hard-coding to clarify semantics. This is only run once, so it's relatively low-cost
-    new[] { supportedTagsUniversal, supportedTagsGroup, supportedTagsStep, supportedTagsFct }
-    .SelectMany(x => x)
-    .Distinct(StringComparer.OrdinalIgnoreCase)
-    .ToArray();
+    readonly static HashSet<string> UniversalTags = new(StringComparer.OrdinalIgnoreCase) 
+        { "in", "barcode", "group", "before", "after", "result" }; // tags available to all tables
+    readonly static HashSet<string> GroupTags = new(StringComparer.OrdinalIgnoreCase) 
+        { "comp", "short", "macro", "ic", "function" }; // tags available to group table only
+    readonly static HashSet<string> StepFctTags = new(StringComparer.OrdinalIgnoreCase) 
+        { "step", "mode" };
+    readonly static HashSet<string> StepTags = CreateStepSet(); // tags available to step table only
+
+    static HashSet<string> CreateStepSet() 
+    {
+        HashSet<string>? set = new HashSet<string>(StepFctTags, StringComparer.OrdinalIgnoreCase);
+        set.Add("part");
+        return set;
+    }
+    readonly static HashSet<string> FctTags = StepFctTags; // tags available to FCT table only (alias)
+    private readonly static HashSet<string> AllTags = CombineAllTags();
+    private static HashSet<string> CombineAllTags()
+    {
+        var all = new HashSet<string>(UniversalTags, StringComparer.OrdinalIgnoreCase);
+        all.UnionWith(GroupTags);
+        all.UnionWith(StepTags);
+        return all;
+    }
 
     Dictionary<string, string>? filters; // the key-value pairs parsed from command input
     GroupTableLogic GroupLogic; // to handle group results
     StepTableLogic StepLogic; // to handle step results
     FctTableLogic FctLogic; // to handle FCT results
+
+    // Basic countermeasure for SQL injection
+    private readonly static HashSet<string> sqlBlacklist = new(StringComparer.OrdinalIgnoreCase)
+{
+    "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", 
+    "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE"
+};
 
     // Regex to find key:value pairs. \w+ detects the key text, \s* surrounding the colon detects whitespace, : is the literal colon,
     // " is a literal quote, [^"]* iterates over non-quote characters, " is again a literal quote, | is for OR, and \S+ detects the value text
@@ -203,7 +223,7 @@
         }
 
         // Now the type is certain, we can enumerate all the valid keys
-        List<string>? allowedKeys = GetSupportedKeysThisMode();
+        HashSet<string> allowedKeys = new(GetSupportedKeysThisMode(), StringComparer.OrdinalIgnoreCase);
         RegEx.MatchCollection? matches = RegEx.Regex.Matches(rawInput, pattern);
         int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
 
@@ -219,8 +239,15 @@
             string? key = match.Groups[1].Value.ToLower();
             string? value = match.Groups[2].Value.Trim('"'); // cut the quotes, if the regex found them
 
+            // Basic SQL injection countermeasure
+            if (sqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
+            {
+                errorMessages.Add($"Security Issue: The value for '{key}' contains forbidden keywords.");
+                continue; 
+            }
+
             // Validate if key is supported by system
-            if (!supportedTagsAll.Contains(key))
+            if (!AllTags.Contains(key))
             {
                 errorMessages.Add($"The tag '{key}' wasn't recognized. Try using the table and key options below the search bar");
             } 
@@ -326,20 +353,18 @@
     /// This list does not detect when the "in" key is used
     /// </summary>
     /// <returns>The tags applicable to the current table</returns>
-    private List<string> GetSupportedKeysThisMode()
-    {
-        var specificTags = CurrentType switch
-        {
-            "group" => supportedTagsGroup,
-            "step"  => supportedTagsStep,
-            "fct"   => supportedTagsFct,
-            _       => Array.Empty<string>()
-        };
-        return supportedTagsUniversal
-        .Concat(specificTags)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToList();
+    private IEnumerable<string> GetSupportedKeysThisMode()
+{
+    HashSet<string> keys = new HashSet<string>(UniversalTags, StringComparer.OrdinalIgnoreCase);
+    
+    switch(CurrentType) {
+        case "group": keys.UnionWith(GroupTags); break;
+        case "step":  keys.UnionWith(StepTags); break;
+        case "fct":   keys.UnionWith(StepFctTags); break;
     }
+    
+    return keys.OrderBy(x => x); 
+}
 
     /// <summary>
     /// Toggles color depending on whether the input key is present in the search bar
