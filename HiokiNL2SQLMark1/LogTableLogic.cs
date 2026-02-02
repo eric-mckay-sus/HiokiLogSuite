@@ -171,30 +171,26 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <param name="isStep">Whether to load caches for step table (versus FCT table)</param>
     /// <returns></returns>
     public async Task InitializeCaches()
+{
+    if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
     {
-        if (typeof(IStepFCT).IsAssignableFrom(typeof(T))) // verifies that there is a mode and result column in the target table
-        {
-            List<Task>? tasks = [];
-            using var db = await _dbFactory.CreateDbContextAsync();
-            // Re-create the base query using this local context instance
-            var query = _querySelector(db).AsNoTracking();
+        using var db = await _dbFactory.CreateDbContextAsync();
+        var query = _querySelector(db).AsNoTracking();
 
-            var modeTask = query
-                .Select("Mode")
-                .Distinct()
-                .OrderBy("it")
-                .ToDynamicListAsync<string>();
-            var resultTask = query
-                .Select("Result")
-                .Distinct()
-                .OrderBy("it")
-                .ToDynamicListAsync<string>();;
-            
-            var results = await Task.WhenAll(modeTask, resultTask);
-            modeCache = results[0];
-            resultCache = results[1];
-        }
+        // Run sequentially to avoid context collisions
+        modeCache = await query
+            .Select("Mode")
+            .Distinct()
+            .OrderBy("it")
+            .ToDynamicListAsync<string>();
+
+        resultCache = await query
+            .Select("Result")
+            .Distinct()
+            .OrderBy("it")
+            .ToDynamicListAsync<string>();
     }
+}
 
     /// <summary>
     /// Resets the common filters

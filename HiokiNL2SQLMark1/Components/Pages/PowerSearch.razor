@@ -9,6 +9,9 @@
 @inject IDbContextFactory<LogDbContext> DbFactory
 @inject IJSRuntime JSRuntime
 @inject SearchParserService ParserService
+@inject GroupTableLogic GroupLogic
+@inject StepTableLogic StepLogic
+@inject FctTableLogic FctLogic
 
 <PageTitle>Power Search</PageTitle>
 
@@ -28,8 +31,8 @@
         <span class="input-group-text bg-dark text-white font-monospace"><i class="bi bi-chevron-right" style="font-size: 1.5rem;"></i></span>
     
         <input type="text" id="searchBar" class="form-control form-control-lg font-monospace" 
-            @bind="commandInput"
-            @bind:event="oninput"
+            value="@commandInput"
+            @oninput="HandleInput"
             @onkeydown="HandleKeyDown" 
             placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
 
@@ -49,6 +52,17 @@
         @foreach(string type in SearchParserService.availableTypes){
             <button class="btn btn-sm @(CurrentType == type ? "btn-primary" : "btn-outline-secondary")" 
             @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type.Substring(1))</button>
+        }
+    </div>
+    <div class="input-group mb-0">
+    </div>
+    <div class="mt-1 px-2">
+        @if (!string.IsNullOrWhiteSpace(Preview))
+        {
+            <small class="text-muted">
+                <i class="bi bi-search me-1"></i> 
+                @((MarkupString)Preview)
+            </small>
         }
     </div>
     <div class="mt-2">
@@ -89,8 +103,6 @@
     <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
                  CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
                  OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" />
-} else {
-    <h4>No group results to show for these criteria</h4>
 }
 @if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView.Count != 0)
 {
@@ -98,8 +110,6 @@
     <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
                  CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
                  OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" />
-} else {
-    <h4>No step results to show for these criteria</h4>
 }
 @if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView.Count != 0)
 {
@@ -107,8 +117,6 @@
     <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
                  CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
                  OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" />
-} else {
-    <h4>No FCT results to show for these criteria</h4>
 }
 
 @code{
@@ -117,23 +125,10 @@
     /// </summary>
     string CurrentType = "all"; // the table to check
     string commandInput = ""; // the input from the search bar
+    string Preview = "";
     List<string> errorMessages = []; // the text of the error message, if applicable
     readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",];
     Dictionary<string, string>? filters; // the key-value pairs parsed from command input
-    GroupTableLogic GroupLogic; // to handle group results
-    StepTableLogic StepLogic; // to handle step results
-    FctTableLogic FctLogic; // to handle FCT results
-
-    /// <summary>
-    /// Upon navigating to the power search page, load the sub-classes
-    /// </summary>
-    protected override void OnInitialized()
-    {
-        // Manually "inject" the DB context to all three
-        GroupLogic = new GroupTableLogic(DbFactory, (db) => db.GroupView);
-        StepLogic = new StepTableLogic(DbFactory, (db) => db.StepView);
-        FctLogic = new FctTableLogic(DbFactory, (db) => db.FctView);
-    }
 
     /// <summary>
     /// Parse search bar input, update the model, then tell the view  
@@ -149,6 +144,7 @@
         this.filters = parseResult.Filters;
         this.errorMessages = parseResult.ErrorMessages;
         this.CurrentType = parseResult.CurrentType;
+        this.Preview = parseResult.Preview;
 
         if (errorMessages.Count > 0) // if there was an error, don't continue
         {
@@ -186,7 +182,7 @@
         commandInput = string.IsNullOrWhiteSpace(commandInput) 
             ? date 
             : commandInput.TrimEnd() + date;
-
+        SyncLivePreview();
         await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
     }
 
@@ -206,12 +202,16 @@
         if ((GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count) > 0 && !commandInput.IsNullOrEmpty()){
             await ExecutePowerSearch();
         }
+        SyncLivePreview();
     } 
 
     /// <summary>
     /// Helper for search bar X button
     /// </summary>
-    private void ClearSearchBar() => commandInput = "";
+    private void ClearSearchBar(){
+        commandInput = "";
+        SyncLivePreview();
+    }
 
     /// <summary>
     /// Helper to bind the enter key to submission when search bar is active
@@ -220,6 +220,27 @@
     /// <returns></returns>
     private async Task HandleKeyDown(KeyboardEventArgs e){
         if(e.Key == "Enter") await ExecutePowerSearch();
+    }
+
+    /// <summary>
+    /// As the user types, get the interpretation of their search
+    /// </summary>
+    /// <param name="e">Detects a change in input</param>
+    private void HandleInput(ChangeEventArgs e){
+        commandInput = e.Value?.ToString() ?? "";
+        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
+        this.Preview = liveResult.Preview;
+        // intentionally don't display errors yet; the user's not finished
+        if (!string.IsNullOrEmpty(liveResult.CurrentType)) CurrentType = liveResult.CurrentType;
+    }
+
+    /// <summary>
+    /// Updates the live preview based on current search bar contents
+    /// </summary>
+    private void SyncLivePreview()
+    {
+        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
+        this.Preview = liveResult.Preview;
     }
 
     /// <summary>
@@ -255,6 +276,7 @@
         if(!fromTableTab){ 
             await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
         }
+        SyncLivePreview();
         return true;
     }
 }

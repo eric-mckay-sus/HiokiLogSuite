@@ -48,6 +48,7 @@ public class SearchParserService
         public Dictionary<string, string> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> ErrorMessages { get; set; } = [];
         public string CurrentType { get; set; } = "all";
+        public string Preview { get; set; } = "Searching all records...";
     }
 
     /// <summary>
@@ -63,8 +64,12 @@ public class SearchParserService
         var result = new SearchParseResult();
         result.ErrorMessages.Clear(); // on the off chance ParseQuery is called outside ExecutePowerSearch
         result.Filters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        result.CurrentType = currentType;
         
-        if (string.IsNullOrWhiteSpace(rawInput)) return result;
+        if (string.IsNullOrWhiteSpace(rawInput)){
+            result.Preview = GeneratePreview(result.CurrentType, result.Filters); // guarantees that preview matches current state
+            return result;
+        }
 
         // In the first pass, look for the "in" keyword to ensure further filters are applicable
         Match? contextMatch = Regex.Match(rawInput, inPattern, RegexOptions.IgnoreCase);
@@ -73,7 +78,7 @@ public class SearchParserService
             string targetType = contextMatch.Groups[1].Value.ToLower();
             if (availableTypes.Contains(targetType))
             {
-                currentType = targetType;
+                result.CurrentType = targetType;
             }
             else
             {
@@ -141,7 +146,31 @@ public class SearchParserService
                     result.ErrorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
             }
         }
+        result.Preview = GeneratePreview(result.CurrentType, result.Filters);
         return result;
+    }
+
+
+    private string GeneratePreview(string type, Dictionary<string, string> filters)
+    {
+        string tableMessage = $"Showing all results";
+        tableMessage += (type!="all") ? $" from **{type.ToUpper()}**" : " from ALL tables";
+        if(filters.Count == 0) return tableMessage;
+
+        var parts = filters.Select(kvp => 
+        {
+            string displayKey = kvp.Key.ToUpper();
+            if ((displayKey == "BEFORE") || (displayKey == "AFTER"))
+            {
+                return $"**DATE** is {displayKey} '{kvp.Value}'";
+            } 
+            else
+            {
+                return $"**{displayKey}** is '{kvp.Value}'";
+            }
+        });
+
+        return $"Searching **{type.ToUpper()}** where " + string.Join(" and ", parts);
     }
 
     /// <summary>

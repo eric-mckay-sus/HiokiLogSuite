@@ -85,7 +85,6 @@ h1:focus {
 
 /* Center headers */
 .res-table thead th {
-    position: sticky;
     top: 0;
     z-index: 10;
     background-color: #f8f9fa;
@@ -121,7 +120,6 @@ h1:focus {
     background-color: #fcfcfc;
     border-color: #e0e0e0;
     max-width: 100%;
-    position: sticky;
     left: 0; /* Keeps it visible if the user scrolls the page horizontally */
 }
 
@@ -214,7 +212,6 @@ h1:focus {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    position: sticky;
     bottom: 0;
     background: white; /* Prevent table rows from showing through */
     padding-top: 10px 0;
