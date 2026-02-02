@@ -9,6 +9,7 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // Add services to the container.
+builder.Services.AddScoped<SearchParserService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddBlazorBootstrap();
