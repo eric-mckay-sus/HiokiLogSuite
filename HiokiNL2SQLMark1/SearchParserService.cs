@@ -39,6 +39,7 @@ public class SearchParserService
         "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", 
         "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE"
     };
+    private static readonly char[] separator = [' '];
 
     /// <summary>
     /// A container for the return values from the parser
@@ -151,7 +152,7 @@ public class SearchParserService
     }
 
 
-    private string GeneratePreview(string type, Dictionary<string, string> filters)
+    private static string GeneratePreview(string type, Dictionary<string, string> filters)
     {
         string tableMessage = $"Showing all results";
         tableMessage += (type!="all") ? $" from **{type.ToUpper()}**" : " from ALL tables";
@@ -162,7 +163,10 @@ public class SearchParserService
             string displayKey = kvp.Key.ToUpper();
             if ((displayKey == "BEFORE") || (displayKey == "AFTER"))
             {
-                return $"**DATE** is {displayKey} '{kvp.Value}'";
+                string[] datetime = kvp.Value.Split(separator, StringSplitOptions.RemoveEmptyEntries);
+                string datePart = datetime.Length > 0 ? TranslateDateAlias(datetime[0], false) : "";
+                string timePart = datetime.Length > 1 ? " " + TranslateDateAlias(datetime[1], true) : "";
+                return $"**DATE** is {displayKey} '{TranslateDateAlias(datePart)} {TranslateDateAlias(timePart)}'";
             } 
             else
             {
@@ -179,7 +183,7 @@ public class SearchParserService
     /// </summary>
     /// <param name="mode">The mode to check keys for</param>
     /// <returns>The tags applicable to the current table</returns>
-    public IEnumerable<string> GetSupportedKeysThisMode(string mode)
+    public static IEnumerable<string> GetSupportedKeysThisMode(string mode)
     {
         HashSet<string> keys = new(UniversalTags, StringComparer.OrdinalIgnoreCase);
 
@@ -197,19 +201,25 @@ public class SearchParserService
     /// </summary>
     /// <param name="alias">the alias to translate to a datetime</param>
     /// <returns>The datetime referred to by the alias</returns>
-    public string TranslateDateAlias(string alias)
+    public static string TranslateDateAlias(string alias, bool isTimePart = false)
     {
         DateTime now = DateTime.Today;
+        string lowerAlias = alias.ToLower();
 
-        return alias.ToLower() switch
+        // adjust as needed, these are approximate
+        string s1 = "07:00:00";
+        string s2 = "15:00:00";
+        string s3 = "23:00:00";
+
+        return lowerAlias switch
         {
             "today"     => now.ToString("yyyy-MM-dd"),
             "yesterday" => now.AddDays(-1).ToString("yyyy-MM-dd"),
             "lastweek"  => now.AddDays(-7).ToString("yyyy-MM-dd"),
-            "last24h"   => now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"),
-            "shift1"    => DateTime.Today.AddHours(7).ToString("yyyy-MM-dd HH:mm:ss"), // adjust as needed, this is approximate
-            "shift2"    => DateTime.Today.AddHours(15).ToString("yyyy-MM-dd HH:mm:ss"),
-            "shift3"    => DateTime.Today.AddHours(23).ToString("yyyy-MM-dd HH:mm:ss"),
+            "last24h"   => DateTime.Now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"), // ensure 24 hours since this moment, not just since this morning
+            "shift1"    => isTimePart ? s1 : $"{now:yyyy-MM-dd} {s1}",
+            "shift2"    => isTimePart ? s2 : $"{now:yyyy-MM-dd} {s2}",
+            "shift3"    => isTimePart ? s3 : $"{now:yyyy-MM-dd} {s3}",
             _           => alias // If it's not an alias, hopefully it's already a datetime. Return the original string (e.g., 2024-01-01)
         };
     }

@@ -70,9 +70,15 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         if (FilterStartDate.HasValue)
             query = query.Where(x => x.Time >= FilterStartDate.Value);
 
-        if (FilterEndDate.HasValue)
-            // Add a day to encompass all times on day of end date
-            query = query.Where(x => x.Time < FilterEndDate.Value.AddDays(1));
+        if (FilterEndDate.HasValue) // The semantics of the word "before" are tricky and depend on whether a time was specified
+            if (FilterEndDate.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
+            {
+                query = query.Where(x => x.Time < FilterEndDate.Value.AddDays(1)); // this is inclusive of all times on the end date
+            }
+            else // Otherwise, use the time provided by the user as a hard stop
+            {
+                query = query.Where(x => x.Time <= FilterEndDate.Value); // this stops exactly at the time specified
+            }
 
         if (FilterGroup != null)
             query = query.Where(s => s.Group == FilterGroup);

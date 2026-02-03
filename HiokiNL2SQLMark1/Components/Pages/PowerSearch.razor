@@ -33,8 +33,9 @@
         <input type="text" id="searchBar" class="form-control form-control-lg font-monospace" 
             value="@commandInput"
             @oninput="HandleInput"
-            @onkeydown="HandleKeyDown" 
-            placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" />
+            @onkeydown="HandleKeyDown"
+            placeholder="Search in @(CurrentType.ToUpper())... (e.g. barcode:A123)" />
+            @* placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" /> *@
 
         <span class="input-group-text clear-addon">
             @if (!string.IsNullOrEmpty(commandInput))
@@ -66,35 +67,35 @@
         }
     </div>
     <div class="mt-2">
-        <small class="text-muted d-inline-flex flex-wrap gap-1">
-            Supported keys for this mode:
-            @foreach (string key in ParserService.GetSupportedKeysThisMode(CurrentType))
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+            <span>Supported keys for this mode:</span>
+            @foreach (string key in SearchParserService.GetSupportedKeysThisMode(CurrentType))
             {
-                <span class="badge @GetBadgeClass(key, true)" 
+                <span class="badge @GetBadgeClass(key, true) align-middle" 
                     style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
                     @onclick="() => AppendKey(key, false)">@key</span>
             }
         </small>
     </div>
     <div class="mt-2">
-        <small class="text-muted d-inline-flex flex-wrap gap-1">
-            Date Aliases:
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+            <span>Date aliases:</span>
             @foreach(string alias in dateAliases)
             {
-                <span class="badge bg-info text-dark" style="cursor: pointer;" @onclick='() => AppendShortcut("after", alias)'>@alias</span>
+                <span class="badge bg-secondary align-middle" style="cursor: pointer;" @onclick='() => AppendShortcut("after", alias)'>@alias</span>
             }
         </small>
     </div>
     
     <div class="mt-2">
-    <small class="text-muted d-inline-flex flex-wrap gap-1">
-        All supported keys:
-        @foreach (string key in SearchParserService.AllTags)
-        {
-            <span class="badge @GetBadgeClass(key, false)">@key</span>
-        }
-    </small>
-</div>
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+            <span>All supported keys:</span>
+            @foreach (string key in SearchParserService.AllTags)
+            {
+                <span class="badge @GetBadgeClass(key, false) align-middle" title="Title" style="cursor: default;">@key</span>
+            }
+        </small>
+    </div>
 </div>
 
 @if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView.Count != 0)
@@ -169,19 +170,28 @@
     /// <summary>
     /// Helper to append the datetime associated with a date shortcut to keep AppendKey for key checking only
     /// </summary>
-    /// <param name="key"> The key to append</param>
-    /// <param name="shiftAlias"></param>
+    /// <param name="key">The key to append</param>
+    /// <param name="shortcut">The shortcut to append</param>
     /// <returns></returns>
     private async Task AppendShortcut(string key, string shortcut)
     {
-        bool keyAllowed = await AppendKey(key, false); // first, pass to AppendKey to check
-        string date = $"\"{ParserService.TranslateDateAlias(shortcut)}\"";
+        string toAppend = $"{key}:{shortcut} ";
+        // Short-circuit if search bar is empty
+        if(string.IsNullOrEmpty(commandInput)){
+            commandInput = toAppend;
+            await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+            return;
+        }
 
-        if (commandInput.Contains(date, StringComparison.OrdinalIgnoreCase)) return;
+        // If the shortcut is already touching a tag or the key/shortcut is already present in the search bar, only add the shortcut
+        if (commandInput.Contains(shortcut) || commandInput.Contains(key) || commandInput.TrimEnd()[^1] == ':'){
+            toAppend = $"{shortcut} ";
+        } else { // technically unnecessary bc the parser is smart enough but it's easier to read
+            toAppend = ' ' + toAppend;
+        }
 
-        commandInput = string.IsNullOrWhiteSpace(commandInput) 
-            ? date 
-            : commandInput.TrimEnd() + date;
+        // Append the shortcut
+        commandInput = commandInput.TrimEnd() + toAppend;
         SyncLivePreview();
         await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
     }
