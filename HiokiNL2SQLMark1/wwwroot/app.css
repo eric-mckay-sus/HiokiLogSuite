@@ -50,12 +50,22 @@ a, .btn-link {
 
 .search-tag.is-active {
     background-color: hsl(210, 100%, 55%); /* primary */
-    box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
+    box-shadow: 0 0 5px hsla(216, 98%, 52%, 0.5);
+}
+
+.search-tag.is-active.negative {
+    background-color: hsl(0, 100%, 55%); /* for negative tag */
+    box-shadow: 0 0 5px hsla(0, 98%, 52%, 0.5);
 }
 
 .search-tag.is-active-tertiary {
-    background-color: hsl(210, 60%, 50%); /* primary */
-    box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
+    background-color: hsl(210, 50%, 50%); /* primary, but duller */
+    box-shadow: 0 0 5px hsla(216, 98%, 52%, 0.5);
+}
+
+.search-tag.is-active-tertiary.negative {
+    background-color: hsl(0, 50%, 50%); /* negative, but duller */
+    box-shadow: 0 0 3px hsla(0, 98%, 52%, 0.5);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {

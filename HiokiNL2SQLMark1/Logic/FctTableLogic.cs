@@ -6,8 +6,8 @@ public class FctTableLogic : LogTableLogic<FctResult>
     public FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<FctResult>> querySelector) 
         : base(dbFactory, querySelector) { }
 
-    public int? FilterStep { get; set; }
-    public string? FilterMode { get; set; }
+    public Filter<int?> FilterStep = new(null);
+    public Filter<string?> FilterMode = new(null);
 
     public override IQueryable<FctResult> ApplyFilters(IQueryable<FctResult> query)
     {
@@ -15,11 +15,15 @@ public class FctTableLogic : LogTableLogic<FctResult>
         query = base.ApplyFilters(query);
 
         // Apply FCT-specific filters
-        if (FilterStep != null)
-            query = query.Where(s => s.Step == FilterStep);
+        if (FilterStep.Value != null)
+            query = FilterStep.IsNegated
+                ? query = query.Where(s => s.Step != FilterStep.Value)
+                : query = query.Where(s => s.Step == FilterStep.Value);
 
-        if (!string.IsNullOrWhiteSpace(FilterMode))
-            query = query.Where(s => s.Mode.Contains(FilterMode));
+        if (FilterMode.Value != null)
+            query = FilterMode.IsNegated
+                ? query.Where(s => !s.Mode.Contains(FilterMode.Value))
+                : query.Where(s => s.Mode.Contains(FilterMode.Value));
 
         return query;
     }
@@ -30,10 +34,16 @@ public class FctTableLogic : LogTableLogic<FctResult>
         // Note: We don't await RefreshData here yet to avoid multiple DB calls
         foreach (var (key, value) in filterDict)
         {
-            switch (key.ToLower())
+            bool isNegated = key.StartsWith('-');
+            string cleanKey = isNegated ? key[1..] : key;
+            switch (cleanKey.ToLower())
             {
-                case "mode": FilterMode = value; break;
-                case "step" when int.TryParse(value, out int i): FilterStep = i; break;
+                case "mode": 
+                    FilterMode.Value = value;
+                    FilterMode.IsNegated = isNegated; break;
+                case "step" when int.TryParse(value, out int i): 
+                    FilterStep.Value = i;
+                    FilterStep.IsNegated = isNegated; break;
             }
         }
 
@@ -43,8 +53,8 @@ public class FctTableLogic : LogTableLogic<FctResult>
 
     public override void ResetFilterState()
     {
-        FilterMode = null;
-        FilterStep = null;
+        FilterMode.Value = null;
+        FilterStep.Value = null;
         base.ResetFilterState();
     }
 }

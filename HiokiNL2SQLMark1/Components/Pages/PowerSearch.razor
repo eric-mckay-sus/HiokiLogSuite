@@ -314,11 +314,20 @@
     /// <param name="key">The tag to check against the search bar contents</param>
     /// <returns>The badge style reflecting its activation state</returns>
     private string GetBadgeClass(string key, bool thisMode){
-        if (thisMode){
-            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "search-tag is-active" : "search-tag secondary";
-        } else {
-            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "search-tag is-active-tertiary" : "search-tag tertiary";
+        // Highlight red for negative presence (-key:)
+        if (commandInput.Contains($"-{key}:", StringComparison.OrdinalIgnoreCase))
+        {
+            return thisMode ? "search-tag is-active negative" : "search-tag is-active-tertiary negative";
         }
+
+        // Highlight blue for positive presence (key:)
+        if (commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase))
+        {
+            return thisMode ? "search-tag is-active" : "search-tag is-active-tertiary";
+        }
+
+        // Otherwise, revert to respective default (inactive) states
+        return thisMode ? "search-tag secondary" : "search-tag tertiary";
     }
     /// <summary>
     /// Appends the input key to the search bar if not currently there

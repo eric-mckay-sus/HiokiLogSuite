@@ -1,6 +1,7 @@
 ﻿@page "/step"
 @rendermode InteractiveServer
 @inherits LogTableBase<StepResult>
+@using HiokiNL2SQLMark1.Logic 
 
 <PageTitle>Step Results</PageTitle>
 
@@ -18,11 +19,11 @@
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Start Date</label>
-                <input type="date" class="form-control" @bind="Logic.FilterStartDate" />
+                <input type="date" class="form-control" @bind="Logic.FilterStartDate.Value" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">End Date</label>
-                <input type="date" class="form-control" @bind="Logic.FilterEndDate" />
+                <input type="date" class="form-control" @bind="Logic.FilterEndDate.Value" />
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Group</label>

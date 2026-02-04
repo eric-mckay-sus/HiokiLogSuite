@@ -6,9 +6,9 @@ public class StepTableLogic : LogTableLogic<StepResult>
     public StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<StepResult>> querySelector) 
         : base(dbFactory, querySelector) { }
 
-    public string? FilterPartName { get; set; }
-    public int? FilterStep { get; set; }
-    public string? FilterMode { get; set; }
+    public Filter<string?> FilterPartName = new(null);
+    public Filter<int?> FilterStep = new(null);
+    public Filter<string?> FilterMode = new(null);
 
     public override IQueryable<StepResult> ApplyFilters(IQueryable<StepResult> query)
     {
@@ -16,14 +16,20 @@ public class StepTableLogic : LogTableLogic<StepResult>
         query = base.ApplyFilters(query);
 
         // Apply Step-specific filters
-        if (FilterStep != null)
-            query = query.Where(s => s.Step == FilterStep);
+        if (FilterStep.Value != null)
+            query = FilterStep.IsNegated
+                ? query = query.Where(s => s.Step != FilterStep.Value)
+                : query = query.Where(s => s.Step == FilterStep.Value);
 
-        if (!string.IsNullOrWhiteSpace(FilterPartName))
-            query = query.Where(s => s.PartName.Contains(FilterPartName));
+        if (FilterPartName.Value != null)
+            query = FilterPartName.IsNegated
+                ? query.Where(s => !s.PartName.Contains(FilterPartName.Value))
+                : query.Where(s => s.PartName.Contains(FilterPartName.Value));
 
-        if (!string.IsNullOrWhiteSpace(FilterMode))
-            query = query.Where(s => s.Mode.Contains(FilterMode));
+        if (FilterMode.Value != null)
+            query = FilterMode.IsNegated
+                ? query.Where(s => !s.Mode.Contains(FilterMode.Value))
+                : query.Where(s => s.Mode.Contains(FilterMode.Value));
 
         return query;
     }
@@ -34,11 +40,19 @@ public class StepTableLogic : LogTableLogic<StepResult>
         // Note: We don't await RefreshData here yet to avoid multiple DB calls
         foreach (var (key, value) in filterDict)
         {
-            switch (key.ToLower())
+            bool isNegated = key.StartsWith('-');
+            string cleanKey = isNegated ? key[1..] : key;
+            switch (cleanKey.ToLower())
             {
-                case "part": FilterPartName = value; break;
-                case "mode": FilterMode = value; break;
-                case "step" when int.TryParse(value, out int i): FilterStep = i; break;
+                case "part": 
+                    FilterPartName.Value = value;
+                    FilterPartName.IsNegated = isNegated; break;
+                case "mode": 
+                    FilterMode.Value = value;
+                    FilterMode.IsNegated = isNegated; break;
+                case "step" when int.TryParse(value, out int i): 
+                    FilterStep.Value = i;
+                    FilterStep.IsNegated = isNegated; break;
             }
         }
 
@@ -48,9 +62,9 @@ public class StepTableLogic : LogTableLogic<StepResult>
 
     public override void ResetFilterState()
     {
-        FilterPartName = null;
-        FilterMode = null;
-        FilterStep = null;
+        FilterPartName.Value = null;
+        FilterMode.Value = null;
+        FilterStep.Value = null;
         base.ResetFilterState();
     }
 }

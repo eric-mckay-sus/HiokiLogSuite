@@ -157,7 +157,8 @@ public class SearchParserService
             }
 
             string? key = match.Groups[1].Value.ToLower();
-            string cleanKey = key.StartsWith("-") ? key[1..] : key; // for use in checking against key sets
+            bool isNegated = key.StartsWith('-');
+            string cleanKey = isNegated ? key[1..] : key; // for use in checking against key sets
             string? value = match.Groups[2].Value.Trim('"'); // cut the quotes, if the regex found them
 
             // Basic SQL injection countermeasure
@@ -179,7 +180,7 @@ public class SearchParserService
                 result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{result.CurrentType}'. Try a different tag or search a table with that attribute.");
             }
             // Validate if filter was already used in this search. If it was, proceed, but notify the user
-            else if (result.Filters.ContainsKey(key)) // we'll allow a positive and negative of the same filter
+            else if (result.Filters.ContainsKey(cleanKey) || result.Filters.ContainsKey(key))
             {
                 result.ErrorMessages.Add($"Duplicate tag detected: '{key}:'. Only the last value will be used.");
                 result.Filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(value) : value;
@@ -187,7 +188,14 @@ public class SearchParserService
             // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
             else if (cleanKey != "in") // we didn't actually remove "in", we just ignored it
             {
-                result.Filters[key] = (cleanKey == "before" || cleanKey == "after") ? TranslateDateAlias(value) : value;
+                // Attempting to negate before/after isn't fatal
+                if (cleanKey == "before" || cleanKey == "after") {
+                    if (isNegated) result.ErrorMessages.Add($"The '{cleanKey}' tag cannot be negated. This search is now '{cleanKey}:{value}'.");
+                    result.Filters[cleanKey] = TranslateDateAlias(value);
+                }
+                else {
+                    result.Filters[key] = value;
+                }
             }
             lastIndex = match.Index + match.Length;
         }

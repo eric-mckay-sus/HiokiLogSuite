@@ -1,7 +1,21 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Client;
 using System.Linq.Dynamic.Core;
 
 namespace HiokiNL2SQLMark1.Logic;
+
+/// <summary>
+/// Container for the value and polarity of a filter
+/// </summary>
+/// <typeparam name="T">One of string, int, or DateTime</typeparam>
+/// <param name="value">The value used in filtering</param>
+/// <param name="isNegated">Whether to filter out (or filter by)</param>
+public class Filter<T>(T? value, bool isNegated = false)
+{
+    public T? Value = value;
+    public bool IsNegated = isNegated;
+}
+
 /// <summary>
 /// Holds all the methods necessary to store a table
 /// </summary>
@@ -12,11 +26,11 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
 
     // Shared filters
-    public string? FilterBarcode;
-    public DateTime? FilterStartDate;
-    public DateTime? FilterEndDate;
-    public string? FilterResult;
-    public int? FilterGroup;
+    public Filter<string?> FilterBarcode = new(null);
+    public Filter<DateTime?> FilterStartDate = new(null);
+    public Filter<DateTime?> FilterEndDate = new(null);
+    public Filter<string?> FilterResult = new(null);
+    public Filter<int?> FilterGroup = new(null);
 
     // Pagination variables
     public int CurrentPage = 1;
@@ -65,27 +79,33 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <returns>An IQueryable object with filters applied</returns>
     public virtual IQueryable<T> ApplyFilters(IQueryable<T> query)
     {
-        if (!string.IsNullOrWhiteSpace(FilterBarcode))
-            query = query.Where(x => x.Barcode.Contains(FilterBarcode));
+        if (FilterBarcode.Value != null)
+            query = FilterBarcode.IsNegated
+                ? query.Where(x => !x.Barcode.Contains(FilterBarcode.Value))
+                : query.Where(x => x.Barcode.Contains(FilterBarcode.Value));
 
-        if (FilterStartDate.HasValue)
-            query = query.Where(x => x.Time >= FilterStartDate.Value);
+        if (FilterStartDate != null && FilterStartDate.Value.HasValue)
+            query = query.Where(x => x.Time >= FilterStartDate.Value.Value); // .Value accesses the filter, then converts from DateTime? (nullable) to DateTime (not null)
 
-        if (FilterEndDate.HasValue) // The semantics of the word "before" are tricky and depend on whether a time was specified
-            if (FilterEndDate.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
+        if (FilterEndDate != null && FilterEndDate.Value.HasValue) // The semantics of the word "before" are tricky and depend on whether a time was specified
+            if (FilterEndDate.Value.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
             {
-                query = query.Where(x => x.Time < FilterEndDate.Value.AddDays(1)); // this is inclusive of all times on the end date
+                query = query.Where(x => x.Time < FilterEndDate.Value.Value.AddDays(1)); // this is inclusive of all times on the end date
             }
             else // Otherwise, use the time provided by the user as a hard stop
             {
-                query = query.Where(x => x.Time <= FilterEndDate.Value); // this stops exactly at the time specified
+                query = query.Where(x => x.Time <= FilterEndDate.Value.Value); // this stops exactly at the time specified
             }
 
-        if (FilterGroup != null)
-            query = query.Where(s => s.Group == FilterGroup);
+        if (FilterGroup.Value != null)
+            query = FilterGroup.IsNegated
+                ? query = query.Where(x => x.Group != FilterGroup.Value)
+                : query = query.Where(x => x.Group == FilterGroup.Value);
 
-        if (!string.IsNullOrWhiteSpace(FilterResult))
-            query = query.Where(x => x.Result == FilterResult);
+        if (FilterResult.Value != null)
+            query = FilterResult.IsNegated
+                ? query = query.Where(x => x.Result != FilterResult.Value)
+                : query = query.Where(x => x.Result == FilterResult.Value);
 
         return query;
     }
@@ -99,18 +119,26 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     {
         foreach (var (key, value) in filterDict)
         {
-            switch (key.ToLower())
+            bool isNegated = key.StartsWith('-');
+            string cleanKey = isNegated ? key[1..] : key;
+            switch (cleanKey.ToLower())
             {
-                case "barcode": FilterBarcode = value; break;
-                case "result":  FilterResult = value; break;
-                case "group" when int.TryParse(value, out var i): FilterGroup = i; break;
+                case "barcode":
+                    FilterBarcode.Value = value;
+                    FilterBarcode.IsNegated = isNegated; break;
+                case "result":
+                    FilterResult.Value = value;
+                    FilterResult.IsNegated = isNegated; break;
+                case "group" when int.TryParse(value, out var i): 
+                    FilterGroup.Value = i;
+                    FilterGroup.IsNegated = isNegated; break;
 
+                // No need to assign IsNegated value for DateTimes because they don't support it
                 case "after":
-                    FilterStartDate = LogTableLogic<T>.ResolveFullDateTime(value);
+                    FilterStartDate.Value = LogTableLogic<T>.ResolveFullDateTime(value);
                     break;
-
                 case "before":
-                    FilterEndDate = LogTableLogic<T>.ResolveFullDateTime(value);
+                    FilterEndDate.Value = LogTableLogic<T>.ResolveFullDateTime(value);
                     break;
             }
         }
@@ -237,11 +265,11 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// </summary>
     public virtual void ResetFilterState()
     {
-        FilterBarcode = null;
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterGroup = null;
-        FilterResult = null;
+        FilterBarcode.Value = null;
+        FilterStartDate.Value = null;
+        FilterEndDate.Value = null;
+        FilterGroup.Value = null;
+        FilterResult.Value = null;
         CurrentPage = 1;
     }
 

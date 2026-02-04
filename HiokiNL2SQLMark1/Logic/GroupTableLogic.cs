@@ -6,11 +6,11 @@ public class GroupTableLogic : LogTableLogic<GroupResult>
     public GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<GroupResult>> querySelector) 
         : base(dbFactory, querySelector) { }
 
-    public string? FilterComp;
-    public string? FilterShort;
-    public string? FilterMacro;
-    public string? FilterIC;
-    public string? FilterFunction;
+    public Filter<string?> FilterComp = new(null);
+    public Filter<string?> FilterShort = new(null);
+    public Filter<string?> FilterMacro = new(null);
+    public Filter<string?> FilterIC = new(null);
+    public Filter<string?> FilterFunction = new(null);
 
     public override IQueryable<GroupResult> ApplyFilters(IQueryable<GroupResult> query)
     {
@@ -18,36 +18,57 @@ public class GroupTableLogic : LogTableLogic<GroupResult>
         query = base.ApplyFilters(query);
 
         // Apply Group-specific filters
-        if (!string.IsNullOrWhiteSpace(FilterComp))
-            query = query.Where(s => s.ComponentTest.Contains(FilterComp));
+        if (FilterComp.Value != null)
+            query = FilterComp.IsNegated
+                ? query.Where(g => !g.ComponentTest.Contains(FilterComp.Value))
+                : query.Where(g => g.ComponentTest.Contains(FilterComp.Value));
 
-        if (!string.IsNullOrWhiteSpace(FilterShort))
-            query = query.Where(s => s.ShortTest.Contains(FilterShort));
-        if (!string.IsNullOrWhiteSpace(FilterMacro))
-                    query = query.Where(s => s.MacroTest.Contains(FilterMacro));
+        if (FilterShort.Value != null)
+            query = FilterShort.IsNegated
+                ? query.Where(g => !g.ShortTest.Contains(FilterShort.Value))
+                : query.Where(g => g.ShortTest.Contains(FilterShort.Value));
 
-        if (!string.IsNullOrWhiteSpace(FilterIC))
-                    query = query.Where(s => s.IcTest.Contains(FilterIC));
+        if (FilterMacro.Value != null)
+            query = FilterMacro.IsNegated
+                ? query.Where(g => !g.MacroTest.Contains(FilterMacro.Value))
+                : query.Where(g => g.MacroTest.Contains(FilterMacro.Value));
 
-        if (!string.IsNullOrWhiteSpace(FilterFunction))
-                    query = query.Where(s => s.FunctionTest.Contains(FilterFunction));
+        if (FilterIC.Value != null)
+            query = FilterIC.IsNegated
+                ? query.Where(g => !g.IcTest.Contains(FilterIC.Value))
+                : query.Where(g => g.IcTest.Contains(FilterIC.Value));
+
+        if (FilterFunction.Value != null)
+            query = FilterFunction.IsNegated
+                ? query.Where(g => !g.FunctionTest.Contains(FilterFunction.Value))
+                : query.Where(g => g.FunctionTest.Contains(FilterFunction.Value));
 
         return query;
     }
 
     public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
-        // Run base logic to handle common filters
-        // Note: We don't await RefreshData here yet to avoid multiple DB calls
         foreach (var (key, value) in filterDict)
         {
-            switch (key.ToLower())
+            bool isNegated = key.StartsWith('-');
+            string cleanKey = isNegated ? key[1..] : key;
+            switch (cleanKey.ToLower())
             {
-                case "comp": FilterComp = value; break;
-                case "short": FilterShort = value; break;
-                case "macro": FilterMacro = value; break;
-                case "ic": FilterIC = value; break;
-                case "function": FilterFunction = value; break;
+                case "comp": 
+                    FilterComp.Value = value;
+                    FilterComp.IsNegated = isNegated; break;
+                case "short": 
+                    FilterShort.Value = value;
+                    FilterShort.IsNegated = isNegated; break;
+                case "macro": 
+                    FilterMacro.Value = value;
+                    FilterMacro.IsNegated = isNegated; break;
+                case "ic": 
+                    FilterIC.Value = value;
+                    FilterIC.IsNegated = isNegated; break;
+                case "function": 
+                    FilterFunction.Value = value;
+                    FilterFunction.IsNegated = isNegated; break;
             }
         }
 
@@ -57,11 +78,11 @@ public class GroupTableLogic : LogTableLogic<GroupResult>
 
     public override void ResetFilterState()
     {
-        FilterComp = null;
-        FilterShort = null;
-        FilterMacro = null;
-        FilterIC = null;
-        FilterFunction = null;
+        FilterComp.Value = null;
+        FilterShort.Value = null;
+        FilterMacro.Value = null;
+        FilterIC.Value = null;
+        FilterFunction.Value = null;
 
         base.ResetFilterState();
     }
