@@ -1,6 +1,14 @@
+using System.Reflection;
+using Xunit.Abstractions;
 public class SearchParserTests
 {
     private readonly SearchParserService _parser = new();
+    private readonly ITestOutputHelper _output;
+
+    public SearchParserTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     [Fact]
     public void ParseQuery_ShouldCatchUnrecognizedTags()
@@ -27,6 +35,7 @@ public class SearchParserTests
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("Security Issue"));
         // Ensure the dangerous filter wasn't added to the dictionary
+        Assert.False(result.Filters.ContainsValue(input.Split(":")[1]));
         Assert.False(result.Filters.ContainsKey("barcode"));
     }
 
@@ -54,6 +63,10 @@ public class SearchParserTests
         var result = _parser.ParseQuery(input, "all"); 
 
         // Assert
+        foreach (string error in result.ErrorMessages)
+        {
+            _output.WriteLine(error);
+        }
         Assert.Contains(result.ErrorMessages, e => e.Contains("is not available when searching 'fct'"));
     }
 

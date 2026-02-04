@@ -11,7 +11,6 @@ a, .btn-link {
     color: #fff;
     background-color: #004d99 !important;
     border-color: #11477e !important;
-    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 
 .btn-primary:hover {
@@ -20,9 +19,43 @@ a, .btn-link {
     border-color: hsl(210, 76%, 35%) !important;
 }
 
-.bg-secondary:hover {
-    background-color: hsl(210, 7%, 55%) !important; 
-    border-color: hsl(210, 7%, 45%) !important;
+.search-tag {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+}
+
+.search-tag.secondary {
+    background-color: hsl(210, 7%, 45%); /* secondary color */
+    color: white;
+    transition: all 0.25s ease;
+}
+
+.search-tag.secondary:hover {
+    background-color: hsl(210, 7%, 60%); 
+    border-color: hsl(210, 7%, 45%);
+}
+
+.search-tag.tertiary {
+    background-color: hsl(210, 0%, 85%); /* tertiary */
+    color: black;
+}
+
+.search-tag.is-active {
+    background-color: hsl(210, 100%, 55%); /* primary */
+    box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
+}
+
+.search-tag.is-active-tertiary {
+    background-color: hsl(210, 60%, 50%); /* primary */
+    box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
@@ -260,6 +293,7 @@ h1:focus {
     align-items: center;
     justify-content: center;
     vertical-align: middle !important;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
 }
 
 .badge.bg-light {

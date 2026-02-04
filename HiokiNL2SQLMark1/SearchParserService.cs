@@ -39,6 +39,7 @@ public class SearchParserService
         "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", 
         "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE"
     };
+    private bool sqlFlag = false;
     private static readonly char[] separator = [' '];
 
     /// <summary>
@@ -108,6 +109,8 @@ public class SearchParserService
             if (sqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
             {
                 result.ErrorMessages.Add($"Security Issue: The value for '{key}' contains forbidden keywords.");
+                sqlFlag = true;
+                continue;
             }
 
             // Validate if key is supported by system
@@ -118,7 +121,7 @@ public class SearchParserService
             // Validate if key is supported by the selected table
             else if (!allowedKeys.Contains(key) && key != "in")
             {
-                result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{currentType}'. Either search a different table or remove this tag");
+                result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{result.CurrentType}'. Try a different tag or search a table with that attribute.");
             }
             // Validate if filter was already used in this search. If it was, proceed, but notify the user
             else if (result.Filters.ContainsKey(key))
@@ -140,18 +143,25 @@ public class SearchParserService
             string trailing = rawInput[lastIndex..].Trim();
             if (!string.IsNullOrWhiteSpace(trailing))
             {
-                // Check if it's a "tag:" without a value
-                if (trailing.EndsWith(":"))
+                // Check if it's a key without a value
+                if (trailing.EndsWith(':'))
                     result.ErrorMessages.Add($"Tag '{trailing}' is missing a value.");
+                // or a value without key
                 else
-                    result.ErrorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
+                    if (!sqlFlag) result.ErrorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
+                    sqlFlag = false;
             }
         }
         result.Preview = GeneratePreview(result.CurrentType, result.Filters);
         return result;
     }
 
-
+    /// <summary>
+    /// Translates the dictionary created by ParseQuery into a human-readable preview of what query would be executed if the search was run now
+    /// </summary>
+    /// <param name="type">The table targeted by the query</param>
+    /// <param name="filters">The dictionary of filters for the query</param>
+    /// <returns>A string preview of the query to be executed</returns>
     private static string GeneratePreview(string type, Dictionary<string, string> filters)
     {
         string tableMessage = $"Showing all results";
@@ -222,5 +232,50 @@ public class SearchParserService
             "shift3"    => isTimePart ? s3 : $"{now:yyyy-MM-dd} {s3}",
             _           => alias // If it's not an alias, hopefully it's already a datetime. Return the original string (e.g., 2024-01-01)
         };
+    }
+
+    /// <summary>
+    /// Translates aliases like "today", "last24h", and "shift2" to valid datetimes
+    /// </summary>
+    /// <param name="alias">the alias to translate to a datetime</param>
+    /// <param name="isTimePart">whether to apply just the time part of the alias (or to assume today)</param>
+    /// <returns>The datetime referred to by the alias</returns>
+    public static DateTime? ParseAliasToDateTime(string alias, bool isTimePart = false)
+    {
+        DateTime now = DateTime.Today;
+        string lower = alias.ToLower();
+
+        // Handle special relative keywords first
+        if (lower == "last24h") return DateTime.Now.AddHours(-24);
+        
+        // Determine the Base Date
+        DateTime baseDate = lower switch
+        {
+            "yesterday" => now.AddDays(-1),
+            "lastweek"  => now.AddDays(-7),
+            _           => now // today or any shift
+        };
+
+        // Handle Shifts (returning just the time component or full datetime)
+        TimeSpan? shiftTime = lower switch
+        {
+            "shift1" => new TimeSpan(7, 0, 0),
+            "shift2" => new TimeSpan(15, 0, 0),
+            "shift3" => new TimeSpan(23, 0, 0),
+            _ => null
+        };
+
+        if (shiftTime.HasValue)
+        {
+            // If it's a time part, we only care about the hours
+            if (isTimePart) return DateTime.MinValue.Add(shiftTime.Value); 
+            // Otherwise, it's the full package
+            return baseDate.Add(shiftTime.Value);
+        }
+
+        // Fallback: Try standard parsing if it's not a keyword
+        if (DateTime.TryParse(alias, out var result)) return result;
+
+        return null;
     }
 }

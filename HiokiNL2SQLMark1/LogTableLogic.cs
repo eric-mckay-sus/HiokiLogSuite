@@ -163,12 +163,44 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
             {
                 case "barcode": FilterBarcode = value; break;
                 case "result":  FilterResult = value; break;
-                case "after" when DateTime.TryParse(value, out var d):  FilterStartDate = d; break;
-                case "before" when DateTime.TryParse(value, out var d): FilterEndDate = d; break;
-                case "group" when int.TryParse(value, out var i):       FilterGroup = i; break;
+                case "group" when int.TryParse(value, out var i): FilterGroup = i; break;
+
+                case "after":
+                    FilterStartDate = ResolveFullDateTime(value);
+                    break;
+
+                case "before":
+                    FilterEndDate = ResolveFullDateTime(value);
+                    break;
             }
         }
         await RefreshData();
+    }
+
+    /// <summary>
+    /// Helper to handle the "Date + Time/Shift" alias logic for backend execution
+    /// </summary>
+    private DateTime? ResolveFullDateTime(string rawValue)
+    {
+        var parts = rawValue.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return null;
+
+        // Use your Service to get the date part
+        // Note: You may need to inject ParserService or make TranslateDateAlias accessible here
+        DateTime? finalDate = SearchParserService.ParseAliasToDateTime(parts[0], isTimePart: false);
+
+        if (finalDate.HasValue && parts.Length > 1)
+        {
+            // Try to get a time/shift from the second part
+            DateTime? timePart = SearchParserService.ParseAliasToDateTime(parts[1], isTimePart: true);
+            if (timePart.HasValue)
+            {
+                // Combine the date from the first part with the time from the second
+                finalDate = finalDate.Value.Date.Add(timePart.Value.TimeOfDay);
+            }
+        }
+
+        return finalDate;
     }
 
     /// <summary>

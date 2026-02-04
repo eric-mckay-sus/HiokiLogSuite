@@ -6,12 +6,14 @@
 @using Microsoft.EntityFrameworkCore
 @using System.Text.RegularExpressions
 @using Sprache
+@using System.Timers
 @inject IDbContextFactory<LogDbContext> DbFactory
 @inject IJSRuntime JSRuntime
 @inject SearchParserService ParserService
 @inject GroupTableLogic GroupLogic
 @inject StepTableLogic StepLogic
 @inject FctTableLogic FctLogic
+@implements IDisposable
 
 <PageTitle>Power Search</PageTitle>
 
@@ -82,7 +84,9 @@
             <span>Date aliases:</span>
             @foreach(string alias in dateAliases)
             {
-                <span class="badge bg-secondary align-middle" style="cursor: pointer;" @onclick='() => AppendShortcut("after", alias)'>@alias</span>
+                <span class="badge search-tag secondary align-middle" style="cursor: pointer;"
+                    @onclick='() => AppendShortcut("after", alias)'>@alias
+                </span>
             }
         </small>
     </div>
@@ -92,7 +96,9 @@
             <span>All supported keys:</span>
             @foreach (string key in SearchParserService.AllTags)
             {
-                <span class="badge @GetBadgeClass(key, false) align-middle" title="Title" style="cursor: default;">@key</span>
+                <span class="badge @GetBadgeClass(key, false) align-middle"
+                    title="Title" style="cursor: default;">@key
+                </span>
             }
         </small>
     </div>
@@ -130,6 +136,7 @@
     List<string> errorMessages = []; // the text of the error message, if applicable
     readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",];
     Dictionary<string, string>? filters; // the key-value pairs parsed from command input
+    private Timer? _debounceTimer;
 
     /// <summary>
     /// Parse search bar input, update the model, then tell the view  
@@ -147,7 +154,7 @@
         this.CurrentType = parseResult.CurrentType;
         this.Preview = parseResult.Preview;
 
-        if (errorMessages.Count > 0) // if there was an error, don't continue
+        if (errorMessages.Count > 0) // if there was an error, don't execute the search
         {
             return;
         }
@@ -233,15 +240,52 @@
     }
 
     /// <summary>
-    /// As the user types, get the interpretation of their search
+    /// Manage the debounce timer and notify the preview
     /// </summary>
     /// <param name="e">Detects a change in input</param>
     private void HandleInput(ChangeEventArgs e){
         commandInput = e.Value?.ToString() ?? "";
-        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
-        this.Preview = liveResult.Preview;
-        // intentionally don't display errors yet; the user's not finished
-        if (!string.IsNullOrEmpty(liveResult.CurrentType)) CurrentType = liveResult.CurrentType;
+
+        // Stop the old (if there is one)
+        if (_debounceTimer != null) {
+            _debounceTimer.Stop();
+            _debounceTimer.Dispose();
+        }
+
+        // Start the new
+        _debounceTimer = new Timer(300);
+        _debounceTimer.Elapsed += OnUserStoppedTyping;
+        _debounceTimer.AutoReset = false;
+        _debounceTimer.Start();
+    }
+
+    /// <summary>
+    /// As the user types, get the interpretation of their search
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnUserStoppedTyping(object? sender, ElapsedEventArgs e)
+    {
+        // Timer runs on a background thread, so use InvokeAsync to update the UI thread.
+        InvokeAsync(() =>
+        {
+            var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
+            this.Preview = liveResult.Preview;
+
+            // Update the CurrentType if the user entered the "in" tag
+            if (!string.IsNullOrEmpty(liveResult.CurrentType)) 
+                CurrentType = liveResult.CurrentType;
+
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// Kill the timer thread if something unexpected happens
+    /// </summary>
+    public void Dispose()
+    {
+        _debounceTimer?.Dispose();
     }
 
     /// <summary>
@@ -260,9 +304,9 @@
     /// <returns>The badge style reflecting its activation state</returns>
     private string GetBadgeClass(string key, bool thisMode){
         if (thisMode){
-            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "bg-primary" : "bg-secondary";
+            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "search-tag is-active" : "search-tag secondary";
         } else {
-            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "bg-primary" : "bg-light text-dark";
+            return commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase) ? "search-tag is-active-tertiary" : "search-tag tertiary";
         }
     }
     /// <summary>
