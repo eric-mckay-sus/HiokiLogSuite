@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations.Schema;
 
+namespace HiokiNL2SQLMark1;
 /// <summary>
 /// Represents the state of the database in a way friendly to EFCore
 /// </summary>

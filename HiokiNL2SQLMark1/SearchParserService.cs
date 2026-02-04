@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 
+namespace HiokiNL2SQLMark1;
 /// <summary>
 /// A service to contain state and methods relevant for parsing. Required to be injected into PowerSearch.razor
 /// </summary>
@@ -10,8 +11,8 @@ public class SearchParserService
     // Verbatim strings (those starting with @) switch the normal escape character of backslash (\) for quote ("), which is why it appears twice
     // Parentheses and brackets are for grouping the regex itself. Regex OR is a short-circuiting operation
     // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH
-    readonly string tagPattern = @"(\w+)\s*:\s*(""[^""]*""|\S+)";
-    public string inPattern = @"in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag
+    readonly string tagPattern = @"(-?\w+)\s*:\s*(""[^""]*""|\S+)";
+    public string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag
     public static readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
 
     // Basic injection countermeasure
@@ -126,7 +127,11 @@ public class SearchParserService
         Match? contextMatch = Regex.Match(rawInput, inPattern, RegexOptions.IgnoreCase);
         if (contextMatch.Success)
         {
-            string targetType = contextMatch.Groups[1].Value.ToLower();
+            string polarity = contextMatch.Groups[1].Value; // must be '-' or empty
+            string targetType = contextMatch.Groups[2].Value.ToLower();
+
+            if (polarity == "-") result.ErrorMessages.Add($"The 'in' tag cannot be negated. This search is now 'in:{targetType}'.");
+
             if (availableTypes.Contains(targetType))
             {
                 result.CurrentType = targetType;
@@ -152,6 +157,7 @@ public class SearchParserService
             }
 
             string? key = match.Groups[1].Value.ToLower();
+            string cleanKey = key.StartsWith("-") ? key[1..] : key; // for use in checking against key sets
             string? value = match.Groups[2].Value.Trim('"'); // cut the quotes, if the regex found them
 
             // Basic SQL injection countermeasure
@@ -163,25 +169,25 @@ public class SearchParserService
             }
 
             // Validate if key is supported by system
-            if (!AllTags.Contains(key))
+            if (!AllTags.Contains(cleanKey))
             {
                 result.ErrorMessages.Add($"The tag '{key}' wasn't recognized. Try using the table and key options below the search bar.");
             } 
             // Validate if key is supported by the selected table
-            else if (!allowedKeys.Contains(key) && key != "in")
+            else if (!allowedKeys.Contains(cleanKey) && cleanKey != "in")
             {
                 result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{result.CurrentType}'. Try a different tag or search a table with that attribute.");
             }
             // Validate if filter was already used in this search. If it was, proceed, but notify the user
-            else if (result.Filters.ContainsKey(key))
+            else if (result.Filters.ContainsKey(key)) // we'll allow a positive and negative of the same filter
             {
                 result.ErrorMessages.Add($"Duplicate tag detected: '{key}:'. Only the last value will be used.");
                 result.Filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(value) : value;
             }
             // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
-            else if (key != "in") // we didn't actually remove "in", we just ignored it
+            else if (cleanKey != "in") // we didn't actually remove "in", we just ignored it
             {
-                result.Filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(value) : value;
+                result.Filters[key] = (cleanKey == "before" || cleanKey == "after") ? TranslateDateAlias(value) : value;
             }
             lastIndex = match.Index + match.Length;
         }
@@ -220,7 +226,8 @@ public class SearchParserService
         var parts = filters.Select(kvp => 
         {
             string displayKey = kvp.Key.ToUpper();
-            if ((displayKey == "BEFORE") || (displayKey == "AFTER"))
+            string cleanKey = displayKey.StartsWith('-') ? displayKey[1..] : displayKey;
+            if ((cleanKey == "BEFORE") || (cleanKey == "AFTER"))
             {
                 string[] datetime = kvp.Value.Split([' '], StringSplitOptions.RemoveEmptyEntries);
                 string datePart = datetime.Length > 0 ? TranslateDateAlias(datetime[0], false) : "";
@@ -229,7 +236,7 @@ public class SearchParserService
             } 
             else
             {
-                return $"**{displayKey}** is '{kvp.Value}'";
+                return $"**{cleanKey}** is {(displayKey.StartsWith('-') ? " NOT " : "")} '{kvp.Value}'";
             }
         });
 

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+
+namespace HiokiNL2SQLMark1.Logic;
 public class StepTableLogic : LogTableLogic<StepResult>
 {
     public StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<StepResult>> querySelector) 

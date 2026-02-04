@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using HiokiNL2SQLMark1.Logic;
 
+namespace HiokiNL2SQLMark1;
 /// <summary>
 /// This abstract class forms the interface between a page and LogTableLogic
 /// </summary>

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+
+namespace HiokiNL2SQLMark1.Logic;
 public class FctTableLogic : LogTableLogic<FctResult>
 {
     public FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<FctResult>> querySelector) 

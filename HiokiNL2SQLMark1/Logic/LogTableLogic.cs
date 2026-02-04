@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Dynamic.Core;
 
+namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
 /// Holds all the methods necessary to store a table
 /// </summary>
@@ -90,6 +91,59 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     }
 
     /// <summary>
+    /// Maps a dictionary of filter key-value pairs to the individual filter properties
+    /// </summary>
+    /// <param name="filterDict">Dictionary containing filter keys and values</param>
+    /// <returns></returns>
+    public virtual async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
+    {
+        foreach (var (key, value) in filterDict)
+        {
+            switch (key.ToLower())
+            {
+                case "barcode": FilterBarcode = value; break;
+                case "result":  FilterResult = value; break;
+                case "group" when int.TryParse(value, out var i): FilterGroup = i; break;
+
+                case "after":
+                    FilterStartDate = LogTableLogic<T>.ResolveFullDateTime(value);
+                    break;
+
+                case "before":
+                    FilterEndDate = LogTableLogic<T>.ResolveFullDateTime(value);
+                    break;
+            }
+        }
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Helper to handle the "Date + Time/Shift" alias logic for backend execution
+    /// </summary>
+    private static DateTime? ResolveFullDateTime(string rawValue)
+    {
+        var parts = rawValue.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return null;
+
+        // Use your Service to get the date part
+        // Note: You may need to inject ParserService or make TranslateDateAlias accessible here
+        DateTime? finalDate = SearchParserService.ParseAliasToDateTime(parts[0], isTimePart: false);
+
+        if (finalDate.HasValue && parts.Length > 1)
+        {
+            // Try to get a time/shift from the second part
+            DateTime? timePart = SearchParserService.ParseAliasToDateTime(parts[1], isTimePart: true);
+            if (timePart.HasValue)
+            {
+                // Combine the date from the first part with the time from the second
+                finalDate = finalDate.Value.Date.Add(timePart.Value.TimeOfDay);
+            }
+        }
+
+        return finalDate;
+    }
+
+    /// <summary>
     /// Uses dynamic LINQ to draft a SQL ORDER BY based on the current sort
     /// </summary>
     /// <param name="query">The query to which the sorts should be appended</param>
@@ -148,59 +202,6 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     {
         if (CurrentSortColumn != columnName || SortDir == SortDirection.None) return "↕";
         return SortDir == SortDirection.Asc ? "▲" : "▼";
-    }
-
-    /// <summary>
-    /// Maps a dictionary of filter key-value pairs to the individual filter properties
-    /// </summary>
-    /// <param name="filterDict">Dictionary containing filter keys and values</param>
-    /// <returns></returns>
-    public virtual async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
-    {
-        foreach (var (key, value) in filterDict)
-        {
-            switch (key.ToLower())
-            {
-                case "barcode": FilterBarcode = value; break;
-                case "result":  FilterResult = value; break;
-                case "group" when int.TryParse(value, out var i): FilterGroup = i; break;
-
-                case "after":
-                    FilterStartDate = ResolveFullDateTime(value);
-                    break;
-
-                case "before":
-                    FilterEndDate = ResolveFullDateTime(value);
-                    break;
-            }
-        }
-        await RefreshData();
-    }
-
-    /// <summary>
-    /// Helper to handle the "Date + Time/Shift" alias logic for backend execution
-    /// </summary>
-    private DateTime? ResolveFullDateTime(string rawValue)
-    {
-        var parts = rawValue.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return null;
-
-        // Use your Service to get the date part
-        // Note: You may need to inject ParserService or make TranslateDateAlias accessible here
-        DateTime? finalDate = SearchParserService.ParseAliasToDateTime(parts[0], isTimePart: false);
-
-        if (finalDate.HasValue && parts.Length > 1)
-        {
-            // Try to get a time/shift from the second part
-            DateTime? timePart = SearchParserService.ParseAliasToDateTime(parts[1], isTimePart: true);
-            if (timePart.HasValue)
-            {
-                // Combine the date from the first part with the time from the second
-                finalDate = finalDate.Value.Date.Add(timePart.Value.TimeOfDay);
-            }
-        }
-
-        return finalDate;
     }
 
     /// <summary>

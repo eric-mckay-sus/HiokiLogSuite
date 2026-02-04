@@ -7,12 +7,11 @@
 @using System.Text.RegularExpressions
 @using Sprache
 @using System.Timers
-@inject IDbContextFactory<LogDbContext> DbFactory
 @inject IJSRuntime JSRuntime
 @inject SearchParserService ParserService
-@inject GroupTableLogic GroupLogic
-@inject StepTableLogic StepLogic
-@inject FctTableLogic FctLogic
+@inject HiokiNL2SQLMark1.Logic.GroupTableLogic GroupLogic
+@inject HiokiNL2SQLMark1.Logic.StepTableLogic StepLogic
+@inject HiokiNL2SQLMark1.Logic.FctTableLogic FctLogic
 @implements IDisposable
 
 <PageTitle>Power Search</PageTitle>
@@ -56,7 +55,7 @@
             <button 
                 class="btn btn-sm @(CurrentType == type ? "btn-primary" : "btn-outline-secondary")"
                 title="Switch to @type @(type=="all" ? "tables" : "table")"
-                @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type.Substring(1))
+                @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type[1..])
             </button>
         }
     </div>
@@ -111,6 +110,10 @@
         </small>
     </div>
 </div>
+
+@if ((GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count == 0) && !filters.IsNullOrEmpty()){
+    <h4>No results matched these criteria. Please check your filters and spelling.</h4>
+}
 
 @if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView.Count != 0)
 {
