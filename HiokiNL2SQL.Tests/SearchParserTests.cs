@@ -1,14 +1,7 @@
-using System.Reflection;
-using Xunit.Abstractions;
+using HiokiNL2SQLMark1;
 public class SearchParserTests
 {
     private readonly SearchParserService _parser = new();
-    private readonly ITestOutputHelper _output;
-
-    public SearchParserTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
 
     [Fact]
     public void ParseQuery_ShouldCatchUnrecognizedTags()
@@ -63,10 +56,6 @@ public class SearchParserTests
         var result = _parser.ParseQuery(input, "all"); 
 
         // Assert
-        foreach (string error in result.ErrorMessages)
-        {
-            _output.WriteLine(error);
-        }
         Assert.Contains(result.ErrorMessages, e => e.Contains("is not available when searching 'fct'"));
     }
 
@@ -168,5 +157,79 @@ public class SearchParserTests
         // Verify valid tags were still parsed
         Assert.Equal("A100", result.Filters["barcode"]);
         Assert.Equal("PASS", result.Filters["result"]);
+    }
+
+    [Fact]
+    public void ParseQuery_ShouldHandleNegativeTags()
+    {
+        // Arrange
+        string input = "-barcode:A123 -result:FAIL";
+
+        // Act
+        var result = _parser.ParseQuery(input, "all");
+
+        // Assert
+        Assert.Empty(result.ErrorMessages);
+        Assert.True(result.Filters.ContainsKey("-barcode"));
+        Assert.True(result.Filters.ContainsKey("-result"));
+        Assert.Equal("A123", result.Filters["-barcode"]);
+        Assert.Equal("FAIL", result.Filters["-result"]);
+    }
+
+    [Fact]
+    public void ParseQuery_ShouldCatchNegatedInTag()
+    {
+        // Arrange
+        string input = "-in:fct barcode:A123";
+
+        // Act
+        var result = _parser.ParseQuery(input, "all");
+
+        // Assert
+        // The parser should catch that 'in' cannot be negated
+        Assert.Contains(result.ErrorMessages, e => e.Contains("The 'in' tag cannot be negated"));
+        // It should still set the type correctly (fallback logic)
+        Assert.Equal("fct", result.CurrentType);
+    }
+
+    [Fact]
+    public void ParseQuery_ShouldNotAllowPositiveAndNegativeOfSameTag()
+    {
+        // Arrange
+        string input = "barcode:A123 -barcode:B456";
+
+        // Act
+        var result = _parser.ParseQuery(input, "all");
+
+        // Assert
+        Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected: '-barcode:'"));
+        Assert.Equal("B456", result.Filters["-barcode"]);
+    }
+
+    [Fact]
+    public void ParseQuery_ShouldGenerateCorrectNegativePreview()
+    {
+        // Arrange
+        string input = "-barcode:A123";
+
+        // Act
+        var result = _parser.ParseQuery(input, "all");
+
+        // Assert
+        // Verify the Preview string (Markdown included)
+        Assert.Contains("**BARCODE** is  NOT  'A123'", result.Preview);
+    }
+
+    [Fact]
+    public void ParseQuery_ShouldCatchInvalidNegatedTag()
+    {
+        // Arrange - 'part' is not available in 'group' mode
+        string input = "in:group -part:123-456";
+
+        // Act
+        var result = _parser.ParseQuery(input, "all");
+
+        // Assert
+        Assert.Contains(result.ErrorMessages, e => e.Contains("The tag '-part:' is not available when searching 'group'"));
     }
 }
