@@ -53,8 +53,11 @@
     </div>
     <div class="d-flex gap-2 mt-0 mb-2 filter-row">
         @foreach(string type in SearchParserService.availableTypes){
-            <button class="btn btn-sm @(CurrentType == type ? "btn-primary" : "btn-outline-secondary")" 
-            @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type.Substring(1))</button>
+            <button 
+                class="btn btn-sm @(CurrentType == type ? "btn-primary" : "btn-outline-secondary")"
+                title="Switch to @type @(type=="all" ? "tables" : "table")"
+                @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type.Substring(1))
+            </button>
         }
     </div>
     <div class="input-group mb-0">
@@ -74,6 +77,7 @@
             @foreach (string key in SearchParserService.GetSupportedKeysThisMode(CurrentType))
             {
                 <span class="badge @GetBadgeClass(key, true) align-middle" 
+                    title="@SearchParserService.GetTagTooltip(key, false)"
                     style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
                     @onclick="() => AppendKey(key, false)">@key</span>
             }
@@ -84,7 +88,8 @@
             <span>Date aliases:</span>
             @foreach(string alias in dateAliases)
             {
-                <span class="badge search-tag secondary align-middle" style="cursor: pointer;"
+                <span class="badge search-tag secondary align-middle"
+                    style="cursor: pointer;"
                     @onclick='() => AppendShortcut("after", alias)'>@alias
                 </span>
             }
@@ -96,8 +101,11 @@
             <span>All supported keys:</span>
             @foreach (string key in SearchParserService.AllTags)
             {
-                <span class="badge @GetBadgeClass(key, false) align-middle"
-                    title="Title" style="cursor: default;">@key
+                <span @key="key"
+                    class="badge @GetBadgeClass(key, false) align-middle"
+                    title="@SearchParserService.GetTagTooltip(key, true)"
+                    style="cursor: help;">
+                    @key
                 </span>
             }
         </small>

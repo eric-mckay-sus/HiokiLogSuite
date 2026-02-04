@@ -14,6 +14,14 @@ public class SearchParserService
     public string inPattern = @"in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag
     public static readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
 
+    // Basic injection countermeasure
+    private readonly static HashSet<string> sqlBlacklist = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", 
+        "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE"
+    };
+    private bool sqlFlag = false; // Whether the tag being currently parsed is an SQL threat
+
     // Sets of which tags are available to which tables. StepFctTags and AllTags inherit the contents of the lower sets
     readonly static HashSet<string> UniversalTags = new(StringComparer.OrdinalIgnoreCase) 
         { "in", "barcode", "group", "before", "after", "result" }; // tags available to all tables
@@ -33,14 +41,55 @@ public class SearchParserService
         return all;
     }
 
-    // Basic injection countermeasure
-    private readonly static HashSet<string> sqlBlacklist = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> TagDescriptions = new(StringComparer.OrdinalIgnoreCase)
+{
+    { "in", "Switch table scope (all, group, step, fct)" },
+    { "barcode", "Search by unique PCB identifier" },
+    { "group", "Filter by specific group name" },
+    { "before", "Show results recorded before this date" },
+    { "after", "Show results recorded after this date" },
+    { "result", "Filter by PASS/FAIL status" },
+    { "comp", "Filter by component reference (e.g., R101)" },
+    { "short", "Filter by short-circuit test results" },
+    { "macro", "Search by macro-test identifier" },
+    { "ic", "Filter by Integrated Circuit (IC) name" },
+    { "function", "Search by specific function test name" },
+    { "step", "Filter by test step name" },
+    { "mode", "Filter by test mode" },
+    { "part", "Search by part number" }
+};
+
+    /// <summary>
+    /// Dynamically gets the tooltip based on what tables a key is valid in
+    /// </summary>
+    /// <param name="key">The key for which to get the tooltip</param>
+    /// <param name="showScope">Whether to provide the scope of this tag</param>
+    /// <returns></returns>
+    public static string GetTagTooltip(string key, bool showScope) 
     {
-        "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", 
-        "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE"
-    };
-    private bool sqlFlag = false;
-    private static readonly char[] separator = [' '];
+        // Get the functional description
+        if (!TagDescriptions.TryGetValue(key, out var description)) description = $"Filter by {key}";
+
+        // If not instructed to return the scope, return now
+        if(!showScope) return description;
+
+        // Otherwise, gather scope info by scanning tag sets
+        string scopeInfo;
+        if (UniversalTags.Contains(key)) {
+            scopeInfo = "All tables";
+        }
+        else
+        {
+            List<string> locations = [];
+            if (GroupTags.Contains(key)) locations.Add("Group");
+            if (StepTags.Contains(key)) locations.Add("Step");
+            if (FctTags.Contains(key))   locations.Add("FCT");
+
+            scopeInfo = locations.Count > 0 ? string.Join(", ", locations) : "System tag";
+        }
+
+        return $"{description} | Works in: {scopeInfo}";
+    }
 
     /// <summary>
     /// A container for the return values from the parser
@@ -173,7 +222,7 @@ public class SearchParserService
             string displayKey = kvp.Key.ToUpper();
             if ((displayKey == "BEFORE") || (displayKey == "AFTER"))
             {
-                string[] datetime = kvp.Value.Split(separator, StringSplitOptions.RemoveEmptyEntries);
+                string[] datetime = kvp.Value.Split([' '], StringSplitOptions.RemoveEmptyEntries);
                 string datePart = datetime.Length > 0 ? TranslateDateAlias(datetime[0], false) : "";
                 string timePart = datetime.Length > 1 ? " " + TranslateDateAlias(datetime[1], true) : "";
                 return $"**DATE** is {displayKey} '{TranslateDateAlias(datePart)} {TranslateDateAlias(timePart)}'";
