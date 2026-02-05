@@ -1,0 +1,21 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ParseHioki",
+            "type": "coreclr",
+            "request": "launch",
+            // Path to your application's executable (DLL)
+            "program": "${workspaceFolder}/HiokiParserMark1/bin/Debug/net8.0/HiokiParserMark1.dll", 
+            "args": [
+                "\"C:/LOCAL NETWORK FILES/Hioki ICT Results/20251212\""
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+    ]
+}

@@ -1,7 +1,8 @@
 {
   "profiles": {
     "HiokiParserMark1": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "\"C:/LOCAL NETWORK FILES/Hioki ICT results/20251212\""
     },
     "WSL": {
       "commandName": "WSL2",

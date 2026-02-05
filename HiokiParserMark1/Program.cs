@@ -2,6 +2,8 @@
 using System.Collections.Concurrent;
 using System.Data;
 using DotNetEnv;
+using System;
+using System.Globalization;
 
 /// <summary>
 /// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
@@ -12,14 +14,6 @@ class Program
     private static string ConnectionString = ""; // string of the information necessary to open a connection (insecure?)
     private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
     private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
-    private static readonly Dictionary<char, double> multipliers = new() // Fixed point: d = 0.1 (deci), m = 0.001 (milli), u = 0.000001 (micro), k = 1000 (kilo), M = 1000000 (Mega)
-    {
-        { 'd', 0.1 },
-        { 'm', 0.001 },
-        { 'u', 0.000001 },
-        { 'k', 1000.0 },
-        { 'M', 1000000.0 }
-    };
 
     /// <summary>
     /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through
@@ -69,10 +63,12 @@ class Program
 
         await InitializeCaches();
         string[] files = Directory.GetFiles(args[0], "*.*", SearchOption.AllDirectories);
+        Console.WriteLine("Parsing...");
         foreach (string file in files)
         {
             await ParseHioki(file);
         }
+        Console.WriteLine("Complete!");
     }
 
     /// <summary>
@@ -146,7 +142,22 @@ class Program
     }
 
     /// <summary>
-    /// Ensures that SQL has a readable float, handling Hioki fixed-point notation (d, m, k, M, u).
+    /// Converts an input string representing a hexadecimal value to a double (in decimal)
+    /// </summary>
+    /// <param name="input">The string to parse for a hex value</param>
+    /// <returns>The parsed input string as a double</returns>
+    private static double HexOrSciToDouble(string input)
+    {
+        if (int.TryParse(input, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int hex)) {
+            return hex;
+        } else if (double.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out double sciNotation)){
+            return sciNotation;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Ensures that SQL has a readable float
     /// </summary>
     /// <param name="input"> The string representation of the float to be cleaned </param>
     /// <returns> An object representing the float </returns>
@@ -154,29 +165,18 @@ class Program
     {
         if (string.IsNullOrWhiteSpace(input)) return DBNull.Value;
 
-        // Basic cleaning
-        string cleaned = input.Replace("%", "").Trim();        
-
-        double multiplier = 1.0;
-
-        // Check for the fixed-point character
-        foreach (var pair in multipliers)
+        //TODO store % if it appears
+        string cleaned = input;
+        bool hasPercent = cleaned.EndsWith('%');
+        if (hasPercent)
         {
-            if (cleaned.Contains(pair.Key))
-            {
-                multiplier = pair.Value;
-                // Replace the letter with a standard decimal point to allow parsing
-                cleaned = cleaned.Replace(pair.Key, '.');
-                break; // Hioki usually only uses one unit character per value
-            }
+            cleaned = cleaned.Replace("%", "").Trim();   
         }
 
-        // Parse and apply multiplier
-        if (double.TryParse(cleaned, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double result))
-        {
-            return result * multiplier;
+        if (double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out double sciNotation)){
+            return sciNotation;
         }
-
+        NullCount++;
         return DBNull.Value;
     }
 
@@ -303,6 +303,7 @@ class Program
             string[]? split = line?.Split(",");
             if (split != null)
             {
+                // The reference ID of all result columns in group table
                 int[] ids =
                 [
                     await GetCachedId(split[0].Trim(), true, context),
@@ -485,8 +486,8 @@ class Program
             row["mode"] = modeId;
             row["hPin"] = line[6].Trim();
             row["lPin"] = line[7].Trim();
-            row["ref"] = CleanFloatValue(line[8]);
-            row["meas"] = CleanFloatValue(line[9]);
+            row["ref"] = HexOrSciToDouble(line[8]);
+            row["meas"] = HexOrSciToDouble(line[9]);
             row["hLim"] = CleanFloatValue(line[10]);
             row["lLim"] = CleanFloatValue(line[11]);
             row["id1"] = line[12].Trim();
