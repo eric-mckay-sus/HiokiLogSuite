@@ -15,7 +15,7 @@
             @* div class col-____ tells Blazor it can use ____ columns out of 12 *@
             <div class="col-4"> 
                 <label class="form-label fw-bold">Barcode</label>
-                <input type="text" class="form-control" @bind="Logic.FilterBarcode" placeholder="Scan or type..." />
+                <input type="text" class="form-control" @bind="Logic.FilterBarcode.Value" placeholder="Scan or type..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Start Date</label>
@@ -27,19 +27,19 @@
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Group</label>
-                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup" />
+                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup.Value" />
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" step="1" @bind="Logic.FilterStep" />
+                <input type="number" class="form-control" step="1" @bind="Logic.FilterStep.Value" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Part Name</label>
-                <input type="text" class="form-control" @bind="Logic.FilterPartName" placeholder="e.g. 30AA..." />
+                <input type="text" class="form-control" @bind="Logic.FilterPartName.Value" placeholder="e.g. 30AA..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="Logic.FilterMode">
+                <select class="form-select" @bind="Logic.FilterMode.Value">
                     <option value="">All Modes</option>
                     @foreach (string? m in Logic.modeCache)
                     {
@@ -49,7 +49,7 @@
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Result</label>
-                <select class="form-select" @bind="Logic.FilterResult">
+                <select class="form-select" @bind="Logic.FilterResult.Value">
                     <option value="">All Results</option>
                     @foreach (string? r in Logic.resultCache)
                     {

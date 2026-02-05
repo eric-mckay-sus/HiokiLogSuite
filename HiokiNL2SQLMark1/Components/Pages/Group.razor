@@ -1,6 +1,7 @@
 ﻿@page "/group"
 @using Microsoft.EntityFrameworkCore.Metadata.Conventions
 @rendermode InteractiveServer
+@using HiokiNL2SQLMark1.Logic 
 
 @inherits LogTableBase<GroupResult>
 
@@ -12,7 +13,7 @@
     <div class="row g-3">
         <div class="col-3">
             <label class="form-label fw-bold">Barcode</label>
-            <input type="text" class="form-control" @bind="Logic.FilterBarcode" placeholder="Scan or type..." />
+            <input type="text" class="form-control" @bind="Logic.FilterBarcode.Value" placeholder="Scan or type..." />
         </div>
         <div class="col-3">
             <label class="form-label fw-bold">Start Date</label>
@@ -23,13 +24,59 @@
             <input type="date" class="form-control" @bind="Logic.FilterEndDate.Value" />
         </div>
         <div class="col-1">
-                <label class="form-label fw-bold">Group</label>
-                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup" />
-            </div>
+            <label class="form-label fw-bold">Group</label>
+            <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup.Value" />
+        </div>
         <div class="col-2">
             <label class="form-label fw-bold">Overall Result</label>
-            <select class="form-select" @bind="Logic.FilterResult">
+            <select class="form-select" @bind="Logic.FilterResult.Value">
                 <option value="">All Results</option>
+                <option value="UN-T">UN-T</option>
+                <option value="PASS">PASS</option>
+                <option value="FAIL">FAIL</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <label class="form-label fw-bold">Component</label>
+            <select class="form-select" @bind="Logic.FilterComp.Value">
+                <option value="">All Results</option>
+                <option value="UN-T">UN-T</option>
+                <option value="PASS">PASS</option>
+                <option value="FAIL">FAIL</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <label class="form-label fw-bold">Short</label>
+            <select class="form-select" @bind="Logic.FilterShort.Value">
+                <option value="">All Results</option>
+                <option value="UN-T">UN-T</option>
+                <option value="PASS">PASS</option>
+                <option value="FAIL">FAIL</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <label class="form-label fw-bold">Macro</label>
+            <select class="form-select" @bind="Logic.FilterMacro.Value">
+                <option value="">All Results</option>
+                <option value="UN-T">UN-T</option>
+                <option value="PASS">PASS</option>
+                <option value="FAIL">FAIL</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <label class="form-label fw-bold">IC</label>
+            <select class="form-select" @bind="Logic.FilterIC.Value">
+                <option value="">All Results</option>
+                <option value="UN-T">UN-T</option>
+                <option value="PASS">PASS</option>
+                <option value="FAIL">FAIL</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <label class="form-label fw-bold">Function</label>
+            <select class="form-select" @bind="Logic.FilterFunction.Value">
+                <option value="">All Results</option>
+                <option value="UN-T">UN-T</option>
                 <option value="PASS">PASS</option>
                 <option value="FAIL">FAIL</option>
             </select>
@@ -65,13 +112,14 @@ else
 }
 
 @code {
+    new GroupTableLogic Logic => (GroupTableLogic)base.Logic;
     /// <summary>
     /// When the page loads, checks the available result types and modes, then performs the default query
     /// </summary>
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        await RefreshData();
+        base.Logic = new GroupTableLogic(DbFactory, GetBaseQuery);
     }
 
     /// <summary>

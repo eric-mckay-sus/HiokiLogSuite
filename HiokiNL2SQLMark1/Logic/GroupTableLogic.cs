@@ -12,6 +12,11 @@ public class GroupTableLogic : LogTableLogic<GroupResult>
     public Filter<string?> FilterIC = new(null);
     public Filter<string?> FilterFunction = new(null);
 
+    /// <summary>
+    /// Applies all filters available to the group table
+    /// </summary>
+    /// <param name="query">The query to which the filters will be appended</param>
+    /// <returns>The query, now with filters</returns>
     public override IQueryable<GroupResult> ApplyFilters(IQueryable<GroupResult> query)
     {
         // Apply the base filters (Barcode, Date, etc.)
