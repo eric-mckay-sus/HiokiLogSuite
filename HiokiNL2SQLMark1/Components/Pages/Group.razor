@@ -117,7 +117,7 @@ else
     /// When the page loads, checks the available result types and modes, then performs the default query
     /// </summary>
     /// <returns></returns>
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         base.Logic = new GroupTableLogic(DbFactory, GetBaseQuery);
     }

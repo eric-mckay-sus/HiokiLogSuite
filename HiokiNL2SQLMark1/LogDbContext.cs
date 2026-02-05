@@ -35,6 +35,7 @@ public interface IStepFCT : IHiokiLog
     public string? Mode { get; set; }
     public double? HighLim { get; set; }
     public double? LowLim { get; set; }
+    public char? MeasurementValue { get; set; }
     public double? RefVal { get; set; }
     public double? MeasVal { get; set; }
 }
@@ -129,6 +130,9 @@ public class StepResult : IStepFCT
     [Column("Low limit")]
     public double? LowLim { get; set; }
 
+    [Column("Unit")]
+    public char? MeasurementValue { get; set; }
+
     [Column("Actual (mounted) value")]
     public double? ActualVal { get; set; }
 
@@ -190,6 +194,9 @@ public class FctResult : IStepFCT
 
     [Column("Low limit")]
     public double? LowLim { get; set; }
+
+    [Column("Unit")]
+    public char? MeasurementValue { get; set; }
 
     [Column("ID 1")]
     public string? ID1 { get; set; }

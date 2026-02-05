@@ -4,6 +4,10 @@ using System.Data;
 using DotNetEnv;
 using System;
 using System.Globalization;
+using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
+
+partial
 
 /// <summary>
 /// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
@@ -14,6 +18,12 @@ class Program
     private static string ConnectionString = ""; // string of the information necessary to open a connection (insecure?)
     private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
     private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
+    private static readonly char[] ValidUnits = ['%'];
+
+    private static readonly Regex ValueUnitRegex = MyRegex(); // matches scientific notation with an optional unit
+
+    [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>.*)?$", RegexOptions.Compiled)]
+    private static partial Regex MyRegex(); // this generates at compile-time, which was suggested by Intellisense
 
     /// <summary>
     /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through
@@ -124,19 +134,24 @@ class Program
         string columnName = isResultType ? "resultType" : "testMode";
 
         string insertSql = $@"
-        IF NOT EXISTS (SELECT 1 FROM {tableName} WHERE {columnName} = @val)
-        BEGIN
-            INSERT INTO {tableName} ({columnName}) VALUES (@val);
-        END
-        SELECT id FROM {tableName} WHERE {columnName} = @val;";
+        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+        BEGIN TRAN
+            IF NOT EXISTS (SELECT 1 FROM {tableName} WHERE {columnName} = @val)
+            BEGIN
+                INSERT INTO {tableName} ({columnName}) VALUES (@val);
+            END
+            SELECT id FROM {tableName} WHERE {columnName} = @val;
+        COMMIT TRAN";
 
         using SqlCommand command = new(insertSql, context.Connection);
         command.Transaction = context.Transaction;
         command.Parameters.AddWithValue("@val", toCheck);
-        object? result = await command.ExecuteScalarAsync();
-        byte newId = Convert.ToByte(result);
+
+        var result = await command.ExecuteScalarAsync();
+        if (result == null || result == DBNull.Value) return 0;
 
         // Then update cache so we don't hit the DB for this string again
+        byte newId = Convert.ToByte(result);
         cache.TryAdd(toCheck, newId);
         return newId;
     }
@@ -157,28 +172,33 @@ class Program
     }
 
     /// <summary>
-    /// Ensures that SQL has a readable float
+    /// Parses input string for float and unit.
+    /// Returns nullable tuple to convert later to DBNull. Avoiding the use of the "object" keyword here helps the garbage collector. 
     /// </summary>
     /// <param name="input"> The string representation of the float to be cleaned </param>
-    /// <returns> An object representing the float </returns>
-    private static object CleanFloatValue(string input)
+    /// <returns> An tuple of the parsed float and unit </returns>
+    private static (double? Value, string? Unit) CleanFloatValue(string input)
+{
+    if (string.IsNullOrWhiteSpace(input)) return (null, null);
+
+    var match = ValueUnitRegex.Match(input); // matches to value-unit pattern
+    // If the pattern matches, proceed
+    if (match.Success)
     {
-        if (string.IsNullOrWhiteSpace(input)) return DBNull.Value;
+        // Harvest from the capturing groups
+        string valPart = match.Groups["value"].Value;
+        string unitPart = match.Groups["unit"].Value.Trim(); // if not present, this is the empty string
 
-        //TODO store % if it appears
-        string cleaned = input;
-        bool hasPercent = cleaned.EndsWith('%');
-        if (hasPercent)
+        // Attempt to parse the value as a double
+        if (double.TryParse(valPart, NumberStyles.Any, CultureInfo.InvariantCulture, out double result))
         {
-            cleaned = cleaned.Replace("%", "").Trim();   
+            // If it works, append the unit (if it exists)
+            return (result, string.IsNullOrEmpty(unitPart) ? null : unitPart);
         }
-
-        if (double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out double sciNotation)){
-            return sciNotation;
-        }
-        NullCount++;
-        return DBNull.Value;
     }
+    // Otherwise, exit immediately. The unit is irrelevant without a value.
+    return (null, null);
+}
 
     /// <summary>
     /// Gets the barcode, test datetime, and number of times tested from the header common between step and group result files,
@@ -326,7 +346,7 @@ class Program
                 // Then loop through the reference parameters
                 for (int i = 0; i < ids.Length; i++)
                 {
-                    command.Parameters.AddWithValue(paramNames[i], ids[i]);
+                    command.Parameters.AddWithValue(paramNames[i], SqlDbType.TinyInt).Value = (byte)ids[i];
                 }
                 await command.ExecuteNonQueryAsync();
             }
@@ -356,6 +376,7 @@ class Program
         table.Columns.Add("rangeNum", typeof(int));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
+        table.Columns.Add("measurementUnit", typeof(char));
         table.Columns.Add("act", typeof(double));
         table.Columns.Add("ref", typeof(double));
         table.Columns.Add("meas", typeof(double));
@@ -382,6 +403,13 @@ class Program
             byte resultId = await GetCachedId(line[0].Trim(), true, context);
             byte modeId = await GetCachedId(line[6].Trim(), false, context);
 
+            // The discard operator "_" says to ignore the unit (because we already have it)
+            var (hLim, unit) = CleanFloatValue(line[8]);
+            var (lLim, _) = CleanFloatValue(line[9]);
+            var (act, _) = CleanFloatValue(line[10]);
+            var (refVal, _) = CleanFloatValue(line[11]);
+            var (meas, _) = CleanFloatValue(line[12]);
+
             // Add a row to the DataTable
             DataRow row = table.NewRow();
             row["barcode"] = context.Data.Barcode;
@@ -396,11 +424,12 @@ class Program
             row["pos"] = line[5].Trim();
             row["mode"] = modeId;
             row["rangeNum"] = int.Parse(line[7].Trim());
-            row["hLim"] = CleanFloatValue(line[8]);
-            row["lLim"] = CleanFloatValue(line[9]);
-            row["act"] = CleanFloatValue(line[10]);
-            row["ref"] = CleanFloatValue(line[11]);
-            row["meas"] = CleanFloatValue(line[12]);
+            row["hLim"] = (object)hLim ?? DBNull.Value;
+            row["lLim"] = (object)lLim ?? DBNull.Value;
+            row["measurementUnit"] = (object)unit ?? DBNull.Value;
+            row["act"] = (object)act ?? DBNull.Value;
+            row["ref"] = (object)refVal ?? DBNull.Value;
+            row["meas"] = (object)meas ?? DBNull.Value;
 
             table.Rows.Add(row);
         }
@@ -445,6 +474,7 @@ class Program
         table.Columns.Add("meas", typeof(double));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
+        table.Columns.Add("measurementUnit", typeof(char));
         table.Columns.Add("id1", typeof(string));
         table.Columns.Add("id2", typeof(string));
         table.Columns.Add("id3", typeof(string));
@@ -473,6 +503,11 @@ class Program
             byte resultId = await GetCachedId(line[0].Trim(), true, context);
             byte modeId = await GetCachedId(line[5].Trim(), false, context);
 
+            // The discard operator "_" says to ignore the unit (because we already have it)
+            var (hLim, unit) = CleanFloatValue(line[10]);
+            var (lLim, _) = CleanFloatValue(line[11]);
+            var (inputVol, _) = CleanFloatValue(line[16]);
+
             // Create a new row in the internal DataTable
             DataRow row = table.NewRow();
             row["barcode"] = context.Data.Barcode;
@@ -488,13 +523,14 @@ class Program
             row["lPin"] = line[7].Trim();
             row["ref"] = HexOrSciToDouble(line[8]);
             row["meas"] = HexOrSciToDouble(line[9]);
-            row["hLim"] = CleanFloatValue(line[10]);
-            row["lLim"] = CleanFloatValue(line[11]);
+            row["hLim"] = (object)hLim ?? DBNull.Value;
+            row["lLim"] = (object)lLim ?? DBNull.Value;
+            row["measurementUnit"] = (object)unit ?? DBNull.Value;
             row["id1"] = line[12].Trim();
             row["id2"] = line[13].Trim();
             row["id3"] = line[14].Trim();
             row["id4"] = line[15].Trim();
-            row["inputVol"] = CleanFloatValue(line[16]);
+            row["inputVol"] = (object)inputVol ?? DBNull.Value;
             row["commStd"] = line[17].Trim();
             row["executeMode"] = line[18].Trim();
             row["devAddress"] = line[19].Trim();
