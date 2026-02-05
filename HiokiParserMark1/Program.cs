@@ -1,24 +1,24 @@
 ﻿using Microsoft.Data.SqlClient;
 using System.Collections.Concurrent;
 using System.Data;
+using System.IO;
 using DotNetEnv;
 using System;
 using System.Globalization;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
-
-partial
+using System.Numerics;
 
 /// <summary>
 /// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
 /// Needs details on how barcodes change within one file
 /// </summary>
-class Program
+partial class Program // must be marked partial to allow compile-time compilation of regex
 {
     private static string ConnectionString = ""; // string of the information necessary to open a connection (insecure?)
     private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
     private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
-    private static readonly char[] ValidUnits = ['%'];
+    private static readonly string[] ValidUnits = ["%"];
 
     private static readonly Regex ValueUnitRegex = MyRegex(); // matches scientific notation with an optional unit
 
@@ -48,7 +48,7 @@ class Program
     }
 
     /// <summary>
-    /// Entry point for the program. Parses every file in the specified folder and adds it to the database.
+    /// Entry point for the program. Parses every file in the specified file or folder and adds it to the database.
     /// </summary>
     /// <param name="args"> The directory to search (must only contain files of the correct filetype and format)</param>
     /// <returns></returns>
@@ -56,9 +56,20 @@ class Program
     {
         if (args.Length == 0)
         {
-            Console.WriteLine("No folder argument detected. Please retry and supply path for folder to check.");
+            Console.WriteLine("No file/folder argument detected. Please retry and supply path for file or folder to check.");
             return;
         }
+
+        bool isFolder;
+        if (Directory.Exists(args[0])) {
+            isFolder = true;
+        } else if (File.Exists(args[0])) {
+            isFolder = false;
+        } else {
+            Console.WriteLine($"The file you specified ({args[0]}) could not be found. Please check your spelling and try again. The path may be relative to this program or absolute.");
+            return;
+        }
+
         Console.Write("Connecting...");
         Env.Load(); // Only use of DotNetEnv
         var builder = new SqlConnectionStringBuilder
@@ -72,13 +83,20 @@ class Program
         ConnectionString = builder.ConnectionString;
 
         await InitializeCaches();
-        string[] files = Directory.GetFiles(args[0], "*.*", SearchOption.AllDirectories);
-        Console.WriteLine("Parsing...");
-        foreach (string file in files)
+        Console.Write("Parsing...");
+        if (isFolder)
         {
-            await ParseHioki(file);
+            string[] files = Directory.GetFiles(args[0], "*.*", SearchOption.AllDirectories);
+            foreach (string file in files)
+            {
+                await ParseHioki(file);
+            }
+            Console.WriteLine($"Complete! {files.Length} files added to database");
+        } else
+        {
+            await ParseHioki(args[0]);
+            Console.WriteLine("Complete!");
         }
-        Console.WriteLine("Complete!");
     }
 
     /// <summary>
@@ -193,7 +211,7 @@ class Program
         if (double.TryParse(valPart, NumberStyles.Any, CultureInfo.InvariantCulture, out double result))
         {
             // If it works, append the unit (if it exists)
-            return (result, string.IsNullOrEmpty(unitPart) ? null : unitPart);
+            return (result, ValidUnits.Contains(unitPart) ? null : unitPart);
         }
     }
     // Otherwise, exit immediately. The unit is irrelevant without a value.
@@ -395,7 +413,6 @@ class Program
             if (line[0].Contains("-----  FCT  -----"))
             {
                 await ParseFctSection(context);
-                return;
             }
             if (line.Length < 13) continue;
 
@@ -424,12 +441,12 @@ class Program
             row["pos"] = line[5].Trim();
             row["mode"] = modeId;
             row["rangeNum"] = int.Parse(line[7].Trim());
-            row["hLim"] = (object)hLim ?? DBNull.Value;
-            row["lLim"] = (object)lLim ?? DBNull.Value;
-            row["measurementUnit"] = (object)unit ?? DBNull.Value;
-            row["act"] = (object)act ?? DBNull.Value;
-            row["ref"] = (object)refVal ?? DBNull.Value;
-            row["meas"] = (object)meas ?? DBNull.Value;
+            row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
+            row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
+            row["measurementUnit"] = unit ?? (object)DBNull.Value;
+            row["act"] = act.HasValue ? act.Value : DBNull.Value;
+            row["ref"] = refVal.HasValue ? refVal.Value : DBNull.Value;
+            row["meas"] = meas.HasValue ? meas.Value : DBNull.Value;
 
             table.Rows.Add(row);
         }
@@ -523,14 +540,14 @@ class Program
             row["lPin"] = line[7].Trim();
             row["ref"] = HexOrSciToDouble(line[8]);
             row["meas"] = HexOrSciToDouble(line[9]);
-            row["hLim"] = (object)hLim ?? DBNull.Value;
-            row["lLim"] = (object)lLim ?? DBNull.Value;
-            row["measurementUnit"] = (object)unit ?? DBNull.Value;
+            row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
+            row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
+            row["measurementUnit"] = unit ?? (object)DBNull.Value;
             row["id1"] = line[12].Trim();
             row["id2"] = line[13].Trim();
             row["id3"] = line[14].Trim();
             row["id4"] = line[15].Trim();
-            row["inputVol"] = (object)inputVol ?? DBNull.Value;
+            row["inputVol"] = inputVol.HasValue ? inputVol.Value : DBNull.Value;
             row["commStd"] = line[17].Trim();
             row["executeMode"] = line[18].Trim();
             row["devAddress"] = line[19].Trim();
