@@ -3,15 +3,15 @@
 @using System.ComponentModel.DataAnnotations.Schema
 
 @* PAGINATION TOP *@
-<div class="pagination-container d-flex justify-content-between align-items-center me-">
+<div class="pagination-container d-flex justify-content-between align-items-center">
     <div class="d-flex align-items-center">
         <div class="text-muted me-3">Showing @StartRecord to @EndRecord of @TotalCount</div>
-        <button class="btn btn-outline-success btn-sm" @onclick="OnSaveToCsv">
+        <button class="btn btn-outline-success" @onclick="OnSaveToCsv">
             <i class="bi bi-download"></i> Save to CSV
         </button>
     </div>
     <nav>
-        <ul class="pagination mt-2">
+        <ul class="pagination mt-3">
             <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
                 <button class="btn btn-outline-secondary" @onclick="() => OnPageChange.InvokeAsync(CurrentPage - 1)">&laquo; Previous</button>
             </li>

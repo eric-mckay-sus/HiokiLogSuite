@@ -6,18 +6,6 @@ using Microsoft.JSInterop;
 namespace HiokiNL2SQLMark1.Logic;
 
 /// <summary>
-/// Container for the value and polarity of a filter
-/// </summary>
-/// <typeparam name="T">One of string, int, or DateTime</typeparam>
-/// <param name="value">The value used in filtering</param>
-/// <param name="isNegated">Whether to filter out (or filter by)</param>
-public class Filter<T>(T? value, bool isNegated = false)
-{
-    public T? Value = value;
-    public bool IsNegated = isNegated;
-}
-
-/// <summary>
 /// Holds all the methods necessary to store a table
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
@@ -306,11 +294,11 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// </summary>
     public virtual void ResetFilterState()
     {
-        FilterBarcode.Value = null;
-        FilterStartDate.Value = null;
-        FilterEndDate.Value = null;
-        FilterGroup.Value = null;
-        FilterResult.Value = null;
+        FilterBarcode = new(null);
+        FilterStartDate = new(null);
+        FilterEndDate = new(null);
+        FilterGroup = new(null);
+        FilterResult = new(null);
         CurrentPage = 1;
     }
 

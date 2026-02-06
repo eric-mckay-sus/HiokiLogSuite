@@ -1,0 +1,38 @@
+@typeparam T
+
+<div class="@ColumnClass">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="form-label fw-bold">@Label</label>
+    }
+    <div class="input-group">
+        @* The Negation Toggle Button *@
+        <button class="btn @(Filter.IsNegated ? "btn-danger" : "btn-outline-secondary vis-query")" 
+                type="button" 
+                @onclick="ToggleNegation"
+                title="@(Filter.IsNegated ? "Excluding this value" : "Including this value")">
+            @(Filter.IsNegated ? "≠" : "=")
+        </button>
+
+        @* The dynamic input content (Select, InputNumber, etc.) *@
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] 
+    public Filter<T> Filter { get; set; } = default!;
+
+    [Parameter] 
+    public string? Label { get; set; }
+
+    [Parameter] 
+    public string ColumnClass { get; set; } = "col-2"; // Default fallback
+
+    [Parameter] 
+    public RenderFragment? ChildContent { get; set; }
+
+    
+
+    private void ToggleNegation() => Filter.IsNegated = !Filter.IsNegated;
+}

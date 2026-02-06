@@ -12,32 +12,31 @@
     <div class="query-builder-panel mb-4 p-3 border rounded bg-light">
         <div class="row g-3">
             @* div class col-____ tells Blazor it can use ____ columns out of 12 *@
-            <div class="col-4"> 
-                <label class="form-label fw-bold">Barcode</label>
+            <FilterWrapper Filter="Logic.FilterBarcode" Label="Barcode" ColumnClass="col-4">
                 <input type="text" class="form-control" @bind="Logic.FilterBarcode.Value" placeholder="Scan or type..." />
-            </div>
+            </FilterWrapper>
             <div class="col-2">
                 <label class="form-label fw-bold">Start Date</label>
-                <input type="date" class="form-control" @bind="Logic.FilterStartDate.Value" />
+                <div @key="Logic.FilterStartDate">
+                    <input type="datetime-local" class="form-control" @bind="Logic.FilterStartDate.Value" />
+                </div>
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">End Date</label>
-                <input type="date" class="form-control" @bind="Logic.FilterEndDate.Value" />
+                <div @key="Logic.FilterEndDate">
+                    <input type="datetime-local" class="form-control" @bind="Logic.FilterEndDate.Value" />
+                </div>
             </div>
-            <div class="col-1">
-                <label class="form-label fw-bold">Group</label>
+            <FilterWrapper Filter="Logic.FilterGroup" Label="Group #" ColumnClass="col-1">
                 <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup.Value" />
-            </div>
-            <div class="col-1">
-                <label class="form-label fw-bold">Step</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="StepLogic.FilterStep" Label="Step #" ColumnClass="col-1">
                 <input type="number" class="form-control" step="1" @bind="StepLogic.FilterStep.Value" />
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Part Name</label>
-                <input type="text" class="form-control" @bind="StepLogic.FilterPartName.Value" placeholder="e.g. 30AA..." />
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Mode</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="StepLogic.FilterPartName" Label="Part Name" ColumnClass="col-2">
+                <input type="text" class="form-control" @bind="StepLogic.FilterPartName.Value" placeholder="e.g. R301..." />
+            </FilterWrapper>
+            <FilterWrapper Filter="StepLogic.FilterMode" Label="Test Mode" ColumnClass="col-2">
                 <select class="form-select" @bind="StepLogic.FilterMode.Value">
                     <option value="">All Modes</option>
                     @foreach (string? m in Logic.modeCache)
@@ -45,9 +44,8 @@
                         <option value="@m">@m</option>
                     }
                 </select>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Result</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="Logic.FilterResult" Label="Result" ColumnClass="col-2">
                 <select class="form-select" @bind="Logic.FilterResult.Value">
                     <option value="">All Results</option>
                     @foreach (string? r in Logic.resultCache)
@@ -55,7 +53,7 @@
                         <option value="@r">@r</option>
                     }
                 </select>
-            </div>
+            </FilterWrapper>
             <div class="col-12 d-flex justify-content-end gap-2">
                 <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
                 <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>

@@ -60,9 +60,9 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : 
 
     public override void ResetFilterState()
     {
-        FilterPartName.Value = null;
-        FilterMode.Value = null;
-        FilterStep.Value = null;
+        FilterPartName = new(null);
+        FilterMode = new(null);
+        FilterStep = new(null);
         base.ResetFilterState();
     }
 }

@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1.Logic;
-using JS = Microsoft.JSInterop.IJSRuntime;
 
 namespace HiokiNL2SQLMark1;
 /// <summary>
@@ -58,5 +56,8 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// Clears all filters on a query
     /// </summary>
     /// <returns></returns>
-    public virtual async Task ClearFilters() => await Logic.ClearFilters();
+    public virtual async Task ClearFilters() {
+        await Logic.ClearFilters();
+        StateHasChanged();
+    }
 }

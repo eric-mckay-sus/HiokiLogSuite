@@ -81,11 +81,11 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) :
 
     public override void ResetFilterState()
     {
-        FilterComp.Value = null;
-        FilterShort.Value = null;
-        FilterMacro.Value = null;
-        FilterIC.Value = null;
-        FilterFunction.Value = null;
+        FilterComp = new(null);
+        FilterShort = new(null);
+        FilterMacro = new(null);
+        FilterIC = new(null);
+        FilterFunction = new(null);
 
         base.ResetFilterState();
     }

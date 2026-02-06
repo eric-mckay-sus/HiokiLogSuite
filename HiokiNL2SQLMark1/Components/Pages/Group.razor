@@ -8,77 +8,72 @@
 <h1>Hioki 1220 ICT Group Test Results</h1>
 
 <div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
-    <div class="query-builder-panel mb-4 p-3 border rounded bg-light  style="max-width: 100%; overflow-x: hidden;">
+    <div class="query-builder-panel mb-4 p-3 border rounded bg-light style="max-width: 100%; overflow-x: hidden;">
         <div class="row g-3">
-            <div class="col-3">
-                <label class="form-label fw-bold">Barcode</label>
-                <input type="text" class="form-control" @bind="Logic.FilterBarcode.Value" placeholder="Scan or type..." />
-            </div>
+                <FilterWrapper Filter="Logic.FilterBarcode" Label="Barcode" ColumnClass="col-3">
+                    <input type="text" class="form-control" @bind="Logic.FilterBarcode.Value" placeholder="Scan or type..." />
+                </FilterWrapper>
             <div class="col-3">
                 <label class="form-label fw-bold">Start Date</label>
-                <input type="date" class="form-control" @bind="Logic.FilterStartDate.Value" />
+                <div @key="Logic.FilterStartDate">
+                    <input type="datetime-local" class="form-control" @bind="Logic.FilterStartDate.Value" />
+                </div>
             </div>
             <div class="col-3">
                 <label class="form-label fw-bold">End Date</label>
-                <input type="date" class="form-control" @bind="Logic.FilterEndDate.Value" />
+                <div @key="Logic.FilterEndDate">
+                    <input type="datetime-local" class="form-control" @bind="Logic.FilterEndDate.Value" />
+                </div> 
             </div>
-            <div class="col-1">
-                <label class="form-label fw-bold">Group #</label>
-                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup.Value" />
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Overall Result</label>
+            <FilterWrapper Filter="Logic.FilterGroup" Label="Group #" ColumnClass="col-1">
+                <input type="number" class="form-control" @bind="Logic.FilterGroup.Value" />
+            </FilterWrapper>
+            <FilterWrapper Filter="Logic.FilterResult" Label="Overall Result" ColumnClass="col-2">
                 <select class="form-select" @bind="Logic.FilterResult.Value">
                     <option value="">All Results</option>
                     <option value="PASS">PASS</option>
                     <option value="FAIL">FAIL</option>
                 </select>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Component Test Result</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="GroupLogic.FilterComp" Label="Component Test Result" ColumnClass="col-2">
                 <select class="form-select" @bind="GroupLogic.FilterComp.Value">
                     <option value="">All Results</option>
-                    <option value="UN-T">UN-T</option>
                     <option value="PASS">PASS</option>
                     <option value="FAIL">FAIL</option>
                 </select>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Short Test Result</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="GroupLogic.FilterShort" Label="Short Test Result" ColumnClass="col-2">
                 <select class="form-select" @bind="GroupLogic.FilterShort.Value">
                     <option value="">All Results</option>
                     <option value="UN-T">UN-T</option>
                     <option value="PASS">PASS</option>
                     <option value="FAIL">FAIL</option>
                 </select>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Macro Test Result</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="GroupLogic.FilterMacro" Label="Macro Test Result" ColumnClass="col-2">
                 <select class="form-select" @bind="GroupLogic.FilterMacro.Value">
                     <option value="">All Results</option>
                     <option value="UN-T">UN-T</option>
                     <option value="PASS">PASS</option>
                     <option value="FAIL">FAIL</option>
                 </select>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">IC Test Result</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="GroupLogic.FilterIC" Label="IC Test Result" ColumnClass="col-2">
                 <select class="form-select" @bind="GroupLogic.FilterIC.Value">
                     <option value="">All Results</option>
                     <option value="UN-T">UN-T</option>
                     <option value="PASS">PASS</option>
                     <option value="FAIL">FAIL</option>
                 </select>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">Function Test Result</label>
+            </FilterWrapper>
+            <FilterWrapper Filter="GroupLogic.FilterFunction" Label="Function Test Result" ColumnClass="col-2">
                 <select class="form-select" @bind="GroupLogic.FilterFunction.Value">
                     <option value="">All Results</option>
                     <option value="UN-T">UN-T</option>
                     <option value="PASS">PASS</option>
                     <option value="FAIL">FAIL</option>
                 </select>
-            </div>
+            </FilterWrapper>
             <div class="col-12 d-flex justify-content-end gap-2">
                 <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
                 @*Have to use parentheses for RefreshData because it takes an argument now (even though it's optional)*@

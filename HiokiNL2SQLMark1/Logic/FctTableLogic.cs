@@ -51,8 +51,8 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : L
 
     public override void ResetFilterState()
     {
-        FilterMode.Value = null;
-        FilterStep.Value = null;
+        FilterMode = new(null);
+        FilterStep = new(null);
         base.ResetFilterState();
     }
 }
