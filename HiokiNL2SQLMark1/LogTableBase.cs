@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1.Logic;
+using JS = Microsoft.JSInterop.IJSRuntime;
 
 namespace HiokiNL2SQLMark1;
 /// <summary>
@@ -9,14 +10,8 @@ namespace HiokiNL2SQLMark1;
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
 {
-    protected LogTableLogic<T> Logic { get; set; } = default!; // Where all the logic lives
-    [Inject] public IDbContextFactory<LogDbContext> DbFactory { get; set; } = default!; // creates a new LogDbContext when necessary
+    protected LogTableLogic<T> Logic { get; set; } = default!; // Where all the logic lives. The particular instance of LogTableLogic is determined by the page
     protected List<T> DataView => Logic.DataView; // Pass through the table representation from LogTableLogic
-
-    protected override void OnInitialized()
-    {
-        Logic = new LogTableLogic<T>(DbFactory, GetBaseQuery);
-    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,10 +59,4 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// </summary>
     /// <returns></returns>
     public virtual async Task ClearFilters() => await Logic.ClearFilters();
-
-    /// <summary>
-    /// Gets the context to determine what table and attributes to check against
-    /// </summary>
-    /// <returns>A queryable object that implements IHiokiLog</returns>
-    protected abstract IQueryable<T> GetBaseQuery(LogDbContext db);
 }

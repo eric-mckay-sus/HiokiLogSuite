@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using JS = Microsoft.JSInterop.IJSRuntime;
 
 namespace HiokiNL2SQLMark1.Logic;
-public class StepTableLogic : LogTableLogic<StepResult>
+public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : LogTableLogic<StepResult>(dbFactory, db => db.StepView, js)
 {
-    public StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<StepResult>> querySelector) 
-        : base(dbFactory, querySelector) { }
-
     public Filter<string?> FilterPartName = new(null);
     public Filter<int?> FilterStep = new(null);
     public Filter<string?> FilterMode = new(null);

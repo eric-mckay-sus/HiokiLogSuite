@@ -139,7 +139,7 @@ public class StepResult : IStepFCT
     [Column("Reference value")]
     public double? RefVal { get; set; }
 
-    [Column("Measurement value")]
+    [Column("Measured value")]
     public double? MeasVal { get; set; }
 }
 

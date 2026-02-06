@@ -1,17 +1,16 @@
 ﻿@page "/step"
 @rendermode InteractiveServer
-@inherits LogTableBase<StepResult>
-@using HiokiNL2SQLMark1.Logic 
+@inherits LogTableBase<StepResult> // Step table is the page type
+@inject Logic.StepTableLogic StepLogic // The page is controlled by step logic
 
 <PageTitle>Step Results</PageTitle>
 
-<div class="page-container">
 <h1>Hioki 1220 ICT Step Test Results</h1>
 
 @* Query Builder Panel *@
 <div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
     <div class="query-builder-panel mb-4 p-3 border rounded bg-light">
-        <div class="row g-3 m-0">
+        <div class="row g-3">
             @* div class col-____ tells Blazor it can use ____ columns out of 12 *@
             <div class="col-4"> 
                 <label class="form-label fw-bold">Barcode</label>
@@ -31,15 +30,15 @@
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" step="1" @bind="Logic.FilterStep.Value" />
+                <input type="number" class="form-control" step="1" @bind="StepLogic.FilterStep.Value" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Part Name</label>
-                <input type="text" class="form-control" @bind="Logic.FilterPartName.Value" placeholder="e.g. 30AA..." />
+                <input type="text" class="form-control" @bind="StepLogic.FilterPartName.Value" placeholder="e.g. 30AA..." />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="Logic.FilterMode.Value">
+                <select class="form-select" @bind="StepLogic.FilterMode.Value">
                     <option value="">All Modes</option>
                     @foreach (string? m in Logic.modeCache)
                     {
@@ -84,18 +83,16 @@ else
               OnPageChange="ChangePage"
               CurrentSortColumn="@Logic.CurrentSortColumn"
               OnSort="ToggleSort"
-              GetSortIcon="GetSortIcon" />
+              GetSortIcon="GetSortIcon" 
+              OnSaveToCsv="Logic.SaveToCSV" />
 }
-</div>
 
 @code {
-    new StepTableLogic Logic => (StepTableLogic)base.Logic;
-
+    /// <summary>
+    /// When the page is opened, tell LogTableBase that it is a step table page
+    /// </summary>
     protected override void OnInitialized()
     {
-        // Initialize with the specialized logic class
-        base.Logic = new StepTableLogic(DbFactory, GetBaseQuery);
+        base.Logic = StepLogic;
     }
-
-    protected override IQueryable<StepResult> GetBaseQuery(LogDbContext db) => db.StepView;
 }

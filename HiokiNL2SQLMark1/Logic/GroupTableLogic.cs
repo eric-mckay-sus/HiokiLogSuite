@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using JS = Microsoft.JSInterop.IJSRuntime;
 
 namespace HiokiNL2SQLMark1.Logic;
-public class GroupTableLogic : LogTableLogic<GroupResult>
+public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js)
 {
-    public GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<GroupResult>> querySelector) 
-        : base(dbFactory, querySelector) { }
-
     public Filter<string?> FilterComp = new(null);
     public Filter<string?> FilterShort = new(null);
     public Filter<string?> FilterMacro = new(null);

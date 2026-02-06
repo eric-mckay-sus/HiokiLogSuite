@@ -18,11 +18,10 @@ partial class Program // must be marked partial to allow compile-time compilatio
     private static string ConnectionString = ""; // string of the information necessary to open a connection (insecure?)
     private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
     private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
-    private static readonly string[] ValidUnits = ["%"];
 
     private static readonly Regex ValueUnitRegex = MyRegex(); // matches scientific notation with an optional unit
 
-    [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>.*)?$", RegexOptions.Compiled)]
+    [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>[^,]*?)\s*$", RegexOptions.Compiled)]
     private static partial Regex MyRegex(); // this generates at compile-time, which was suggested by Intellisense
 
     /// <summary>
@@ -211,7 +210,7 @@ partial class Program // must be marked partial to allow compile-time compilatio
         if (double.TryParse(valPart, NumberStyles.Any, CultureInfo.InvariantCulture, out double result))
         {
             // If it works, append the unit (if it exists)
-            return (result, ValidUnits.Contains(unitPart) ? null : unitPart);
+            return (result, string.IsNullOrEmpty(unitPart) ? null : unitPart);
         }
     }
     // Otherwise, exit immediately. The unit is irrelevant without a value.

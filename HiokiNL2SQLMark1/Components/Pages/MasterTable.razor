@@ -3,10 +3,15 @@
 @using System.ComponentModel.DataAnnotations.Schema
 
 @* PAGINATION TOP *@
-<div class="pagination-container d-flex justify-content-between align-items-center mb-3">
-    <div class="text-muted">Showing @StartRecord to @EndRecord of @TotalCount</div>
+<div class="pagination-container d-flex justify-content-between align-items-center me-">
+    <div class="d-flex align-items-center">
+        <div class="text-muted me-3">Showing @StartRecord to @EndRecord of @TotalCount</div>
+        <button class="btn btn-outline-success btn-sm" @onclick="OnSaveToCsv">
+            <i class="bi bi-download"></i> Save to CSV
+        </button>
+    </div>
     <nav>
-        <ul class="pagination">
+        <ul class="pagination mt-2">
             <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
                 <button class="btn btn-outline-secondary" @onclick="() => OnPageChange.InvokeAsync(CurrentPage - 1)">&laquo; Previous</button>
             </li>
@@ -72,4 +77,7 @@
     // Use the parent's GetSortIcon() to render the arrow
     [Parameter] public Func<string, string> GetSortIcon { get; set; } = (col) => "";
     private string SortIcon(string col) => GetSortIcon?.Invoke(col) ?? "";
+
+    // Save to CSV
+    [Parameter] public EventCallback OnSaveToCsv { get; set; }
 }

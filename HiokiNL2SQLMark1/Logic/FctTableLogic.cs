@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using JS = Microsoft.JSInterop.IJSRuntime;
 
 namespace HiokiNL2SQLMark1.Logic;
-public class FctTableLogic : LogTableLogic<FctResult>
+public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : LogTableLogic<FctResult>(dbFactory, db => db.FctView, js)
 {
-    public FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<FctResult>> querySelector) 
-        : base(dbFactory, querySelector) { }
-
     public Filter<int?> FilterStep = new(null);
     public Filter<string?> FilterMode = new(null);
 

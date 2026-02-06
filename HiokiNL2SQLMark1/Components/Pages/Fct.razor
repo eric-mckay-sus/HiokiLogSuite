@@ -1,7 +1,7 @@
 ﻿@page "/fct"
 @rendermode InteractiveServer
-@inherits LogTableBase<FctResult>
-@using HiokiNL2SQLMark1.Logic
+@inherits LogTableBase<FctResult> // FCT table is the page type
+@inject Logic.FctTableLogic FctLogic // The page is controlled by FCT logic
 
 <PageTitle>FCT Results</PageTitle>
 
@@ -29,11 +29,11 @@
             </div>
             <div class="col-1">
                 <label class="form-label fw-bold">Step</label>
-                <input type="number" class="form-control" @bind="Logic.FilterStep.Value" />
+                <input type="number" class="form-control" @bind="FctLogic.FilterStep.Value" />
             </div>
             <div class="col-2">
                 <label class="form-label fw-bold">Mode</label>
-                <select class="form-select" @bind="Logic.FilterMode.Value">
+                <select class="form-select" @bind="FctLogic.FilterMode.Value">
                     <option value="">All Modes</option>
                     @foreach (string? m in Logic.modeCache)
                     {
@@ -78,17 +78,16 @@ else
               OnPageChange="ChangePage"
               CurrentSortColumn="@Logic.CurrentSortColumn"
               OnSort="ToggleSort"
-              GetSortIcon="GetSortIcon" />
+              GetSortIcon="GetSortIcon"
+              OnSaveToCsv="Logic.SaveToCSV" />
 }
 
 @code {
-    new FctTableLogic Logic => (FctTableLogic)base.Logic;
-
+    /// <summary>
+    /// When the page is opened, tell LogTableBase that it is a FCT table page
+    /// </summary>
     protected override void OnInitialized()
     {
-        // Initialize with the specialized logic class
-        base.Logic = new FctTableLogic(DbFactory, GetBaseQuery);
+        base.Logic = FctLogic;
     }
-
-    protected override IQueryable<FctResult> GetBaseQuery(LogDbContext db) => db.FctView;
 }

@@ -21,16 +21,29 @@
     <script src="_framework/blazor.web.js"></script>
 
     <script>
+        // Puts focus on the specified element (used for focusing search bar when selecting tags)
         window.focusElement = (elementId) => {
-        const el = document.getElementById(elementId);
-        if (el) {
-            el.focus();
-            // Moves cursor to the end of the text
-            const val = el.value;
-            el.value = '';
-            el.value = val;
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.focus();
+                const val = el.value;
+                el.value = '';
+                el.value = val;
+            }
+        };
+    </script>
+    <script>
+        // Save to CSV
+        window.downloadFileFromStream = async (fileName, content) => {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const anchorElement = document.createElement('a');
+            anchorElement.href = url;
+            anchorElement.download = fileName ?? '';
+            anchorElement.click();
+            anchorElement.remove();
+            URL.revokeObjectURL(url);
         }
-    };
     </script>
 </body>
 

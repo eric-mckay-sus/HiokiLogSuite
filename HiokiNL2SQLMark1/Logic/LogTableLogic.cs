@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Client;
 using System.Linq.Dynamic.Core;
+using Microsoft.JSInterop;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -20,10 +21,11 @@ public class Filter<T>(T? value, bool isNegated = false)
 /// Holds all the methods necessary to store a table
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
-public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector) where T : class, IHiokiLog
+public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js) where T : class, IHiokiLog
 {
     private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory; // generates a new DbContext on demand (thread-safe)
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
+    protected readonly IJSRuntime JS = js; // for handling CSV download
 
     // Shared filters
     public Filter<string?> FilterBarcode = new(null);
@@ -185,6 +187,45 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
 
         string direction = SortDir == SortDirection.Asc ? "ascending" : "descending";
         return query.OrderBy($"{CurrentSortColumn} {direction}"); // Dynamic LINQ is cool
+    }
+
+    /// <summary>
+    /// Detects the table, then saves the results of the query on that table to a CSV
+    /// Uses JS Runtime to download directly to browser Downloads location
+    /// </summary>
+    /// <returns></returns>
+    public async Task SaveToCSV()
+    {
+        Type targetType = typeof(T);
+        var properties = targetType.GetProperties();
+        var csvBuilder = new System.Text.StringBuilder();
+
+        // Header
+        csvBuilder.AppendLine(string.Join(",", properties.Select(p => p.Name)));
+
+        // Re run the current query with the current filters and sorts
+        using var db = await _dbFactory.CreateDbContextAsync();
+        IQueryable<T> query = _querySelector(db).AsNoTracking();
+        query = ApplyFilters(query);
+        query = ApplySorting(query); 
+        var allData = await query.ToListAsync();
+
+        // Loop through each row, parse, then pass to the CSV builder
+        foreach (var item in allData)
+        {
+            var values = properties.Select(p => {
+                string val = p.GetValue(item)?.ToString() ?? "";
+                // CSV escaping: wrap in quotes if contains comma, newline, or quotes
+                if (val.Contains(',') || val.Contains('"') || val.Contains('\n') || val.Contains('\r'))
+                    val = $"\"{val.Replace("\"", "\"\"")}\"";
+                return val;
+            });
+            csvBuilder.AppendLine(string.Join(",", values));
+        }
+
+        // Call JS Runtime to perform the download
+        string fileName = $"{targetType.Name}s_{DateTime.Now:yyyyMMdd_HHmm}.csv";
+        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, csvBuilder.ToString());
     }
 
     /// <summary>

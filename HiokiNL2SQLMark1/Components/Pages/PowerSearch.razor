@@ -120,21 +120,21 @@
     <h2>Group Results</h2>
     <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
                  CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
-                 OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" />
+                 OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" />
 }
 @if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView.Count != 0)
 {
     <h2>Step Results</h2>
     <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
                  CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
-                 OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" />
+                 OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" />
 }
 @if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView.Count != 0)
 {
     <h2>FCT Results</h2>
     <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
                  CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
-                 OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" />
+                 OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" />
 }
 
 @code{

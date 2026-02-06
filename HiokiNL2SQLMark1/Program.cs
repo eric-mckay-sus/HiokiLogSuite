@@ -2,6 +2,7 @@ using HiokiNL2SQLMark1.Components;
 using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
+using IJSRuntime = Microsoft.JSInterop.IJSRuntime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,23 +12,10 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // Add services to the container.
-builder.Services.AddScoped(sp => 
-{
-    var factory = sp.GetRequiredService<IDbContextFactory<LogDbContext>>();
-    return new GroupTableLogic(factory, db => db.GroupView);
-});
+builder.Services.AddScoped<GroupTableLogic>();
+builder.Services.AddScoped<StepTableLogic>();
+builder.Services.AddScoped<FctTableLogic>();
 
-builder.Services.AddScoped(sp => 
-{
-    var factory = sp.GetRequiredService<IDbContextFactory<LogDbContext>>();
-    return new StepTableLogic(factory, db => db.StepView);
-});
-
-builder.Services.AddScoped(sp => 
-{
-    var factory = sp.GetRequiredService<IDbContextFactory<LogDbContext>>();
-    return new FctTableLogic(factory, db => db.FctView);
-});
 builder.Services.AddScoped<SearchParserService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
