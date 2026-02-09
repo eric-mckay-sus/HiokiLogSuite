@@ -14,7 +14,7 @@
 @inject HiokiNL2SQLMark1.Logic.FctTableLogic FctLogic // model for the FCT table
 @implements IDisposable // for the automatic Dispose method
 
-<PageTitle>Power Search</PageTitle>
+<PageTitle>@_lastExecutedQuery</PageTitle>
 
 <h1>Hioki 1220 ICT Power Search</h1>
 
@@ -198,6 +198,7 @@
     bool _isProcessingNavigation;
     bool _isSearching;
     int AllCount => GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count;
+    string _lastExecutedQuery = "Hioki ICT Power Search";
 
     /// <summary>
     /// When the page opens, check the URL for filters.
@@ -313,6 +314,7 @@
 
         // Inform the UI that we're loading
         _isSearching = true;
+        _lastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
         StateHasChanged();
 
         try{
