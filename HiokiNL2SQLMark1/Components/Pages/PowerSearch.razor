@@ -5,14 +5,14 @@
 @using System.Threading.Tasks
 @using Microsoft.EntityFrameworkCore
 @using System.Text.RegularExpressions
-@using Sprache
 @using System.Timers
-@inject IJSRuntime JSRuntime
-@inject SearchParserService ParserService
-@inject HiokiNL2SQLMark1.Logic.GroupTableLogic GroupLogic
-@inject HiokiNL2SQLMark1.Logic.StepTableLogic StepLogic
-@inject HiokiNL2SQLMark1.Logic.FctTableLogic FctLogic
-@implements IDisposable
+@inject IJSRuntime JSRuntime // to handle refocusing the search bar upon selecting a tag
+@inject NavigationManager NavManager // to update the URL with filter changes
+@inject SearchParserService ParserService // delegate the actual query parsing
+@inject HiokiNL2SQLMark1.Logic.GroupTableLogic GroupLogic // model for the group table
+@inject HiokiNL2SQLMark1.Logic.StepTableLogic StepLogic // model for the step table
+@inject HiokiNL2SQLMark1.Logic.FctTableLogic FctLogic // model for the FCT table
+@implements IDisposable // for the automatic Dispose method
 
 <PageTitle>Power Search</PageTitle>
 
@@ -78,7 +78,16 @@
                 <span class="badge @GetBadgeClass(key, true) align-middle" 
                     title="@SearchParserService.GetTagTooltip(key, false)"
                     style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
-                    @onclick="() => AppendKey(key, false)">@key</span>
+                    @onclick="() => AppendKey(key, false)">
+                    @key
+                    @* If pressing the remove tag button, stop the badge action *@
+                    @if(commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase)) {
+                        <i class="bi bi-x-lg ms-1 remove-pill-btn" 
+                        title="Remove filter"
+                        @onclick:stopPropagation="true"
+                        @onclick="() => RemoveTagFromQuery(key)"></i>
+                    }
+                    </span>
             }
         </small>
     </div>
@@ -111,30 +120,39 @@
     </div>
 </div>
 
-@if ((GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count == 0) && !filters.IsNullOrEmpty()){
-    <h4>No results matched these criteria. Please check your filters and spelling.</h4>
-}
+@if (_isSearching){
+    <div class="d-flex flex-column align-items-center my-5">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <h4 class="mt-3 text-muted">@Preview.Replace("Showing", "Loading")</h4>
+    </div>
+} else{
+    @if ((GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count == 0) && !filters.IsNullOrEmpty()){
+        <h4 style="text-align: center;">No results matched these criteria. Please check your filters and spelling.</h4>
+    }
 
-@if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView.Count != 0)
-{
-    <h2>Group Results</h2>
-    <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
-                 CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
-                 OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" />
-}
-@if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView.Count != 0)
-{
-    <h2>Step Results</h2>
-    <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
-                 CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
-                 OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" />
-}
-@if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView.Count != 0)
-{
-    <h2>FCT Results</h2>
-    <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
-                 CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
-                 OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" />
+    @if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView.Count != 0)
+    {
+        <h2>Group Results</h2>
+        <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
+                    CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
+                    OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" />
+    }
+    @if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView.Count != 0)
+    {
+        <h2>Step Results</h2>
+        <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
+                    CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
+                    OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" />
+    }
+    @if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView.Count != 0)
+    {
+        <h2>FCT Results</h2>
+        <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
+                    CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
+                    OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" />
+    }
 }
 
 @code{
@@ -143,17 +161,94 @@
     /// </summary>
     string CurrentType = "all"; // the table to check
     string commandInput = ""; // the input from the search bar
-    string Preview = "";
+    string Preview = ""; // the human-readable preview of the query to be executed
     List<string> errorMessages = []; // the text of the error message, if applicable
-    readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",];
+    readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",]; // the list of available date aliases
     Dictionary<string, string>? filters; // the key-value pairs parsed from command input
-    private Timer? _debounceTimer;
+    private Timer? _debounceTimer; // to smooth the preview rendering
+    bool _isProcessingNavigation;
+    bool _isSearching;
+
+    /// <summary>
+    /// When the page opens, check the URL for filters.
+    /// If there are filters, immediately run a query with them.
+    /// </summary>
+    /// <returns></returns>
+    protected override async Task OnInitializedAsync()
+    {
+        // Try to get the "q" parameter from the current URI
+        Uri? uri = NavManager.ToAbsoluteUri(NavManager.Uri);
+
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var queryVal))
+        {
+            commandInput = queryVal;
+            SyncLivePreview();
+            await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true);
+        }
+    }
+
+    /// <summary>
+    /// When this page opens, continuously watch the query for filter changes
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        NavManager.LocationChanged += HandleLocationChanged;
+    }
+
+    /// <summary>
+    /// When this page closes, inform the location manager and kill the timer thread
+    /// </summary>
+    public void Dispose()
+    {
+        NavManager.LocationChanged -= HandleLocationChanged;
+        _debounceTimer?.Dispose();
+    }
+
+    /// <summary>
+    /// Check the search bar for filters, then update the URL as necessary
+    /// </summary>
+    /// <param name="sender">The origin of this call</param>
+    /// <param name="e">The information about the event to handle</param>
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if(_isProcessingNavigation) return;
+        Uri? uri = NavManager.ToAbsoluteUri(e.Location);
+        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        // If there are query parameters, get them
+        if (queryParams.TryGetValue("q", out var queryVal))
+        {
+            // If the filter state doesn't match the URL, update the search bar
+            if (commandInput != queryVal)
+            {
+                UpdateSearchState(queryVal);
+            }
+        } else {
+            // If there aren't query parameters, ensure the search bar is empty
+            if(!string.IsNullOrEmpty(commandInput)){
+                UpdateSearchState(String.Empty);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Helper to actually execute the new search
+    /// </summary>
+    /// <param name="newValue">The content to put in the search bar</param>
+    private void UpdateSearchState(string newValue)
+    {
+        commandInput = newValue;
+        _ = InvokeAsync(async () => {
+            SyncLivePreview();
+            await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true); 
+            StateHasChanged();
+        });
+    }
 
     /// <summary>
     /// Parse search bar input, update the model, then tell the view  
     /// </summary>
     /// <returns></returns>
-    private async Task ExecutePowerSearch()
+    private async Task ExecutePowerSearch(bool isNavigatingInternal=false, bool skipUrlUpdate=false)
     {
         GroupLogic.ClearData();
         StepLogic.ClearData();
@@ -170,18 +265,45 @@
             return;
         }
 
-        List<Task>? tasks = new List<Task>();
+        if(!skipUrlUpdate){
+            _isProcessingNavigation = true;
+            try{
+                if(!isNavigatingInternal){
+                // Update the URL query string
+                string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
+                
+                // 'false' means don't reload the page, just update the address bar
+                NavManager.NavigateTo(newUri, replace: false);
+                } 
+            } finally{
+                await Task.Yield(); // if something goes wrong, give the browser a second, then unlock navigation
+                _isProcessingNavigation=false;
+            }
+        }
 
-        if (CurrentType == "all" || CurrentType == "group"){
-            tasks.Add(GroupLogic.ApplyFiltersFromDictionary(filters));
-        } 
-        if (CurrentType == "all" || CurrentType == "step"){
-            tasks.Add(StepLogic.ApplyFiltersFromDictionary(filters));
+        // Inform the UI that we're loading
+        _isSearching = true;
+        StateHasChanged();
+
+        try{
+            List<Task>? tasks = new List<Task>();
+
+            if (CurrentType == "all" || CurrentType == "group"){
+                tasks.Add(GroupLogic.ApplyFiltersFromDictionary(filters));
+            } 
+            if (CurrentType == "all" || CurrentType == "step"){
+                tasks.Add(StepLogic.ApplyFiltersFromDictionary(filters));
+            }
+            if (CurrentType == "all" || CurrentType == "fct"){
+                tasks.Add(FctLogic.ApplyFiltersFromDictionary(filters));
+            }
+            await Task.WhenAll(tasks);
+        } catch (Exception ex){
+            errorMessages.Add($"Search failed: {ex.Message}");
+        } finally{
+            _isSearching = false;
+            StateHasChanged();
         }
-        if (CurrentType == "all" || CurrentType == "fct"){
-            tasks.Add(FctLogic.ApplyFiltersFromDictionary(filters));
-        }
-        await Task.WhenAll(tasks);
         StateHasChanged();
     }
 
@@ -292,14 +414,6 @@
     }
 
     /// <summary>
-    /// Kill the timer thread if something unexpected happens
-    /// </summary>
-    public void Dispose()
-    {
-        _debounceTimer?.Dispose();
-    }
-
-    /// <summary>
     /// Updates the live preview based on current search bar contents
     /// </summary>
     private void SyncLivePreview()
@@ -312,6 +426,7 @@
     /// Toggles color depending on whether the input key is present in the search bar
     /// </summary>
     /// <param name="key">The tag to check against the search bar contents</param>
+    /// <param name="thisMode">Whether the tag is active in this mode (lighter styling)</param>
     /// <returns>The badge style reflecting its activation state</returns>
     private string GetBadgeClass(string key, bool thisMode){
         // Highlight red for negative presence (-key:)
@@ -329,6 +444,36 @@
         // Otherwise, revert to respective default (inactive) states
         return thisMode ? "search-tag secondary" : "search-tag tertiary";
     }
+
+    /// <summary>
+    /// Removes a key and its associated value from the query
+    /// </summary>
+    /// <param name="key">The key to remove the tag for</param>
+    /// <returns></returns>
+    private void RemoveTagFromQuery(string key)
+    {
+        if (string.IsNullOrWhiteSpace(commandInput)) return; // in the case this method is somehow triggered without any filters
+
+        // Pattern handles: -?key: followed by ("quoted value" OR unquotedValue)
+        string pattern = $@"-?{key}:(""[^""]*""|[^\s]*)";
+        
+        commandInput = Regex.Replace(commandInput, pattern, "", RegexOptions.IgnoreCase).Trim();
+        
+        // Clean up double spaces that might be left behind
+        commandInput = Regex.Replace(commandInput, @"\s+", " ");
+
+        // Sync the preview and re-execute search to update the DataViews
+        SyncLivePreview();
+
+        // If the input is now empty, clear the results entirely
+        if (string.IsNullOrEmpty(commandInput))
+        {
+            GroupLogic.ClearData();
+            StepLogic.ClearData();
+            FctLogic.ClearData();
+        }
+    }
+
     /// <summary>
     /// Appends the input key to the search bar if not currently there
     /// </summary>

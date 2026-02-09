@@ -34,6 +34,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     private SortDirection SortDir = SortDirection.None;
     
     // Data storage
+    public bool _isLoading;
     public List<T> DataView = [];
     public List<string> modeCache = [];
     public List<string> resultCache = [];
@@ -48,6 +49,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     {
         if (!keepPage) CurrentPage = 1;
 
+        _isLoading = true;
         // One DbContext per refresh
         using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -60,6 +62,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
             .Skip((CurrentPage - 1) * PageSize)
             .Take(PageSize)
             .ToListAsync();
+        _isLoading = false;
     }
 
     /// <summary>
@@ -107,6 +110,9 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <returns></returns>
     public virtual async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
+        // Ensure no old filters persist
+        ResetFilterState();
+        
         foreach (var (key, value) in filterDict)
         {
             bool isNegated = key.StartsWith('-');

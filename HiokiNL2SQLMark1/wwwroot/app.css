@@ -72,6 +72,29 @@ a, .btn-link {
     box-shadow: 0 0 3px hsla(0, 98%, 52%, 0.5);
 }
 
+.remove-pill-btn { /* for the X to remove a search tag */
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s, transform 0.2s;
+    font-size: 0.9em;
+}
+
+.remove-pill-btn:hover {
+    opacity: 1;
+    transform: scale(1.2);
+    color: #ff4d4d; /* Slight red tint on hover to signal deletion */
+}
+
+/* Ensure the badge doesn't collapse if it's just the X */
+.search-tag {
+    padding: 0.4em 0.7em;
+    user-select: none;
+}
+
+.spinner-border.text-primary{
+    color: #004d99 !important;
+}
+
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
   box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb !important;
 }

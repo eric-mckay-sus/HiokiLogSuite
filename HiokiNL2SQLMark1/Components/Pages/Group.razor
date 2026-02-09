@@ -16,13 +16,13 @@
             <div class="col-3">
                 <label class="form-label fw-bold">Start Date</label>
                 <div @key="Logic.FilterStartDate">
-                    <input type="datetime-local" class="form-control" @bind="Logic.FilterStartDate.Value" />
+                    <input type="date" class="form-control" @bind="Logic.FilterStartDate.Value" />
                 </div>
             </div>
             <div class="col-3">
                 <label class="form-label fw-bold">End Date</label>
                 <div @key="Logic.FilterEndDate">
-                    <input type="datetime-local" class="form-control" @bind="Logic.FilterEndDate.Value" />
+                    <input type="date" class="form-control" @bind="Logic.FilterEndDate.Value" />
                 </div> 
             </div>
             <FilterWrapper Filter="Logic.FilterGroup" Label="Group #" ColumnClass="col-1">
@@ -83,13 +83,9 @@
     </div>
 </div>
 
-@if (DataView == null)
+@if (!DataView.Any())
 {
-    <p><em>Loading data from SQL...</em></p>
-}
-else if (!DataView.Any())
-{
-    <p>No group records found matching these criteria.</p>
+    <h4 style="text-align: center;">No group records found matching these criteria.</h4>
 }
 else
 {

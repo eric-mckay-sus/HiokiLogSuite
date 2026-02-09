@@ -28,8 +28,9 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : L
 
     public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
-        // Run base logic to handle common filters
-        // Note: We don't await RefreshData here yet to avoid multiple DB calls
+        // Call the base dictionary mapper for the common fields
+        await base.ApplyFiltersFromDictionary(filterDict);
+        
         foreach (var (key, value) in filterDict)
         {
             bool isNegated = key.StartsWith('-');
@@ -44,9 +45,6 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : L
                     FilterStep.IsNegated = isNegated; break;
             }
         }
-
-        // Call the base dictionary mapper for the common fields
-        await base.ApplyFiltersFromDictionary(filterDict);
     }
 
     public override void ResetFilterState()

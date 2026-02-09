@@ -51,6 +51,9 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) :
 
     public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
+        // Call the base dictionary mapper for the common fields
+        await base.ApplyFiltersFromDictionary(filterDict);
+        
         foreach (var (key, value) in filterDict)
         {
             bool isNegated = key.StartsWith('-');
@@ -74,9 +77,6 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) :
                     FilterFunction.IsNegated = isNegated; break;
             }
         }
-
-        // Call the base dictionary mapper for the common fields
-        await base.ApplyFiltersFromDictionary(filterDict);
     }
 
     public override void ResetFilterState()
