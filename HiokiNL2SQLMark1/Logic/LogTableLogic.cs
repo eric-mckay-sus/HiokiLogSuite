@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Client;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
+using Microsoft.AspNetCore.Components;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -9,11 +10,12 @@ namespace HiokiNL2SQLMark1.Logic;
 /// Holds all the methods necessary to store a table
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
-public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js) where T : class, IHiokiLog
+public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager) where T : class, IHiokiLog
 {
     private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory; // generates a new DbContext on demand (thread-safe)
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
     protected readonly IJSRuntime JS = js; // for handling CSV download
+    protected readonly NavigationManager Nav = navManager;
 
     // Shared filters
     public Filter<string?> FilterBarcode = new(null);
@@ -106,13 +108,24 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <summary>
     /// Maps a dictionary of filter key-value pairs to the individual filter properties
     /// </summary>
-    /// <param name="filterDict">Dictionary containing filter keys and values</param>
+    /// <param name="filterDict">The dictionary containing filter keys and values</param>
     /// <returns></returns>
     public virtual async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
         // Ensure no old filters persist
         ResetFilterState();
         
+        AssignBaseFilters(filterDict);
+
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Assigns the base filters without triggering a refresh so individual tables can call for common values
+    /// </summary>
+    /// <param name="filterDict">The dictionary of search tags mapped to values</param>
+    protected void AssignBaseFilters(Dictionary<string, string> filterDict)
+    {
         foreach (var (key, value) in filterDict)
         {
             bool isNegated = key.StartsWith('-');
@@ -138,7 +151,6 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
                     break;
             }
         }
-        await RefreshData();
     }
 
     /// <summary>
@@ -220,6 +232,17 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         // Call JS Runtime to perform the download
         string fileName = $"{targetType.Name}s_{DateTime.Now:yyyyMMdd_HHmm}.csv";
         await JS.InvokeVoidAsync("downloadFileFromStream", fileName, csvBuilder.ToString());
+    }
+
+    /// <summary>
+    /// Navigates to the power search page upon selecting a barcode to pursue
+    /// </summary>
+    /// <param name="barcode">The barcode to trace</param>
+    public void HandleBarcodeClick(string barcode)
+    {
+        string query = $"in:all barcode:{barcode}";
+        // Redirect to the PowerSearch page to view all results
+        Nav.NavigateTo($"/?q={Uri.EscapeDataString(query)}");
     }
 
     /// <summary>

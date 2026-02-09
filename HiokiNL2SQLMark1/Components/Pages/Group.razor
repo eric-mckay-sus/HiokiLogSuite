@@ -90,16 +90,17 @@
 else
 {
     <MasterTable TItem="GroupResult" 
-              Items="DataView"
-              CurrentPage="Logic.CurrentPage"
-              TotalPages="Logic.TotalPages"
-              TotalCount="Logic.TotalCount"
-              PageSize="Logic.PageSize"
-              OnPageChange="ChangePage"
-              CurrentSortColumn="@Logic.CurrentSortColumn"
-              OnSort="ToggleSort"
-              GetSortIcon="GetSortIcon"
-              OnSaveToCsv="Logic.SaveToCSV" />
+            Items="DataView"
+            CurrentPage="Logic.CurrentPage"
+            TotalPages="Logic.TotalPages"
+            TotalCount="Logic.TotalCount"
+            PageSize="Logic.PageSize"
+            OnPageChange="ChangePage"
+            CurrentSortColumn="@Logic.CurrentSortColumn"
+            OnSort="ToggleSort"
+            GetSortIcon="GetSortIcon"
+            OnSaveToCsv="Logic.SaveToCSV" 
+            OnBarcodeClick="Logic.HandleBarcodeClick" />
 }
 
 @code {

@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using JS = Microsoft.JSInterop.IJSRuntime;
+using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
-public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : LogTableLogic<FctResult>(dbFactory, db => db.FctView, js)
+public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
+    LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navManager)
 {
     public Filter<int?> FilterStep = new(null);
     public Filter<string?> FilterMode = new(null);
@@ -28,8 +30,9 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : L
 
     public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
+        ResetFilterState();
         // Call the base dictionary mapper for the common fields
-        await base.ApplyFiltersFromDictionary(filterDict);
+        AssignBaseFilters(filterDict);
         
         foreach (var (key, value) in filterDict)
         {
@@ -45,6 +48,7 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : L
                     FilterStep.IsNegated = isNegated; break;
             }
         }
+        await RefreshData();
     }
 
     public override void ResetFilterState()

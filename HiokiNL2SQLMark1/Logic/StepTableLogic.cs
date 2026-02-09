@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using JS = Microsoft.JSInterop.IJSRuntime;
+using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
-public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : LogTableLogic<StepResult>(dbFactory, db => db.StepView, js)
+public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
+    LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navManager)
 {
     public Filter<string?> FilterPartName = new(null);
     public Filter<int?> FilterStep = new(null);
@@ -34,8 +36,9 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : 
 
     public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
     {
+        ResetFilterState();
         // Call the base dictionary mapper for the common fields
-        await base.ApplyFiltersFromDictionary(filterDict);
+        AssignBaseFilters(filterDict);
         
         foreach (var (key, value) in filterDict)
         {
@@ -54,6 +57,7 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js) : 
                     FilterStep.IsNegated = isNegated; break;
             }
         }
+        await RefreshData();
     }
 
     public override void ResetFilterState()

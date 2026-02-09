@@ -35,7 +35,7 @@
             value="@commandInput"
             @oninput="HandleInput"
             @onkeydown="HandleKeyDown"
-            placeholder="Search in @(CurrentType.ToUpper())... (e.g. barcode:A123)" />
+            placeholder="Search in @(CurrentType.ToUpper())..." />
             @* placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" /> *@
 
         <span class="input-group-text clear-addon">
@@ -120,6 +120,7 @@
     </div>
 </div>
 
+@* If there's a search in progress, show the loading screen *@
 @if (_isSearching){
     <div class="d-flex flex-column align-items-center my-5">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
@@ -128,30 +129,58 @@
         <h4 class="mt-3 text-muted">@Preview.Replace("Showing", "Loading")</h4>
     </div>
 } else{
-    @if ((GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count == 0) && !filters.IsNullOrEmpty()){
+    @* If we have no input, a "no results" message is unhelpful *@
+    @if (string.IsNullOrWhiteSpace(commandInput) && AllCount == 0)
+    {
+        <div class="text-center my-5 py-5 text-muted">
+            <i class="bi bi-search" style="font-size: 3rem;"></i>
+            <h3 class="mt-3">Search all tables</h3>
+            <p>Start typing to see a preview of your query below the search bar.</p>
+            <div class="d-flex justify-content-center gap-2 mt-3">
+                <span class="badge bg-light text-dark border">barcode:A123</span>
+                <span class="badge bg-light text-dark border">result:FAIL</span>
+                <span class="badge bg-light text-dark border">after:today</span>
+            </div>
+        </div>
+    }
+    @* If we have a search with no results at all, say so *@
+    else if (AllCount == 0 && !filters.IsNullOrEmpty()){
         <h4 style="text-align: center;">No results matched these criteria. Please check your filters and spelling.</h4>
-    }
-
-    @if ((CurrentType == "group" || CurrentType == "all") && GroupLogic.DataView.Count != 0)
-    {
-        <h2>Group Results</h2>
-        <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
-                    CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount" PageSize="GroupLogic.PageSize"
-                    OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort" GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" />
-    }
-    @if ((CurrentType == "step" || CurrentType == "all") && StepLogic.DataView.Count != 0)
-    {
-        <h2>Step Results</h2>
-        <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
-                    CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount" PageSize="StepLogic.PageSize"
-                    OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort" GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" />
-    }
-    @if ((CurrentType == "fct" || CurrentType == "all") && FctLogic.DataView.Count != 0)
-    {
-        <h2>FCT Results</h2>
-        <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
-                    CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount" PageSize="FctLogic.PageSize"
-                    OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort" GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" />
+    } else { @* Otherwise, go on a by-table basis *@
+        @if ((CurrentType == "group" || CurrentType == "all")) {
+            @* Then check the results *@
+            @if (GroupLogic.DataView.Count > 0){
+                <h2>Group Results</h2>
+                <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
+                    CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount"
+                    PageSize="GroupLogic.PageSize" OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort"
+                    GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
+            } else {
+            <h4 style="text-align: center;">No group results matched these criteria.</h4>
+            }
+        }
+        @if ((CurrentType == "step" || CurrentType == "all")) {
+            @if (StepLogic.DataView.Count > 0){
+            <h2>Step Results</h2>
+            <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
+                CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount"
+                PageSize="StepLogic.PageSize" OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort"
+                GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
+            } else {
+            <h4 style="text-align: center;">No step results matched these criteria.</h4>
+            }
+        }
+        @if ((CurrentType == "fct" || CurrentType == "all")) {
+            @if (FctLogic.DataView.Count != 0){
+            <h2>FCT Results</h2>
+            <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
+                CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount"
+                PageSize="FctLogic.PageSize" OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort"
+                GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
+            } else {
+            <h4 style="text-align: center;">No FCT results matched these criteria.</h4>
+            }
+        }
     }
 }
 
@@ -168,6 +197,7 @@
     private Timer? _debounceTimer; // to smooth the preview rendering
     bool _isProcessingNavigation;
     bool _isSearching;
+    int AllCount => GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count;
 
     /// <summary>
     /// When the page opens, check the URL for filters.
@@ -269,11 +299,11 @@
             _isProcessingNavigation = true;
             try{
                 if(!isNavigatingInternal){
-                // Update the URL query string
-                string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
-                
-                // 'false' means don't reload the page, just update the address bar
-                NavManager.NavigateTo(newUri, replace: false);
+                    // Update the URL query string
+                    string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
+
+                    // 'false' means don't reload the page, just update the address bar
+                    NavManager.NavigateTo(newUri, replace: false);
                 } 
             } finally{
                 await Task.Yield(); // if something goes wrong, give the browser a second, then unlock navigation
@@ -349,7 +379,7 @@
         }
         CurrentType = toType;
         // If the user is currently viewing a search result or has something in the search bar, they probably want to search now
-        if ((GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count) > 0 && !commandInput.IsNullOrEmpty()){
+        if (AllCount > 0 || !commandInput.IsNullOrEmpty()){
             await ExecutePowerSearch();
         }
         SyncLivePreview();
@@ -456,9 +486,9 @@
 
         // Pattern handles: -?key: followed by ("quoted value" OR unquotedValue)
         string pattern = $@"-?{key}:(""[^""]*""|[^\s]*)";
-        
+
         commandInput = Regex.Replace(commandInput, pattern, "", RegexOptions.IgnoreCase).Trim();
-        
+
         // Clean up double spaces that might be left behind
         commandInput = Regex.Replace(commandInput, @"\s+", " ");
 
@@ -497,5 +527,17 @@
         }
         SyncLivePreview();
         return true;
+    }
+
+    /// <summary>
+    /// Traces a barcode through all tables
+    /// </summary>
+    /// <param name="barcode">The barcode to trace</param>
+    /// <returns></returns>
+    private async Task HandleBarcodeClick(string barcode)
+    {
+        commandInput = $"in:all barcode:{barcode}";
+        SyncLivePreview();
+        await ExecutePowerSearch(); // This triggers the search immediately
     }
 }

@@ -45,7 +45,22 @@
                         <tr>
                             @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
                             {
-                                <td>@prop.GetValue(item)</td>
+                                string? value = prop.GetValue(item)?.ToString();
+                                if (prop.Name.Equals("Barcode", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <td>
+                                        <button class="p-0 border-0 text-start font-monospace" 
+                                                style="cursor: pointer;"
+                                                title="Trace this barcode through all tables"
+                                                @onclick='() => OnBarcodeClick.InvokeAsync(value)'>
+                                            @value
+                                        </button>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>@value</td>
+                                }
                             }
                         </tr>
                     }
@@ -80,4 +95,7 @@
 
     // Save to CSV
     [Parameter] public EventCallback OnSaveToCsv { get; set; }
+
+    // For following a barcode
+    [Parameter] public EventCallback<string> OnBarcodeClick { get; set; }
 }
