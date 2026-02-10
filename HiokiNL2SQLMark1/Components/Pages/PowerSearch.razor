@@ -197,7 +197,7 @@
     string Preview = ""; // the human-readable preview of the query to be executed
     List<string> errorMessages = []; // the text of the error message, if applicable
     readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",]; // the list of available date aliases
-    Dictionary<string, string>? filters; // the key-value pairs parsed from command input
+    Dictionary<string, IFilter>? filters; // the key-value pairs parsed from command input
     private Timer? _debounceTimer; // to smooth the preview rendering
     bool _isProcessingNavigation;
     bool _isSearching;

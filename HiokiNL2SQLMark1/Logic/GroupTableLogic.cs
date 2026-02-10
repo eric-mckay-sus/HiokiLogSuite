@@ -6,11 +6,11 @@ namespace HiokiNL2SQLMark1.Logic;
 public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) : 
     LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navManager)
 {
-    public Filter<string?> FilterComp = new(null);
-    public Filter<string?> FilterShort = new(null);
-    public Filter<string?> FilterMacro = new(null);
-    public Filter<string?> FilterIC = new(null);
-    public Filter<string?> FilterFunction = new(null);
+    public Filter<string?> FilterComp = new("comp", null);
+    public Filter<string?> FilterShort = new("short", null);
+    public Filter<string?> FilterMacro = new("macro", null);
+    public Filter<string?> FilterIC = new("ic", null);
+    public Filter<string?> FilterFunction = new("function", null);
 
     /// <summary>
     /// Applies all filters available to the group table
@@ -23,27 +23,27 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
         query = base.ApplyFilters(query);
 
         // Apply Group-specific filters
-        if (FilterComp.Value != null)
+        if (FilterComp.IsActive)
             query = FilterComp.IsNegated
                 ? query.Where(g => !g.ComponentTest.Contains(FilterComp.Value))
                 : query.Where(g => g.ComponentTest.Contains(FilterComp.Value));
 
-        if (FilterShort.Value != null)
+        if (FilterShort.IsActive)
             query = FilterShort.IsNegated
                 ? query.Where(g => !g.ShortTest.Contains(FilterShort.Value))
                 : query.Where(g => g.ShortTest.Contains(FilterShort.Value));
 
-        if (FilterMacro.Value != null)
+        if (FilterMacro.IsActive)
             query = FilterMacro.IsNegated
                 ? query.Where(g => !g.MacroTest.Contains(FilterMacro.Value))
                 : query.Where(g => g.MacroTest.Contains(FilterMacro.Value));
 
-        if (FilterIC.Value != null)
+        if (FilterIC.IsActive)
             query = FilterIC.IsNegated
                 ? query.Where(g => !g.IcTest.Contains(FilterIC.Value))
                 : query.Where(g => g.IcTest.Contains(FilterIC.Value));
 
-        if (FilterFunction.Value != null)
+        if (FilterFunction.IsActive)
             query = FilterFunction.IsNegated
                 ? query.Where(g => !g.FunctionTest.Contains(FilterFunction.Value))
                 : query.Where(g => g.FunctionTest.Contains(FilterFunction.Value));
@@ -54,31 +54,32 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
     /// <summary>
     /// Checks if a tag is group-specific. If it is, this method adds it
     /// </summary>
-    /// <param name="key">The key to check</param>
-    /// <param name="value">The value to add, if applicable</param>
+    /// <param name="filter">The filter to check for</param>
     /// <returns>Whether the input key was group-specific</returns>
-    protected override bool AssignTableSpecific(string key, string value)
+    protected override bool AssignTableSpecific(IFilter filter)
     {
-        bool isNegated = key.StartsWith('-');
-        string cleanKey = isNegated ? key[1..] : key;
-        return cleanKey.ToLower() switch
+        if (filter is Filter<string> strFilter)
         {
-            "comp" => SetFilter(FilterComp, value, isNegated),
-            "short" => SetFilter(FilterShort, value, isNegated),
-            "macro" => SetFilter(FilterMacro, value, isNegated), 
-            "ic" => SetFilter(FilterIC, value, isNegated),
-            "function" => SetFilter(FilterFunction, value, isNegated),
-            _ => false
-        };
+            switch (strFilter.Key.ToLower())
+            {
+                case "comp": FilterComp = strFilter; return true;
+                case "short": FilterShort = strFilter; return true;
+                case "macro": FilterMacro = strFilter; return true;
+                case "ic": FilterIC = strFilter; return true;
+                case "function": FilterFunction = strFilter; return true;
+                default: return false;
+            }
+        }
+        return false;
     }
 
     public override void ResetFilterState()
     {
-        FilterComp = new(null);
-        FilterShort = new(null);
-        FilterMacro = new(null);
-        FilterIC = new(null);
-        FilterFunction = new(null);
+        FilterComp.Value = null;
+        FilterShort.Value = null;
+        FilterMacro.Value = null;
+        FilterIC.Value = null;
+        FilterFunction.Value = null;
 
         base.ResetFilterState();
     }

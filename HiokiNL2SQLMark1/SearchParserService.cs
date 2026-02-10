@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using HiokiNL2SQLMark1.Logic;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 namespace HiokiNL2SQLMark1;
 /// <summary>
@@ -117,7 +119,7 @@ public class SearchParserService
     /// </summary>
     public class SearchParseResult
     {
-        public Dictionary<string, string> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> ErrorMessages { get; set; } = [];
         public string CurrentType { get; set; } = "all";
         public string Preview { get; set; } = "Searching all records...";
@@ -189,49 +191,52 @@ public class SearchParserService
             // Validate if key is supported by system
             if (!AllTags.Contains(cleanKey)) {
                 result.ErrorMessages.Add($"The tag '{key}' wasn't recognized. Try using the table and key options below the search bar.");
+                lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
+                continue;
             }
             // Validate if value matches the datatype required by the key
-            else if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
+            if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
                 if (!IsValidValue(expectedType, value, out string errorMessage)) {
                     result.ErrorMessages.Add($"Invalid value for '{key}': {errorMessage}");
+                    lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
+                    continue;
                 }
             }
             // Validate if key is supported by the selected table
-            else if (!allowedKeys.Contains(cleanKey) && cleanKey != "in") {
+            if (!allowedKeys.Contains(cleanKey) && cleanKey != "in") {
                 result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{result.CurrentType}'. Try a different tag or search a table with that attribute.");
+                lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
+                continue;
             }
-            // Validate if filter was already used in this search. If it was, proceed, but notify the user
-            else if (result.Filters.ContainsKey(cleanKey) || result.Filters.ContainsKey($"-{cleanKey}")) {
-                result.ErrorMessages.Add($"Duplicate tag detected: '{key}:'. Only the last value will be used.");
-                result.Filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(ProcessDateValue(value)) : value;
+            // Validate if filter was already used in this search. If it was, proceed and overwrite, but notify the user
+            if (result.Filters.ContainsKey(cleanKey)) {
+                result.ErrorMessages.Add($"Duplicate tag detected: '{key}:'. This search is now '{key}:{value}...'. The previous use of this key is ignored.");
             }
             // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
-            else if (cleanKey != "in") { // we didn't actually remove "in", we just ignored it
-                // Attempting to negate before/after isn't fatal
-                if (cleanKey == "before" || cleanKey == "after") {
-                    if (isNegated) result.ErrorMessages.Add($"The '{cleanKey}' tag cannot be negated. This search is now '{cleanKey} : {value}...'");
-                    string translated = ProcessDateValue(value);
-                    // Invalid datetimes are fatal
-                    if (string.IsNullOrEmpty(translated)) result.ErrorMessages.Add($"'{value}' is not a valid date or alias. Try a format like 'YYYY-MM-DD' or use one of the aliases below.");
-                    result.Filters[cleanKey] = translated;
-                }
-                else { // if it's not a datetime, it doesn't get special treatment
-                    result.Filters[key] = value;
-                }
+            if (isNegated && (cleanKey == "before" || cleanKey == "after")) { // Attempting to negate before/after isn't fatal
+                result.ErrorMessages.Add($"The '{cleanKey}' tag cannot be negated. This search is now '{cleanKey} : {value}...'");
+                isNegated = false; // revoke negation for these keys
+            }
+            // we didn't actually remove "in", we just ignored it
+            if (cleanKey != "in") { // if it's not a datetime, it doesn't get special treatment
+                result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated);
             }
             lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
         }
 
         // Verify that the start date is actually before the end date
-        if(result.Filters.TryGetValue("before", out string? before) && result.Filters.TryGetValue("after", out string? after))
+        if(result.Filters.TryGetValue("before", out IFilter? before) && result.Filters.TryGetValue("after", out IFilter? after))
         {
-            // At this point, aliases are gone, so DateTime.TryParse is good to go
-            if (DateTime.TryParse(after, out DateTime start) && DateTime.TryParse(before, out DateTime end))
+            // Cast to DateTime filters and proceed
+            if (before is Filter<DateTime> b && after is Filter<DateTime> a)
             {
-                if(start > end){
-                    result.ErrorMessages.Add($"Your start date is after your end date. This search is now 'before:{start} after:{end}...'");
-                    result.Filters["before"] = after;
-                    result.Filters["after"] = before;
+                // Compare the typed values directly
+                if (a.Value > b.Value && b.Value != DateTime.MinValue)
+                {
+                    result.ErrorMessages.Add($"Your start date is after your end date. This search is now 'after{b.Value:yyyy-MM-dd} before:{a.Value:yyyy-MM-dd}...'");
+
+                    // Swap the values in the filter objects in the dictionary
+                    (b.Value, a.Value) = (a.Value, b.Value);
                 }
             }
         }
@@ -299,17 +304,31 @@ public class SearchParserService
             case ValType.DateTime:
                 string normalized = ProcessDateValue(value);
                 if (string.IsNullOrEmpty(normalized)) {
-                    error = "Date (read as '{normalized}') cannot be empty.";
+                    error = $"Date (read as '{normalized}') cannot be empty.";
                     return false;
                 }
                 if (!DateTime.TryParse(normalized, System.Globalization.CultureInfo.InvariantCulture, out _))
                 {
-                    error = $"'{value}' (read as '{normalized}') is not a valid date or alias.";
+                    error = $"'{value}' (read as '{normalized}') is not a valid date or alias. Please use YYYY-MM-DD or a shortcut below.";
                     return false;
                 }
                 break;
         }
         return true;
+    }
+
+    private static IFilter CreateFilter(string key, string value, bool isNegated)
+    {
+        // Determine the expected type from TagTypeMap
+        if (!TagTypeMap.TryGetValue(key, out var type)) type = ValType.String; // Default fallback
+
+        // Instantiate the correct generic Filter<T>
+        return type switch
+        {
+            ValType.Int => new Filter<int>(key, int.TryParse(value, out int i) ? i : 0, true, isNegated),
+            ValType.DateTime => new Filter<DateTime>(key, DateTime.TryParse(ProcessDateValue(value), out var dt) ? dt : DateTime.MinValue, true, false),
+            _ => new Filter<string>(key, value, true, isNegated)
+        };
     }
 
     /// <summary>
@@ -318,24 +337,41 @@ public class SearchParserService
     /// <param name="type">The table targeted by the query</param>
     /// <param name="filters">The dictionary of filters for the query</param>
     /// <returns>A string preview of the query to be executed</returns>
-    private static string GeneratePreview(string type, Dictionary<string, string> filters)
+    private static string GeneratePreview(string type, Dictionary<string, IFilter> filters)
     {
         string tableMessage = $"Showing all results";
         tableMessage += (type!="all") ? $" from **{type.ToUpper()}**" : " from ALL tables";
         if(filters.Count == 0) return tableMessage;
 
-        var parts = filters.Select(kvp => 
+        // Build string snippets for each filter
+        var parts = filters.Values.Select(filter => 
         {
-            string displayKey = kvp.Key.ToUpper();
-            string cleanKey = displayKey.StartsWith('-') ? displayKey[1..] : displayKey;
-            if ((cleanKey == "BEFORE") || (cleanKey == "AFTER")) { // for datetimes
-                return $"DATE is **{displayKey}** '{kvp.Value}'";
-            } 
-            else if (int.TryParse(kvp.Value, out int i)) { // for integers
-                return $"**{cleanKey}** is {(displayKey.StartsWith('-') ? " NOT " : "")} '{kvp.Value}'";
-            } else { // for strings
-                return $"**{cleanKey}** {(displayKey.StartsWith('-') ? "does NOT contain" : "contains")} '{kvp.Value}'";
-            }
+            string cleanKey = filter.Key.ToUpper();
+            string negationLabel = filter.IsNegated ? " NOT " : " ";
+            string containLabel = filter.IsNegated ? "does NOT contain" : "contains";
+
+            // Branch based on datatype
+            return filter switch
+            {
+                // DateTime filter with unrecognized date
+                Filter<DateTime> dtFilter when dtFilter.Value == DateTime.MinValue => 
+                    $"DATE is **{cleanKey}** (incomplete date...)'",
+
+                // DateTime Filters (format as datetime)
+                Filter<DateTime> dtFilter => 
+                    $"DATE is **{cleanKey}** '{dtFilter.Value:yyyy-MM-dd HH:mm}'",
+
+                // Integer filters (translates to SQL '=')
+                Filter<int> intFilter => 
+                    $"**{cleanKey}** is{negationLabel}'{intFilter.Value}'",
+
+                // String filters (translates to SQL 'LIKE')
+                Filter<string> strFilter => 
+                    $"**{cleanKey}** {containLabel} '{strFilter.Value}'",
+
+                // Default fallback
+                _ => $"**{cleanKey}** is{negationLabel}'{filter.GetValue()}'"
+            };
         });
 
         return $"Searching **{type.ToUpper()}** where " + string.Join(" and ", parts);
