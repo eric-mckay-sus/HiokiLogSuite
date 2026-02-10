@@ -1,8 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using JS = Microsoft.JSInterop.IJSRuntime;
 using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
+/// <summary>
+/// Model class for an FCT table
+/// </summary>
+/// <param name="dbFactory">The context factory to create a new context per thread</param>
+/// <param name="js">The JS Runtime used for </param>
+/// <param name="navManager"></param>
 public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navManager)
 {
@@ -28,27 +35,22 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
         return query;
     }
 
-    public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
+    /// <summary>
+    /// Checks if a tag is FCT-specific. If it is, this method adds it
+    /// </summary>
+    /// <param name="key">The key to check</param>
+    /// <param name="value">The value to add, if applicable</param>
+    /// <returns>Whether the input key was FCT-specific</returns>
+    protected override bool AssignTableSpecific(string key, string value)
     {
-        ResetFilterState();
-        // Call the base dictionary mapper for the common fields
-        AssignBaseFilters(filterDict);
-        
-        foreach (var (key, value) in filterDict)
+        bool isNegated = key.StartsWith('-');
+        string cleanKey = isNegated ? key[1..] : key;
+        return cleanKey.ToLower() switch
         {
-            bool isNegated = key.StartsWith('-');
-            string cleanKey = isNegated ? key[1..] : key;
-            switch (cleanKey.ToLower())
-            {
-                case "mode": 
-                    FilterMode.Value = value;
-                    FilterMode.IsNegated = isNegated; break;
-                case "step" when int.TryParse(value, out int i): 
-                    FilterStep.Value = i;
-                    FilterStep.IsNegated = isNegated; break;
-            }
-        }
-        await RefreshData();
+            "mode" => SetFilter(FilterMode, value, isNegated),
+            "step" when int.TryParse(value, out int i) => SetFilter(FilterStep, i, isNegated),
+            _ => false
+        };
     }
 
     public override void ResetFilterState()

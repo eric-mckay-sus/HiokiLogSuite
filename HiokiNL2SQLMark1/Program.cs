@@ -12,9 +12,9 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // Add services to the container.
-builder.Services.AddScoped<GroupTableLogic>();
-builder.Services.AddScoped<StepTableLogic>();
-builder.Services.AddScoped<FctTableLogic>();
+builder.Services.AddTransient<GroupTableLogic>();
+builder.Services.AddTransient<StepTableLogic>();
+builder.Services.AddTransient<FctTableLogic>();
 
 builder.Services.AddScoped<SearchParserService>();
 builder.Services.AddRazorComponents()

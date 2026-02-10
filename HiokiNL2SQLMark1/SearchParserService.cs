@@ -6,72 +6,92 @@ namespace HiokiNL2SQLMark1;
 /// </summary>
 public class SearchParserService
 {
-    // Regex to find key:value pairs. \w+ detects the key text, \s* surrounding the colon detects whitespace, : is the literal colon,
+    // Regex to find key:value pairs. -? detects optional negation, \w+ detects the key text, \s* surrounding the colon detects whitespace, : is the literal colon,
     // " is a literal quote, [^"]* iterates over non-quote characters, " is again a literal quote, | is for OR, and \S+ detects the value text
-    // Verbatim strings (those starting with @) switch the normal escape character of backslash (\) for quote ("), which is why it appears twice
-    // Parentheses and brackets are for grouping the regex itself. Regex OR is a short-circuiting operation
-    // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH
+    // Verbatim strings (those starting with @) switch out the usual escape character of backslash (\) for quote ("), which is why it appears twice
+    // Parentheses and brackets are for grouping the regex itself (VS does a little better at demonstrating this than VS Code).
+    // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH (quoted values are only parsed as grouping)
     readonly string tagPattern = @"(-?\w+)\s*:\s*(""[^""]*""|\S+)";
-    public string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag
+    public string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag. Includes optional negation
     public static readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
 
-    // Basic injection countermeasure
+    // Basic SQL injection countermeasure (these words are disallowed in a query)
     private readonly static HashSet<string> sqlBlacklist = new(StringComparer.OrdinalIgnoreCase)
     {
         "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", 
         "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE"
     };
-    private bool sqlFlag = false; // Whether the tag being currently parsed is an SQL threat
 
-    // Sets of which tags are available to which tables. StepFctTags and AllTags inherit the contents of the lower sets
+    // Sets of which tags are available to which tables. StepFctTags inherits from StepTags and FctTags, and AllTags inherits from all other tag sets
     readonly static HashSet<string> UniversalTags = new(StringComparer.OrdinalIgnoreCase) 
-        { "in", "barcode", "group", "before", "after", "result" }; // tags available to all tables
+        { "in", "barcode", "group", "before", "after", "result" }; // tags available for use on any table
     readonly static HashSet<string> GroupTags = new(StringComparer.OrdinalIgnoreCase) 
         { "comp", "short", "macro", "ic", "function" }; // tags available to group table only
     readonly static HashSet<string> StepFctTags = new(StringComparer.OrdinalIgnoreCase) 
-        { "step", "mode" };
+        { "step", "mode" }; // tags available to both the step and FCT tables
     readonly static HashSet<string> StepTags = CreateStepSet(); // tags available to step table only
     static HashSet<string> CreateStepSet() => new(StepFctTags, StringComparer.OrdinalIgnoreCase){"part"};
-    readonly static HashSet<string> FctTags = StepFctTags; // tags available to FCT table only (alias)
-    public readonly static HashSet<string> AllTags = CombineAllTags(); // all tags available to the system
+    readonly static HashSet<string> FctTags = StepFctTags; // tags available to FCT table only (alias for StepFctTags at the moment)
+    public readonly static HashSet<string> AllTags = CombineAllTags(); // all tags available to the system (union of all other tables)
     private static HashSet<string> CombineAllTags()
     {
         HashSet<string> all = new(UniversalTags, StringComparer.OrdinalIgnoreCase);
         all.UnionWith(GroupTags);
         all.UnionWith(StepTags);
+        all.UnionWith(FctTags);
         return all;
     }
 
-    private static readonly Dictionary<string, string> TagDescriptions = new(StringComparer.OrdinalIgnoreCase)
-{
-    { "in", "Switch table scope (all, group, step, fct)" },
-    { "barcode", "Search by unique PCB identifier" },
-    { "group", "Filter by specific group name" },
-    { "before", "Show results recorded before this date" },
-    { "after", "Show results recorded after this date" },
-    { "result", "Filter by PASS/FAIL status" },
-    { "comp", "Filter by component reference (e.g., R101)" },
-    { "short", "Filter by short-circuit test results" },
-    { "macro", "Search by macro-test identifier" },
-    { "ic", "Filter by Integrated Circuit (IC) name" },
-    { "function", "Search by specific function test name" },
-    { "step", "Filter by test step name" },
-    { "mode", "Filter by test mode" },
-    { "part", "Search by part number" }
-};
+    private enum ValType { String, Int, DateTime} // enumerates the types allowed by a tag
+
+    // Maps each tag type to 
+    private static readonly Dictionary<string, ValType> TagTypeMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "barcode", ValType.String },
+        { "group", ValType.Int },
+        { "after", ValType.DateTime },
+        { "before", ValType.DateTime },
+        { "result", ValType.String },
+        { "comp", ValType.String },
+        { "short", ValType.String },
+        { "macro", ValType.String },
+        { "ic", ValType.String },
+        { "function", ValType.String },
+        { "step", ValType.Int },
+        { "mode", ValType.String },
+        { "part", ValType.String }
+    };
+
+    private static readonly Dictionary<string, string> TagDescriptions = new(StringComparer.OrdinalIgnoreCase) // maps search tags to their tooltip
+    {
+        { "in", "Switch table scope (all, group, step, fct)" },
+        { "barcode", "Search by unique PCB identifier" },
+        { "group", "Filter by specific group name" },
+        { "before", "Show results recorded before this date (exclusive)" },
+        { "after", "Show results recorded after this date (inclusive)" },
+        { "result", "Filter by PASS/FAIL status" },
+        { "comp", "Filter by component reference (e.g., R101)" },
+        { "short", "Filter by short-circuit test results" },
+        { "macro", "Search by macro-test identifier" },
+        { "ic", "Filter by Integrated Circuit (IC) name" },
+        { "function", "Search by specific function test name" },
+        { "step", "Filter by test step name" },
+        { "mode", "Filter by test mode" },
+        { "part", "Search by part number" }
+    };
 
     /// <summary>
-    /// Dynamically gets the tooltip based on what tables a key is valid in
+    /// Dynamically gets the tooltip based on what tables in which a key is valid
     /// </summary>
     /// <param name="key">The key for which to get the tooltip</param>
     /// <param name="showScope">Whether to provide the scope of this tag</param>
-    /// <returns></returns>
+    /// <returns>The tooltip associated with this string (and optional scope)</returns>
     public static string GetTagTooltip(string key, bool showScope) 
     {
         // Get the functional description
         if (!TagDescriptions.TryGetValue(key, out var description)) description = $"Filter by {key}";
 
-        // If not instructed to return the scope, return now
+        // If instructed not to return the scope, return now
         if(!showScope) return description;
 
         // Otherwise, gather scope info by scanning tag sets
@@ -104,20 +124,20 @@ public class SearchParserService
     }
 
     /// <summary>
-    /// Parses a string for key-value pairs. Upon finding the "in" key, immediately updates the table reference
+    /// Parses a string for key-value pairs. Upon finding the "in" key, immediately updates the table reference to get only valid keys
     /// Catches date aliases and calls TranslateDateAlias() to handle them
     /// Continues upon finding an error in order to find and inform the user of all of them
+    /// To comply with PowerSearch.razor, ensure that all non-fatal errors contain "This search is now"
     /// </summary>
     /// <param name="rawInput">The string to parse</param>
     /// <param name="currentType">The current table to check</param>
-    /// <returns>A dictionary containing the key-value pairs to filter with</returns>
+    /// <returns>a SearchParseResult containing the dictionary of filters, list of errors, current table, and preview</returns>
     public SearchParseResult ParseQuery(string rawInput, string currentType)
     {
-        var result = new SearchParseResult();
-        result.ErrorMessages.Clear(); // on the off chance ParseQuery is called outside ExecutePowerSearch
-        result.Filters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        result.CurrentType = currentType;
-        
+        // Initialize the return package with the current table
+        var result = new SearchParseResult{CurrentType = currentType};
+
+        // If the query is empty, generate the default preview and return immediately
         if (string.IsNullOrWhiteSpace(rawInput)){
             result.Preview = GeneratePreview(result.CurrentType, result.Filters); // guarantees that preview matches current state
             return result;
@@ -127,10 +147,10 @@ public class SearchParserService
         Match? contextMatch = Regex.Match(rawInput, inPattern, RegexOptions.IgnoreCase);
         if (contextMatch.Success)
         {
-            string polarity = contextMatch.Groups[1].Value; // must be '-' or empty
+            string polarity = contextMatch.Groups[1].Value; // only two options from regex: '-' or empty
             string targetType = contextMatch.Groups[2].Value.ToLower();
 
-            if (polarity == "-") result.ErrorMessages.Add($"The 'in' tag cannot be negated. This search is now 'in:{targetType}'.");
+            if (polarity == "-") result.ErrorMessages.Add($"The 'in' tag cannot be negated. This search is now 'in : {targetType}...'.");
 
             if (availableTypes.Contains(targetType))
             {
@@ -142,19 +162,16 @@ public class SearchParserService
             }
         }
 
-        // Now the type is certain, we can enumerate all the valid keys
+        // Now the target table  is certain, we can enumerate all the valid keys
         HashSet<string> allowedKeys = new(GetSupportedKeysThisMode(result.CurrentType), StringComparer.OrdinalIgnoreCase);
         var matches = Regex.Matches(rawInput, tagPattern);
         int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
 
         foreach (Match match in matches)
         {
-            // Store the substring of unparsed input
+            // Create error if the space between the last match and this one contains non-whitespace characters
             string gap = rawInput[lastIndex..match.Index].Trim();
-            if (!string.IsNullOrWhiteSpace(gap))
-            {
-                result.ErrorMessages.Add($"Unrecognized input: '{gap}'. Did you forget a tag?");
-            }
+            if (!string.IsNullOrWhiteSpace(gap)) result.ErrorMessages.Add($"Unrecognized input: '{gap}'. Did you forget a tag?");
 
             string? key = match.Groups[1].Value.ToLower();
             bool isNegated = key.StartsWith('-');
@@ -165,39 +182,58 @@ public class SearchParserService
             if (sqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
             {
                 result.ErrorMessages.Add($"Security Issue: The value for '{key}' contains forbidden keywords.");
-                sqlFlag = true;
+                lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                 continue;
             }
 
             // Validate if key is supported by system
-            if (!AllTags.Contains(cleanKey))
-            {
+            if (!AllTags.Contains(cleanKey)) {
                 result.ErrorMessages.Add($"The tag '{key}' wasn't recognized. Try using the table and key options below the search bar.");
-            } 
+            }
+            // Validate if value matches the datatype required by the key
+            else if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
+                if (!IsValidValue(expectedType, value, out string errorMessage)) {
+                    result.ErrorMessages.Add($"Invalid value for '{key}': {errorMessage}");
+                }
+            }
             // Validate if key is supported by the selected table
-            else if (!allowedKeys.Contains(cleanKey) && cleanKey != "in")
-            {
+            else if (!allowedKeys.Contains(cleanKey) && cleanKey != "in") {
                 result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{result.CurrentType}'. Try a different tag or search a table with that attribute.");
             }
             // Validate if filter was already used in this search. If it was, proceed, but notify the user
-            else if (result.Filters.ContainsKey(cleanKey) || result.Filters.ContainsKey(key))
-            {
+            else if (result.Filters.ContainsKey(cleanKey) || result.Filters.ContainsKey($"-{cleanKey}")) {
                 result.ErrorMessages.Add($"Duplicate tag detected: '{key}:'. Only the last value will be used.");
-                result.Filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(value) : value;
+                result.Filters[key] = (key == "before" || key == "after") ? TranslateDateAlias(ProcessDateValue(value)) : value;
             }
             // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
-            else if (cleanKey != "in") // we didn't actually remove "in", we just ignored it
-            {
+            else if (cleanKey != "in") { // we didn't actually remove "in", we just ignored it
                 // Attempting to negate before/after isn't fatal
                 if (cleanKey == "before" || cleanKey == "after") {
-                    if (isNegated) result.ErrorMessages.Add($"The '{cleanKey}' tag cannot be negated. This search is now '{cleanKey}:{value}'.");
-                    result.Filters[cleanKey] = TranslateDateAlias(value);
+                    if (isNegated) result.ErrorMessages.Add($"The '{cleanKey}' tag cannot be negated. This search is now '{cleanKey} : {value}...'");
+                    string translated = ProcessDateValue(value);
+                    // Invalid datetimes are fatal
+                    if (string.IsNullOrEmpty(translated)) result.ErrorMessages.Add($"'{value}' is not a valid date or alias. Try a format like 'YYYY-MM-DD' or use one of the aliases below.");
+                    result.Filters[cleanKey] = translated;
                 }
-                else {
+                else { // if it's not a datetime, it doesn't get special treatment
                     result.Filters[key] = value;
                 }
             }
-            lastIndex = match.Index + match.Length;
+            lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
+        }
+
+        // Verify that the start date is actually before the end date
+        if(result.Filters.TryGetValue("before", out string? before) && result.Filters.TryGetValue("after", out string? after))
+        {
+            // At this point, aliases are gone, so DateTime.TryParse is good to go
+            if (DateTime.TryParse(after, out DateTime start) && DateTime.TryParse(before, out DateTime end))
+            {
+                if(start > end){
+                    result.ErrorMessages.Add($"Your start date is after your end date. This search is now 'before:{start} after:{end}...'");
+                    result.Filters["before"] = after;
+                    result.Filters["after"] = before;
+                }
+            }
         }
 
         // Check if there is any unparsed input (that didn't match the pattern)
@@ -211,12 +247,69 @@ public class SearchParserService
                     result.ErrorMessages.Add($"Tag '{trailing}' is missing a value.");
                 // or a value without key
                 else
-                    if (!sqlFlag) result.ErrorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
-                    sqlFlag = false;
+                    result.ErrorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
             }
         }
         result.Preview = GeneratePreview(result.CurrentType, result.Filters);
         return result;
+    }
+
+    /// <summary>
+    /// Used by ParseQuery to separate and translate a datetime
+    /// Splits and rebuilds string to handle combined date and time aliases like "today shift1"
+    /// </summary>
+    /// <param name="value">The datetime to process</param>
+    /// <returns>The ISO date string representing the input datetime</returns>
+    private static string ProcessDateValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // Translate parts separately and re-combine
+        if (parts.Length > 1) {
+            string datePart = TranslateDateAlias(parts[0], isTimePart: false);
+            string timePart = TranslateDateAlias(parts[1], isTimePart: true);
+            return $"{datePart} {timePart}".Trim();
+        }
+        // Otherwise treat it as a date only
+        return TranslateDateAlias(value, isTimePart: false);
+    }
+
+    /// <summary>
+    /// Verifies that a value matches a certain type
+    /// </summary>
+    /// <param name="type">A ValType (enum) representing the required type</param>
+    /// <param name="value">The value for which to check the type</param>
+    /// <param name="error">The error message (in case of failure)</param>
+    /// <returns></returns>
+    private static bool IsValidValue(ValType type, string value, out string error)
+    {
+        error = string.Empty;
+        switch (type)
+        {
+            // If we're checking a field required to be an int, use int.TryParse
+            case ValType.Int:
+                if (!int.TryParse(value, out _))
+                {
+                    error = $"'{value}' is not a whole number.";
+                    return false;
+                }
+                break;
+            // If we're checking a field required to be a datetime, use DateTime.TryParse
+            case ValType.DateTime:
+                string normalized = ProcessDateValue(value);
+                if (string.IsNullOrEmpty(normalized)) {
+                    error = "Date (read as '{normalized}') cannot be empty.";
+                    return false;
+                }
+                if (!DateTime.TryParse(normalized, System.Globalization.CultureInfo.InvariantCulture, out _))
+                {
+                    error = $"'{value}' (read as '{normalized}') is not a valid date or alias.";
+                    return false;
+                }
+                break;
+        }
+        return true;
     }
 
     /// <summary>
@@ -235,16 +328,13 @@ public class SearchParserService
         {
             string displayKey = kvp.Key.ToUpper();
             string cleanKey = displayKey.StartsWith('-') ? displayKey[1..] : displayKey;
-            if ((cleanKey == "BEFORE") || (cleanKey == "AFTER"))
-            {
-                string[] datetime = kvp.Value.Split([' '], StringSplitOptions.RemoveEmptyEntries);
-                string datePart = datetime.Length > 0 ? TranslateDateAlias(datetime[0], false) : "";
-                string timePart = datetime.Length > 1 ? " " + TranslateDateAlias(datetime[1], true) : "";
-                return $"**DATE** is {displayKey} '{TranslateDateAlias(datePart)} {TranslateDateAlias(timePart)}'";
+            if ((cleanKey == "BEFORE") || (cleanKey == "AFTER")) { // for datetimes
+                return $"DATE is **{displayKey}** '{kvp.Value}'";
             } 
-            else
-            {
+            else if (int.TryParse(kvp.Value, out int i)) { // for integers
                 return $"**{cleanKey}** is {(displayKey.StartsWith('-') ? " NOT " : "")} '{kvp.Value}'";
+            } else { // for strings
+                return $"**{cleanKey}** {(displayKey.StartsWith('-') ? "does NOT contain" : "contains")} '{kvp.Value}'";
             }
         });
 
@@ -296,50 +386,5 @@ public class SearchParserService
             "shift3"    => isTimePart ? s3 : $"{now:yyyy-MM-dd} {s3}",
             _           => alias // If it's not an alias, hopefully it's already a datetime. Return the original string (e.g., 2024-01-01)
         };
-    }
-
-    /// <summary>
-    /// Translates aliases like "today", "last24h", and "shift2" to valid datetimes
-    /// </summary>
-    /// <param name="alias">the alias to translate to a datetime</param>
-    /// <param name="isTimePart">whether to apply just the time part of the alias (or to assume today)</param>
-    /// <returns>The datetime referred to by the alias</returns>
-    public static DateTime? ParseAliasToDateTime(string alias, bool isTimePart = false)
-    {
-        DateTime now = DateTime.Today;
-        string lower = alias.ToLower();
-
-        // Handle special relative keywords first
-        if (lower == "last24h") return DateTime.Now.AddHours(-24);
-        
-        // Determine the Base Date
-        DateTime baseDate = lower switch
-        {
-            "yesterday" => now.AddDays(-1),
-            "lastweek"  => now.AddDays(-7),
-            _           => now // today or any shift
-        };
-
-        // Handle Shifts (returning just the time component or full datetime)
-        TimeSpan? shiftTime = lower switch
-        {
-            "shift1" => new TimeSpan(7, 0, 0),
-            "shift2" => new TimeSpan(15, 0, 0),
-            "shift3" => new TimeSpan(23, 0, 0),
-            _ => null
-        };
-
-        if (shiftTime.HasValue)
-        {
-            // If it's a time part, we only care about the hours
-            if (isTimePart) return DateTime.MinValue.Add(shiftTime.Value); 
-            // Otherwise, it's the full package
-            return baseDate.Add(shiftTime.Value);
-        }
-
-        // Fallback: Try standard parsing if it's not a keyword
-        if (DateTime.TryParse(alias, out var result)) return result;
-
-        return null;
     }
 }

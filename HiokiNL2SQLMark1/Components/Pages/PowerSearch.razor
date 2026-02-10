@@ -20,12 +20,16 @@
 
 @if (errorMessages != null && errorMessages.Count != 0)
 {
-        @foreach(string message in errorMessages){
-            <div class="alert alert-warning alert-dismissible fade show mb-2" role="alert">
-            <strong><i class="bi bi-exclamation-triangle" style="font-size: 1rem;"></i></strong> @message
-            <button type="button" class="btn-close" @onclick="() => errorMessages.Remove(message)"></button>
-            </div>
-        }
+    @foreach(string message in errorMessages){
+        bool isWarning = message.Contains("This search is now", StringComparison.OrdinalIgnoreCase);
+        string alertClass = isWarning ? "alert-warning" : "alert-danger";
+        string iconClass = isWarning ? "bi-exclamation-triangle" : "bi-exclamation-octagon-fill";
+
+        <div class="alert @alertClass alert-dismissible fade show mb-2" role="alert">
+        <strong><i class="bi @iconClass" style="font-size: 1rem;"></i></strong> @message
+        <button type="button" class="btn-close" @onclick="() => errorMessages.Remove(message)"></button>
+        </div>
+    }
 }
 <div class="command-container mb-4">
     <div class="input-group mb-0">
@@ -132,9 +136,9 @@
     @* If we have no input, a "no results" message is unhelpful *@
     @if (string.IsNullOrWhiteSpace(commandInput) && AllCount == 0)
     {
-        <div class="text-center my-5 py-5 text-muted">
+        <div class="text-center my-3 py-3 text-muted">
             <i class="bi bi-search" style="font-size: 3rem;"></i>
-            <h3 class="mt-3">Search all tables</h3>
+            <h3 class="mt-3">Search @($"{CurrentType} {(CurrentType == "all" ? "tables" : "table")}") </h3>
             <p>Start typing to see a preview of your query below the search bar.</p>
             <div class="d-flex justify-content-center gap-2 mt-3">
                 <span class="badge bg-light text-dark border">barcode:A123</span>
@@ -147,7 +151,7 @@
     else if (AllCount == 0 && !filters.IsNullOrEmpty()){
         <h4 style="text-align: center;">No results matched these criteria. Please check your filters and spelling.</h4>
     } else { @* Otherwise, go on a by-table basis *@
-        @if ((CurrentType == "group" || CurrentType == "all")) {
+        @if ((CurrentType == "group" || CurrentType == "all") && _lastExecutedQuery != "Hioki ICT Power Search") {
             @* Then check the results *@
             @if (GroupLogic.DataView.Count > 0){
                 <h2>Group Results</h2>
@@ -155,29 +159,29 @@
                     CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount"
                     PageSize="GroupLogic.PageSize" OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort"
                     GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
-            } else {
+            } else if(errorMessages.Count == 0) {
             <h4 style="text-align: center;">No group results matched these criteria.</h4>
             }
         }
-        @if ((CurrentType == "step" || CurrentType == "all")) {
+        @if ((CurrentType == "step" || CurrentType == "all") && _lastExecutedQuery != "Hioki ICT Power Search") {
             @if (StepLogic.DataView.Count > 0){
             <h2>Step Results</h2>
             <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
                 CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount"
                 PageSize="StepLogic.PageSize" OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort"
                 GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
-            } else {
+            } else if(errorMessages.Count == 0) {
             <h4 style="text-align: center;">No step results matched these criteria.</h4>
             }
         }
-        @if ((CurrentType == "fct" || CurrentType == "all")) {
+        @if ((CurrentType == "fct" || CurrentType == "all") && _lastExecutedQuery != "Hioki ICT Power Search") {
             @if (FctLogic.DataView.Count != 0){
             <h2>FCT Results</h2>
             <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
                 CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount"
                 PageSize="FctLogic.PageSize" OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort"
                 GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
-            } else {
+            } else if(errorMessages.Count == 0) {
             <h4 style="text-align: center;">No FCT results matched these criteria.</h4>
             }
         }
@@ -291,7 +295,9 @@
         this.CurrentType = parseResult.CurrentType;
         this.Preview = parseResult.Preview;
 
-        if (errorMessages.Count > 0) // if there was an error, don't execute the search
+        // Detect fatal versus non-fatal errors
+        bool hasFatalErrors = errorMessages.Any(m => !m.Contains("This search is now", StringComparison.OrdinalIgnoreCase));
+        if (hasFatalErrors) // if there was an fatal error, don't execute the search (warnings ok)
         {
             return;
         }
@@ -321,13 +327,13 @@
             List<Task>? tasks = new List<Task>();
 
             if (CurrentType == "all" || CurrentType == "group"){
-                tasks.Add(GroupLogic.ApplyFiltersFromDictionary(filters));
+                tasks.Add(GroupLogic.DictionaryToFilters(filters));
             } 
             if (CurrentType == "all" || CurrentType == "step"){
-                tasks.Add(StepLogic.ApplyFiltersFromDictionary(filters));
+                tasks.Add(StepLogic.DictionaryToFilters(filters));
             }
             if (CurrentType == "all" || CurrentType == "fct"){
-                tasks.Add(FctLogic.ApplyFiltersFromDictionary(filters));
+                tasks.Add(FctLogic.DictionaryToFilters(filters));
             }
             await Task.WhenAll(tasks);
         } catch (Exception ex){
@@ -369,22 +375,22 @@
     }
 
     /// <summary>
-    /// Helper for quick select table tabs. Automatically runs
+    /// Helper for quick select table tabs. Automatically runs a search for the target table if the last query had results or the command input has content
     /// </summary>
     /// <param name="toType">The target table</param>
     private async Task SetType(string toType){
-        if(commandInput.Contains($"in:{CurrentType}",StringComparison.OrdinalIgnoreCase)){ // if the search already has an "in" tag, replace it
+        if(Regex.IsMatch(commandInput, ParserService.inPattern, RegexOptions.IgnoreCase)){ // if the search already has an "in" tag, replace it
             commandInput = Regex.Replace(commandInput, ParserService.inPattern, $"in:{toType}", RegexOptions.IgnoreCase);
         } else { // otherwise, just append it
             await AppendKey("in", true);
             commandInput += toType;
         }
         CurrentType = toType;
+        SyncLivePreview();
         // If the user is currently viewing a search result or has something in the search bar, they probably want to search now
-        if (AllCount > 0 || !commandInput.IsNullOrEmpty()){
+        if (AllCount > 0){
             await ExecutePowerSearch();
         }
-        SyncLivePreview();
     } 
 
     /// <summary>
@@ -491,8 +497,10 @@
 
         commandInput = Regex.Replace(commandInput, pattern, "", RegexOptions.IgnoreCase).Trim();
 
-        // Clean up double spaces that might be left behind
+        // Clean up double spaces
         commandInput = Regex.Replace(commandInput, @"\s+", " ");
+
+        if(key.Contains("in")) CurrentType = "all";
 
         // Sync the preview and re-execute search to update the DataViews
         SyncLivePreview();

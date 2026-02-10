@@ -3,6 +3,7 @@ using Microsoft.Identity.Client;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
+using System.Reflection.Metadata.Ecma335;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -106,28 +107,20 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     }
 
     /// <summary>
-    /// Maps a dictionary of filter key-value pairs to the individual filter properties
+    /// Maps a dictionary of filter key-value pairs to the individual filter properties, then calls for a refresh
     /// </summary>
-    /// <param name="filterDict">The dictionary containing filter keys and values</param>
+    /// <param name="filterDict">The dictionary of search tags mapped to values</param>
     /// <returns></returns>
-    public virtual async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
+    public async Task DictionaryToFilters(Dictionary<string, string> filterDict)
     {
         // Ensure no old filters persist
         ResetFilterState();
         
-        AssignBaseFilters(filterDict);
-
-        await RefreshData();
-    }
-
-    /// <summary>
-    /// Assigns the base filters without triggering a refresh so individual tables can call for common values
-    /// </summary>
-    /// <param name="filterDict">The dictionary of search tags mapped to values</param>
-    protected void AssignBaseFilters(Dictionary<string, string> filterDict)
-    {
         foreach (var (key, value) in filterDict)
         {
+            // If the tag is applicable to the child, ignore it here
+            if (AssignTableSpecific(key, value)) continue;
+
             bool isNegated = key.StartsWith('-');
             string cleanKey = isNegated ? key[1..] : key;
             switch (cleanKey.ToLower())
@@ -144,39 +137,39 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
 
                 // No need to assign IsNegated value for DateTimes because they don't support it
                 case "after":
-                    FilterStartDate.Value = LogTableLogic<T>.ResolveFullDateTime(value);
+                    if (DateTime.TryParse(value, out var startDt)) 
+                        FilterStartDate.Value = startDt;
                     break;
                 case "before":
-                    FilterEndDate.Value = LogTableLogic<T>.ResolveFullDateTime(value);
+                    if (DateTime.TryParse(value, out var endDt)) 
+                        FilterEndDate.Value = endDt;
                     break;
             }
         }
+        await RefreshData();
     }
 
     /// <summary>
-    /// Helper to handle the "Date + Time/Shift" alias logic for backend execution
+    /// Assigns responsibility to the children to identify their table-specific tags
+    /// The generic table has no table-specific tags, so returns false by default
     /// </summary>
-    private static DateTime? ResolveFullDateTime(string rawValue)
+    /// <param name="key">The key to check for</param>
+    /// <param name="value">The value to assign, if the key is available</param>
+    /// <returns>Whether the table accepted this tag</returns>
+    protected virtual bool AssignTableSpecific(string key, string value) => false;
+
+    /// <summary>
+    /// Helper to assign the value and polarity of a filter
+    /// </summary>
+    /// <param name="filter">A Filter of type T</param>
+    /// <param name="value">The value to assign to the filter</param>
+    /// <param name="negated">The polarity of the filter</param>
+    /// <returns>That the filter was added</returns>
+    protected bool SetFilter<U>(Filter<U> filter, U value, bool negated)
     {
-        var parts = rawValue.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return null;
-
-        // Use your Service to get the date part
-        // Note: You may need to inject ParserService or make TranslateDateAlias accessible here
-        DateTime? finalDate = SearchParserService.ParseAliasToDateTime(parts[0], isTimePart: false);
-
-        if (finalDate.HasValue && parts.Length > 1)
-        {
-            // Try to get a time/shift from the second part
-            DateTime? timePart = SearchParserService.ParseAliasToDateTime(parts[1], isTimePart: true);
-            if (timePart.HasValue)
-            {
-                // Combine the date from the first part with the time from the second
-                finalDate = finalDate.Value.Date.Add(timePart.Value.TimeOfDay);
-            }
-        }
-
-        return finalDate;
+        filter.Value = value;
+        filter.IsNegated = negated;
+        return true;
     }
 
     /// <summary>

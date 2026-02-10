@@ -51,36 +51,25 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
         return query;
     }
 
-    public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
+    /// <summary>
+    /// Checks if a tag is group-specific. If it is, this method adds it
+    /// </summary>
+    /// <param name="key">The key to check</param>
+    /// <param name="value">The value to add, if applicable</param>
+    /// <returns>Whether the input key was group-specific</returns>
+    protected override bool AssignTableSpecific(string key, string value)
     {
-        ResetFilterState();
-        // Call the base dictionary mapper for the common fields
-        AssignBaseFilters(filterDict);
-
-        foreach (var (key, value) in filterDict)
+        bool isNegated = key.StartsWith('-');
+        string cleanKey = isNegated ? key[1..] : key;
+        return cleanKey.ToLower() switch
         {
-            bool isNegated = key.StartsWith('-');
-            string cleanKey = isNegated ? key[1..] : key;
-            switch (cleanKey.ToLower())
-            {
-                case "comp": 
-                    FilterComp.Value = value;
-                    FilterComp.IsNegated = isNegated; break;
-                case "short": 
-                    FilterShort.Value = value;
-                    FilterShort.IsNegated = isNegated; break;
-                case "macro": 
-                    FilterMacro.Value = value;
-                    FilterMacro.IsNegated = isNegated; break;
-                case "ic": 
-                    FilterIC.Value = value;
-                    FilterIC.IsNegated = isNegated; break;
-                case "function": 
-                    FilterFunction.Value = value;
-                    FilterFunction.IsNegated = isNegated; break;
-            }
-        }
-        await RefreshData();
+            "comp" => SetFilter(FilterComp, value, isNegated),
+            "short" => SetFilter(FilterShort, value, isNegated),
+            "macro" => SetFilter(FilterMacro, value, isNegated), 
+            "ic" => SetFilter(FilterIC, value, isNegated),
+            "function" => SetFilter(FilterFunction, value, isNegated),
+            _ => false
+        };
     }
 
     public override void ResetFilterState()

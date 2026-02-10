@@ -34,30 +34,23 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
         return query;
     }
 
-    public override async Task ApplyFiltersFromDictionary(Dictionary<string, string> filterDict)
+    /// <summary>
+    /// Checks if a tag is step-specific. If it is, this method adds it
+    /// </summary>
+    /// <param name="key">The key to check</param>
+    /// <param name="value">The value to add, if applicable</param>
+    /// <returns>Whether the input key was step-specific</returns>
+    protected override bool AssignTableSpecific(string key, string value)
     {
-        ResetFilterState();
-        // Call the base dictionary mapper for the common fields
-        AssignBaseFilters(filterDict);
-        
-        foreach (var (key, value) in filterDict)
+        bool isNegated = key.StartsWith('-');
+        string cleanKey = isNegated ? key[1..] : key;
+        return cleanKey.ToLower() switch
         {
-            bool isNegated = key.StartsWith('-');
-            string cleanKey = isNegated ? key[1..] : key;
-            switch (cleanKey.ToLower())
-            {
-                case "part": 
-                    FilterPartName.Value = value;
-                    FilterPartName.IsNegated = isNegated; break;
-                case "mode": 
-                    FilterMode.Value = value;
-                    FilterMode.IsNegated = isNegated; break;
-                case "step" when int.TryParse(value, out int i): 
-                    FilterStep.Value = i;
-                    FilterStep.IsNegated = isNegated; break;
-            }
-        }
-        await RefreshData();
+            "part" => SetFilter(FilterPartName, value, isNegated),
+            "mode" => SetFilter(FilterMode, value, isNegated),
+            "step" when int.TryParse(value, out int i) => SetFilter(FilterStep, i, isNegated),
+            _ => false
+        };
     }
 
     public override void ResetFilterState()
