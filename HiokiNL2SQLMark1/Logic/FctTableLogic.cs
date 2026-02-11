@@ -13,6 +13,8 @@ namespace HiokiNL2SQLMark1.Logic;
 public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navManager)
 {
+    public override string TableName => "fct";
+    public override string DisplayName => "FCT Results";
     public Filter<int?> FilterStep = new("step", null);
     public Filter<string?> FilterMode = new("mode", null);
 
@@ -44,10 +46,18 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
     {
         if (filter is Filter<string?> strFilter)
         {
-            if (string.Equals(strFilter.Key.ToLower(), "mode", StringComparison.OrdinalIgnoreCase)) FilterMode = strFilter; return true;
+            if (string.Equals(strFilter.Key.ToLower(), "mode", StringComparison.OrdinalIgnoreCase))
+            {
+                FilterMode = strFilter;
+                return true;
+            }
         } else if (filter is Filter<int?> intFilter)
         {
-            if (string.Equals(intFilter.Key.ToLower(), "step", StringComparison.OrdinalIgnoreCase)) FilterStep = intFilter; return true;
+            if (string.Equals(intFilter.Key.ToLower(), "step", StringComparison.OrdinalIgnoreCase))
+            {
+                FilterStep = intFilter; 
+                return true;
+            }
         }
         return false;
     }

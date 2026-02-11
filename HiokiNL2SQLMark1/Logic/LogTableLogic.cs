@@ -3,7 +3,6 @@ using Microsoft.Identity.Client;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
-using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -12,8 +11,13 @@ namespace HiokiNL2SQLMark1.Logic;
 /// Holds all the methods necessary to store a table
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
-public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager) where T : class, IHiokiLog
+public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager) : ILogTableLogic where T : class, IHiokiLog
 {
+    // For compliance with ILogTable
+    public virtual string TableName => "unknown";
+    public virtual string DisplayName => "Unknown Table";
+
+    // Utilities
     private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory; // generates a new DbContext on demand (thread-safe)
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
     protected readonly IJSRuntime JS = js; // for handling CSV download
@@ -27,9 +31,9 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public Filter<int?> FilterGroup = new("group", null);
 
     // Pagination variables
-    public int CurrentPage = 1;
+    public int CurrentPage { get; set; } = 1;
     public int PageSize = 100;
-    public int TotalCount;
+    public int TotalCount { get; set; }
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
 
     // For sorting
@@ -38,10 +42,33 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     private SortDirection SortDir = SortDirection.None;
     
     // Data storage
-    public bool _isLoading;
+    public bool IsLoading { get; set; }
     public List<T> DataView = [];
     public List<string> modeCache = [];
     public List<string> resultCache = [];
+
+    public virtual RenderFragment RenderTable() => builder =>
+{
+    builder.OpenComponent<Components.Pages.MasterTable<T>>(0);
+
+    // Pass all necessary parameters from this Logic instance to the MasterTable
+    builder.AddAttribute(1, "Items", DataView);
+    builder.AddAttribute(2, "CurrentPage", CurrentPage);
+    builder.AddAttribute(3, "TotalPages", TotalPages);
+    builder.AddAttribute(4, "TotalCount", TotalCount);
+    builder.AddAttribute(5, "PageSize", PageSize);
+    
+    // Wire up pagination and sorting
+    builder.AddAttribute(6, "OnPageChange", EventCallback.Factory.Create<int>(this, ChangePage));
+    builder.AddAttribute(7, "OnSort", EventCallback.Factory.Create<string>(this, ToggleSort));
+    builder.AddAttribute(8, "GetSortIcon", (Func<string, string>)GetSortIcon);
+    
+    // Wire up Actions
+    builder.AddAttribute(9, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
+    builder.AddAttribute(10, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
+
+    builder.CloseComponent();
+};
 
     /// <summary>
     /// Applies filters and sorts, then reloads the table based on the query and page number
@@ -53,7 +80,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     {
         if (!keepPage) CurrentPage = 1;
 
-        _isLoading = true;
+        IsLoading = true;
         // One DbContext per refresh
         using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -66,7 +93,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
             .Skip((CurrentPage - 1) * PageSize)
             .Take(PageSize)
             .ToListAsync();
-        _isLoading = false;
+        IsLoading = false;
     }
 
     /// <summary>

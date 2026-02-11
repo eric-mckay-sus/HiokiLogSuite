@@ -6,6 +6,8 @@ namespace HiokiNL2SQLMark1.Logic;
 public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) : 
     LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navManager)
 {
+    public override string TableName => "group";
+    public override string DisplayName => "Group Results";
     public Filter<string?> FilterComp = new("comp", null);
     public Filter<string?> FilterShort = new("short", null);
     public Filter<string?> FilterMacro = new("macro", null);

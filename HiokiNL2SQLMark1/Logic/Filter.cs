@@ -7,10 +7,11 @@ namespace HiokiNL2SQLMark1.Logic;
 /// <param name="value">The value used in filtering</param>
 /// <param name="isActive">Whether the filter is active</param>
 /// <param name="isNegated">Whether to filter out (or filter by)</param>
-public class Filter<T>(string key, T value, bool isActive=false, bool isNegated = false) : IFilter
+public class Filter<T> : IFilter
 {
-    public bool IsActive { get; set; } = isActive;
-    public string Key { get; set; } = key;
+    public string Key { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsNegated { get; set; }
     private T? _value;
     public T? Value 
     { 
@@ -21,14 +22,19 @@ public class Filter<T>(string key, T value, bool isActive=false, bool isNegated 
             IsActive = !IsDefault(value);
         }
     }
-    public bool IsNegated { get; set; } = isNegated;
+
+    public Filter(string key, T? value, bool isNegated=false)
+    {
+        Key = key;
+        IsNegated = isNegated;
+        Value = value;
+    }
+
     public object? GetValue() => Value;
     private static bool IsDefault(T? val) => val switch
     {
         null => true,
         string s => string.IsNullOrWhiteSpace(s),
-        DateTime d => d == DateTime.MinValue,
-        int i => i == 0,
         _ => false
     };
 }

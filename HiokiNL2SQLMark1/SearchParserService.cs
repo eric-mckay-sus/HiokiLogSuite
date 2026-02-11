@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using HiokiNL2SQLMark1.Logic;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 namespace HiokiNL2SQLMark1;
@@ -8,12 +9,13 @@ namespace HiokiNL2SQLMark1;
 /// </summary>
 public class SearchParserService
 {
-    // Regex to find key:value pairs. -? detects optional negation, \w+ detects the key text, \s* surrounding the colon detects whitespace, : is the literal colon,
-    // " is a literal quote, [^"]* iterates over non-quote characters, " is again a literal quote, | is for OR, and \S+ detects the value text
+    // Regex to find key:value pairs. -? detects optional negation, \w+ detects the key text, \s* surrounding the colon detects whitespace,
+    // : is the literal colon, " is a literal quote, [^"]* iterates over non-quote characters, " is again a literal quote, | is for OR,
+    // and (?:(?!\s?-?\w+:)\S)+ is a non-capturing group that matches strings that don't look like a key (by using negative lookahead).
     // Verbatim strings (those starting with @) switch out the usual escape character of backslash (\) for quote ("), which is why it appears twice
     // Parentheses and brackets are for grouping the regex itself (VS does a little better at demonstrating this than VS Code).
     // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH (quoted values are only parsed as grouping)
-    readonly string tagPattern = @"(-?\w+)\s*:\s*(""[^""]*""|\S+)";
+    readonly string tagPattern = @"(-?\w+)\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
     public string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag. Includes optional negation
     public static readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
 
@@ -129,7 +131,7 @@ public class SearchParserService
     /// Parses a string for key-value pairs. Upon finding the "in" key, immediately updates the table reference to get only valid keys
     /// Catches date aliases and calls TranslateDateAlias() to handle them
     /// Continues upon finding an error in order to find and inform the user of all of them
-    /// To comply with PowerSearch.razor, ensure that all non-fatal errors contain "This search is now"
+    /// To comply with PowerSearch.razor, ensure that all non-fatal errors contain "This search"
     /// </summary>
     /// <param name="rawInput">The string to parse</param>
     /// <param name="currentType">The current table to check</param>
@@ -146,11 +148,13 @@ public class SearchParserService
         }
 
         // In the first pass, look for the "in" keyword to ensure further filters are applicable
-        Match? contextMatch = Regex.Match(rawInput, inPattern, RegexOptions.IgnoreCase);
-        if (contextMatch.Success)
+        var matches = Regex.Matches(rawInput, inPattern, RegexOptions.IgnoreCase);
+        if (matches.Count > 0)
         {
+            Match contextMatch = matches[^1];
             string polarity = contextMatch.Groups[1].Value; // only two options from regex: '-' or empty
             string targetType = contextMatch.Groups[2].Value.ToLower();
+            if (matches.Count > 1) result.ErrorMessages.Add($"Duplicate 'in' tag. This search is now 'in:{targetType}...'. All previous uses of this key are ignored.");
 
             if (polarity == "-") result.ErrorMessages.Add($"The 'in' tag cannot be negated. This search is now 'in : {targetType}...'.");
 
@@ -166,19 +170,29 @@ public class SearchParserService
 
         // Now the target table  is certain, we can enumerate all the valid keys
         HashSet<string> allowedKeys = new(GetSupportedKeysThisMode(result.CurrentType), StringComparer.OrdinalIgnoreCase);
-        var matches = Regex.Matches(rawInput, tagPattern);
+        matches = Regex.Matches(rawInput, tagPattern);
         int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
 
         foreach (Match match in matches)
         {
             // Create error if the space between the last match and this one contains non-whitespace characters
             string gap = rawInput[lastIndex..match.Index].Trim();
-            if (!string.IsNullOrWhiteSpace(gap)) result.ErrorMessages.Add($"Unrecognized input: '{gap}'. Did you forget a tag?");
+            string message = MissingKeyOrValueMessage(gap);
+            if (!string.IsNullOrEmpty(message)) result.ErrorMessages.Add(message);
 
             string? key = match.Groups[1].Value.ToLower();
             bool isNegated = key.StartsWith('-');
             string cleanKey = isNegated ? key[1..] : key; // for use in checking against key sets
-            string? value = match.Groups[2].Value.Trim('"'); // cut the quotes, if the regex found them
+            string? value = match.Groups[2].Value;
+
+            // If a user put a hyphen on their value, they probably wanted to negate, but we can supply a warning for them to learn
+            if (value.StartsWith('-')) 
+            {
+                isNegated = true;
+                value = value[1..];
+                result.ErrorMessages.Add($"The value for '{cleanKey}' started with a hyphen. This search is now '-{cleanKey}:{value}...'. To search for a literal hyphen, use quotes like {key}:\"-{value}\".");
+            }
+            value = value.Trim('"'); // cut the quotes, if the regex found them (they're no longer protecting anything)
 
             // Basic SQL injection countermeasure
             if (sqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
@@ -228,15 +242,18 @@ public class SearchParserService
         if(result.Filters.TryGetValue("before", out IFilter? before) && result.Filters.TryGetValue("after", out IFilter? after))
         {
             // Cast to DateTime filters and proceed
-            if (before is Filter<DateTime> b && after is Filter<DateTime> a)
+            if (before is Filter<DateTime?> b && after is Filter<DateTime?> a)
             {
                 // Compare the typed values directly
-                if (a.Value > b.Value && b.Value != DateTime.MinValue)
+                if (a.Value.HasValue && b.Value.HasValue)
                 {
-                    result.ErrorMessages.Add($"Your start date is after your end date. This search is now 'after{b.Value:yyyy-MM-dd} before:{a.Value:yyyy-MM-dd}...'");
+                    if (a.Value > b.Value)
+                    {
+                        result.ErrorMessages.Add($"Your start date is after your end date. This search is now 'after{b.Value:yyyy-MM-dd} before:{a.Value:yyyy-MM-dd}...'");
 
-                    // Swap the values in the filter objects in the dictionary
-                    (b.Value, a.Value) = (a.Value, b.Value);
+                        // Swap the values inside the filter objects in the dictionary
+                        (b.Value, a.Value) = (a.Value, b.Value);
+                    }
                 }
             }
         }
@@ -245,18 +262,32 @@ public class SearchParserService
         if (lastIndex < rawInput.Length)
         {
             string trailing = rawInput[lastIndex..].Trim();
-            if (!string.IsNullOrWhiteSpace(trailing))
-            {
-                // Check if it's a key without a value
-                if (trailing.EndsWith(':'))
-                    result.ErrorMessages.Add($"Tag '{trailing}' is missing a value.");
-                // or a value without key
-                else
-                    result.ErrorMessages.Add($"Unrecognized filter without key: '{trailing}'.");
-            }
+            string message = MissingKeyOrValueMessage(trailing);
+            if (!string.IsNullOrEmpty(message)) result.ErrorMessages.Add(message);
         }
         result.Preview = GeneratePreview(result.CurrentType, result.Filters);
         return result;
+    }
+
+    /// <summary>
+    /// Generates an error message depending on whether the string is a keyless value or value without a key
+    /// </summary>
+    /// <param name="toCheck">The string for which to generate the error</param>
+    /// <returns>An error message describing the missing key/value</returns>
+    private static string MissingKeyOrValueMessage(string toCheck)
+    {
+        if (!string.IsNullOrWhiteSpace(toCheck))
+        {
+            // Check if it's a key without a value
+            if (toCheck.EndsWith(':')) {
+                return $"Tag '{toCheck}' is missing a value. This search excludes '{toCheck}'";
+            }
+            // or a value without key
+            else {
+                return $"Unrecognized filter without key: '{toCheck}'. This search excludes '{toCheck}'";
+            }
+        }
+        return null;
     }
 
     /// <summary>
@@ -325,9 +356,12 @@ public class SearchParserService
         // Instantiate the correct generic Filter<T>
         return type switch
         {
-            ValType.Int => new Filter<int>(key, int.TryParse(value, out int i) ? i : 0, true, isNegated),
-            ValType.DateTime => new Filter<DateTime>(key, DateTime.TryParse(ProcessDateValue(value), out var dt) ? dt : DateTime.MinValue, true, false),
-            _ => new Filter<string>(key, value, true, isNegated)
+            ValType.Int => new Filter<int?>(key, int.TryParse(value, out int i) ? i : null, isNegated),
+
+            ValType.DateTime => new Filter<DateTime?>(key, DateTime.TryParse(ProcessDateValue(value), out var dt) ? dt : null, false), // Negation not allowed for dates
+
+            // String already handles empty/null internally
+            _ => new Filter<string?>(key, value, isNegated),
         };
     }
 
@@ -353,24 +387,21 @@ public class SearchParserService
             // Branch based on datatype
             return filter switch
             {
-                // DateTime filter with unrecognized date
-                Filter<DateTime> dtFilter when dtFilter.Value == DateTime.MinValue => 
-                    $"DATE is **{cleanKey}** (incomplete date...)'",
 
                 // DateTime Filters (format as datetime)
-                Filter<DateTime> dtFilter => 
-                    $"DATE is **{cleanKey}** '{dtFilter.Value:yyyy-MM-dd HH:mm}'",
+                Filter<DateTime?> { Value: { } dtValue } => 
+                    $"DATE is **{cleanKey}** '{dtValue:yyyy-MM-dd HH:mm}'",
 
                 // Integer filters (translates to SQL '=')
-                Filter<int> intFilter => 
-                    $"**{cleanKey}** is{negationLabel}'{intFilter.Value}'",
+                Filter<int?> { Value: { } intValue } => 
+                    $"**{cleanKey}** is{negationLabel}'{intValue}'",
 
                 // String filters (translates to SQL 'LIKE')
-                Filter<string> strFilter => 
-                    $"**{cleanKey}** {containLabel} '{strFilter.Value}'",
+                Filter<string?> { Value: { } strValue } when !string.IsNullOrWhiteSpace(strValue) => 
+                    $"**{cleanKey}** {containLabel} '{strValue}'",
 
                 // Default fallback
-                _ => $"**{cleanKey}** is{negationLabel}'{filter.GetValue()}'"
+                _ => $"**{cleanKey}** (incomplete value...)'"
             };
         });
 

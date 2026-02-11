@@ -2,7 +2,6 @@ using HiokiNL2SQLMark1.Components;
 using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
-using IJSRuntime = Microsoft.JSInterop.IJSRuntime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,10 +10,15 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Add services to the container.
+// Services for the visual query builders.
 builder.Services.AddTransient<GroupTableLogic>();
 builder.Services.AddTransient<StepTableLogic>();
 builder.Services.AddTransient<FctTableLogic>();
+
+// Services for the power search page
+builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
+builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
+builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
 
 builder.Services.AddScoped<SearchParserService>();
 builder.Services.AddRazorComponents()

@@ -9,9 +9,7 @@
 @inject IJSRuntime JSRuntime // to handle refocusing the search bar upon selecting a tag
 @inject NavigationManager NavManager // to update the URL with filter changes
 @inject SearchParserService ParserService // delegate the actual query parsing
-@inject HiokiNL2SQLMark1.Logic.GroupTableLogic GroupLogic // model for the group table
-@inject HiokiNL2SQLMark1.Logic.StepTableLogic StepLogic // model for the step table
-@inject HiokiNL2SQLMark1.Logic.FctTableLogic FctLogic // model for the FCT table
+@inject IEnumerable<ILogTableLogic> TableLogics // Holds all three logic implementations
 @implements IDisposable // for the automatic Dispose method
 
 <PageTitle>@_lastExecutedQuery</PageTitle>
@@ -21,7 +19,7 @@
 @if (errorMessages != null && errorMessages.Count != 0)
 {
     @foreach(string message in errorMessages){
-        bool isWarning = message.Contains("This search is now", StringComparison.OrdinalIgnoreCase);
+        bool isWarning = message.Contains("This search", StringComparison.OrdinalIgnoreCase);
         string alertClass = isWarning ? "alert-warning" : "alert-danger";
         string iconClass = isWarning ? "bi-exclamation-triangle" : "bi-exclamation-octagon-fill";
 
@@ -149,40 +147,25 @@
     }
     @* If we have a search with no results at all, say so *@
     else if (AllCount == 0 && !filters.IsNullOrEmpty()){
-        <h4 style="text-align: center;">No results matched these criteria. Please check your filters and spelling.</h4>
+        <div class="text-center my-5 py- text-muted">
+            <i class="bi bi-clipboard-x" style="font-size: 3rem;"></i>
+            <h4 class="mt-3">No results matched these criteria.</h4>
+            <p>Try adjusting your filters or checking for typos.</p>
+        </div>
     } else { @* Otherwise, go on a by-table basis *@
-        @if ((CurrentType == "group" || CurrentType == "all") && _lastExecutedQuery != "Hioki ICT Power Search") {
-            @* Then check the results *@
-            @if (GroupLogic.DataView.Count > 0){
-                <h2>Group Results</h2>
-                <MasterTable TItem="GroupResult" Items="GroupLogic.DataView" 
-                    CurrentPage="GroupLogic.CurrentPage" TotalPages="GroupLogic.TotalPages" TotalCount="GroupLogic.TotalCount"
-                    PageSize="GroupLogic.PageSize" OnPageChange="GroupLogic.ChangePage" OnSort="GroupLogic.ToggleSort"
-                    GetSortIcon="GroupLogic.GetSortIcon" OnSaveToCsv="GroupLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
-            } else if(errorMessages.Count == 0) {
-            <h4 style="text-align: center;">No group results matched these criteria.</h4>
-            }
-        }
-        @if ((CurrentType == "step" || CurrentType == "all") && _lastExecutedQuery != "Hioki ICT Power Search") {
-            @if (StepLogic.DataView.Count > 0){
-            <h2>Step Results</h2>
-            <MasterTable TItem="StepResult" Items="StepLogic.DataView" 
-                CurrentPage="StepLogic.CurrentPage" TotalPages="StepLogic.TotalPages" TotalCount="StepLogic.TotalCount"
-                PageSize="StepLogic.PageSize" OnPageChange="StepLogic.ChangePage" OnSort="StepLogic.ToggleSort"
-                GetSortIcon="StepLogic.GetSortIcon" OnSaveToCsv="StepLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
-            } else if(errorMessages.Count == 0) {
-            <h4 style="text-align: center;">No step results matched these criteria.</h4>
-            }
-        }
-        @if ((CurrentType == "fct" || CurrentType == "all") && _lastExecutedQuery != "Hioki ICT Power Search") {
-            @if (FctLogic.DataView.Count != 0){
-            <h2>FCT Results</h2>
-            <MasterTable TItem="FctResult" Items="FctLogic.DataView" 
-                CurrentPage="FctLogic.CurrentPage" TotalPages="FctLogic.TotalPages" TotalCount="FctLogic.TotalCount"
-                PageSize="FctLogic.PageSize" OnPageChange="FctLogic.ChangePage" OnSort="FctLogic.ToggleSort"
-                GetSortIcon="FctLogic.GetSortIcon" OnSaveToCsv="FctLogic.SaveToCSV" OnBarcodeClick="HandleBarcodeClick" />
-            } else if(errorMessages.Count == 0) {
-            <h4 style="text-align: center;">No FCT results matched these criteria.</h4>
+        @foreach (var logic in TableLogics)
+        {
+            bool isTargeted = CurrentType == "all" || CurrentType == logic.TableName;
+            @* Only show tables that are relevant to the search and have results *@
+            if (isTargeted && logic.TotalCount > 0 && _lastExecutedQuery != "Hioki ICT Power Search")
+            {
+                <div class="table-section mb-5">
+                    <h2 class="mb-3">@logic.DisplayName</h2>
+                    @logic.RenderTable()
+                </div>
+            } else if (CurrentType != "all" && AllCount == 0 && !_isSearching && _lastExecutedQuery != "Hioki ICT Power Search")
+            {
+                <h4 style="text-align: center;">No @logic.TableName results matched these criteria.</h4>
             }
         }
     }
@@ -201,8 +184,70 @@
     private Timer? _debounceTimer; // to smooth the preview rendering
     bool _isProcessingNavigation;
     bool _isSearching;
-    int AllCount => GroupLogic.DataView.Count + StepLogic.DataView.Count + FctLogic.DataView.Count;
+    int AllCount => TableLogics.Sum(t => t.TotalCount);
     string _lastExecutedQuery = "Hioki ICT Power Search";
+
+    /// <summary>
+    /// Parse search bar input, update the model, then tell the view  
+    /// </summary>
+    /// <returns></returns>
+    private async Task ExecutePowerSearch(bool isNavigatingInternal=false, bool skipUrlUpdate=false)
+    {
+        // Identify tables targeted by this query based on CurrentType
+        var targets = TableLogics
+            .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
+
+        // Clear untargeted tables, run targeted ones in parallel
+        foreach (var table in TableLogics.Except(targets)) table.ClearData();
+
+        var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
+
+        this.filters = parseResult.Filters;
+        this.errorMessages = parseResult.ErrorMessages;
+        this.CurrentType = parseResult.CurrentType;
+        this.Preview = parseResult.Preview;
+
+        // Detect fatal versus non-fatal errors
+        bool hasFatalErrors = errorMessages.Any(m => !m.Contains("This search", StringComparison.OrdinalIgnoreCase));
+        if (hasFatalErrors) // if there was an fatal error, don't execute the search (warnings ok)
+        {
+            foreach (var table in TableLogics) table.ClearData();
+            _isSearching = false;
+            StateHasChanged();
+            return;
+        }
+
+        if(!skipUrlUpdate){
+            _isProcessingNavigation = true;
+            try{
+                if(!isNavigatingInternal){
+                    // Update the URL query string
+                    string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
+
+                    // 'false' means don't reload the page, just update the address bar
+                    NavManager.NavigateTo(newUri, replace: false);
+                } 
+            } finally{
+                await Task.Yield(); // if something goes wrong, give the browser a second, then unlock navigation
+                _isProcessingNavigation=false;
+            }
+        }
+
+        // Inform the UI that we're loading
+        _isSearching = true;
+        _lastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
+        StateHasChanged();
+
+        try{
+            // Parallelize search
+            await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(filters)));
+        } catch (Exception ex){
+            errorMessages.Add($"Search failed: {ex.Message}");
+        } finally{
+            _isSearching = false;
+            StateHasChanged();
+        }
+    }
 
     /// <summary>
     /// When the page opens, check the URL for filters.
@@ -277,72 +322,6 @@
             await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true); 
             StateHasChanged();
         });
-    }
-
-    /// <summary>
-    /// Parse search bar input, update the model, then tell the view  
-    /// </summary>
-    /// <returns></returns>
-    private async Task ExecutePowerSearch(bool isNavigatingInternal=false, bool skipUrlUpdate=false)
-    {
-        GroupLogic.ClearData();
-        StepLogic.ClearData();
-        FctLogic.ClearData();
-        var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
-
-        this.filters = parseResult.Filters;
-        this.errorMessages = parseResult.ErrorMessages;
-        this.CurrentType = parseResult.CurrentType;
-        this.Preview = parseResult.Preview;
-
-        // Detect fatal versus non-fatal errors
-        bool hasFatalErrors = errorMessages.Any(m => !m.Contains("This search is now", StringComparison.OrdinalIgnoreCase));
-        if (hasFatalErrors) // if there was an fatal error, don't execute the search (warnings ok)
-        {
-            return;
-        }
-
-        if(!skipUrlUpdate){
-            _isProcessingNavigation = true;
-            try{
-                if(!isNavigatingInternal){
-                    // Update the URL query string
-                    string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
-
-                    // 'false' means don't reload the page, just update the address bar
-                    NavManager.NavigateTo(newUri, replace: false);
-                } 
-            } finally{
-                await Task.Yield(); // if something goes wrong, give the browser a second, then unlock navigation
-                _isProcessingNavigation=false;
-            }
-        }
-
-        // Inform the UI that we're loading
-        _isSearching = true;
-        _lastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
-        StateHasChanged();
-
-        try{
-            List<Task>? tasks = new List<Task>();
-
-            if (CurrentType == "all" || CurrentType == "group"){
-                tasks.Add(GroupLogic.DictionaryToFilters(filters));
-            } 
-            if (CurrentType == "all" || CurrentType == "step"){
-                tasks.Add(StepLogic.DictionaryToFilters(filters));
-            }
-            if (CurrentType == "all" || CurrentType == "fct"){
-                tasks.Add(FctLogic.DictionaryToFilters(filters));
-            }
-            await Task.WhenAll(tasks);
-        } catch (Exception ex){
-            errorMessages.Add($"Search failed: {ex.Message}");
-        } finally{
-            _isSearching = false;
-            StateHasChanged();
-        }
-        StateHasChanged();
     }
 
     /// <summary>
@@ -508,9 +487,9 @@
         // If the input is now empty, clear the results entirely
         if (string.IsNullOrEmpty(commandInput))
         {
-            GroupLogic.ClearData();
-            StepLogic.ClearData();
-            FctLogic.ClearData();
+            var targets = TableLogics
+                .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
+            foreach (var table in TableLogics.Except(targets)) table.ClearData();
         }
     }
 

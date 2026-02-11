@@ -6,6 +6,8 @@ namespace HiokiNL2SQLMark1.Logic;
 public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navManager)
 {
+    public override string TableName => "step";
+    public override string DisplayName => "Step Results";
     public Filter<string?> FilterPartName = new("part", null);
     public Filter<int?> FilterStep = new("step", null);
     public Filter<string?> FilterMode = new("mode", null);
@@ -51,7 +53,10 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
             }
         } else if (filter is Filter<int?> intFilter)
         {
-            if (string.Equals(intFilter.Key.ToLower(), "step", StringComparison.OrdinalIgnoreCase)) FilterStep = intFilter; return true;
+            if (string.Equals(intFilter.Key.ToLower(), "step", StringComparison.OrdinalIgnoreCase)) { 
+                FilterStep = intFilter;
+                return true;
+            }
         }
         return false;
     }
