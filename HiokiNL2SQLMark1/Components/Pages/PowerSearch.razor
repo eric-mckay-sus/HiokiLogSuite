@@ -24,8 +24,13 @@
         string iconClass = isWarning ? "bi-exclamation-triangle" : "bi-exclamation-octagon-fill";
 
         <div class="alert @alertClass alert-dismissible fade show mb-2" role="alert">
-        <strong><i class="bi @iconClass" style="font-size: 1rem;"></i></strong> @message
-        <button type="button" class="btn-close" @onclick="() => errorMessages.Remove(message)"></button>
+            <strong><i class="bi @iconClass" style="font-size: 1rem;"></i></strong> 
+                <span class="d-inline-flex">
+                    <Markdown>
+                        @((MarkupString)message)
+                    </Markdown>
+                </span>
+            <button type="button" class="btn-close" @onclick="() => errorMessages.Remove(message)"></button>
         </div>
     }
 }
@@ -66,14 +71,14 @@
     <div class="mt-1 px-2">
         @if (!string.IsNullOrWhiteSpace(Preview))
         {
-            <small class="text-muted">
+            <small class="text-muted d-inline-flex">
                 <i class="bi bi-search me-1"></i> 
-                @((MarkupString)Preview)
+                <Markdown>@((MarkupString)Preview)</Markdown>
             </small>
         }
     </div>
     <div class="mt-2">
-        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+        <small class="text-muted markdown-inline align-items-center flex-wrap gap-1">
             <span>Supported keys for this mode:</span>
             @foreach (string key in SearchParserService.GetSupportedKeysThisMode(CurrentType))
             {

@@ -154,9 +154,9 @@ public class SearchParserService
             Match contextMatch = matches[^1];
             string polarity = contextMatch.Groups[1].Value; // only two options from regex: '-' or empty
             string targetType = contextMatch.Groups[2].Value.ToLower();
-            if (matches.Count > 1) result.ErrorMessages.Add($"Duplicate 'in' tag. This search is now 'in:{targetType}...'. All previous uses of this key are ignored.");
+            if (matches.Count > 1) result.ErrorMessages.Add($"Duplicate **in** tag. This search is now **in:{targetType}...**. All previous uses of this key are *ignored*.");
 
-            if (polarity == "-") result.ErrorMessages.Add($"The 'in' tag cannot be negated. This search is now 'in : {targetType}...'.");
+            if (polarity == "-") result.ErrorMessages.Add($"The **in** tag cannot be negated. This search is now **in : {targetType}...**.");
 
             if (availableTypes.Contains(targetType))
             {
@@ -164,7 +164,7 @@ public class SearchParserService
             }
             else
             {
-                result.ErrorMessages.Add($"'{targetType}' is not a valid table. The 'in' keyword only accepts the values 'all', 'group', 'step', or 'fct'.");
+                result.ErrorMessages.Add($"**{targetType}** is not a valid table. The **in** keyword only accepts the values *all*, *group*, *step*, or *fct*.");
             }
         }
 
@@ -190,45 +190,45 @@ public class SearchParserService
             {
                 isNegated = true;
                 value = value[1..];
-                result.ErrorMessages.Add($"The value for '{cleanKey}' started with a hyphen. This search is now '-{cleanKey}:{value}...'. To search for a literal hyphen, use quotes like {key}:\"-{value}\".");
+                result.ErrorMessages.Add($"The value for **{cleanKey}** started with a hyphen. This search is now **-{cleanKey}:{value}...**. To search for a literal hyphen, use quotes like *{key}:\"-{value}\"*.");
             }
             value = value.Trim('"'); // cut the quotes, if the regex found them (they're no longer protecting anything)
 
             // Basic SQL injection countermeasure
             if (sqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
             {
-                result.ErrorMessages.Add($"Security Issue: The value for '{key}' contains forbidden keywords.");
+                result.ErrorMessages.Add($"Security Issue: The value for **{key}** contains forbidden keywords.");
                 lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                 continue;
             }
 
             // Validate if key is supported by system
             if (!AllTags.Contains(cleanKey)) {
-                result.ErrorMessages.Add($"The tag '{key}' wasn't recognized. Try using the table and key options below the search bar.");
+                result.ErrorMessages.Add($"The tag **{key}** wasn't recognized. Try using the table and key options below the search bar.");
                 lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                 continue;
             }
             // Validate if value matches the datatype required by the key
             if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
                 if (!IsValidValue(expectedType, value, out string errorMessage)) {
-                    result.ErrorMessages.Add($"Invalid value for '{key}': {errorMessage}");
+                    result.ErrorMessages.Add($"Invalid value for **{key}**: {errorMessage}");
                     lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                     continue;
                 }
             }
             // Validate if key is supported by the selected table
             if (!allowedKeys.Contains(cleanKey) && cleanKey != "in") {
-                result.ErrorMessages.Add($"The tag '{key}:' is not available when searching '{result.CurrentType}'. Try a different tag or search a table with that attribute.");
+                result.ErrorMessages.Add($"The tag **{key}:** is not available when searching **{result.CurrentType}**. Try a different tag or search a table with that attribute.");
                 lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                 continue;
             }
             // Validate if filter was already used in this search. If it was, proceed and overwrite, but notify the user
             if (result.Filters.ContainsKey(cleanKey)) {
-                result.ErrorMessages.Add($"Duplicate tag detected: '{key}:'. This search is now '{key}:{value}...'. The previous use of this key is ignored.");
+                result.ErrorMessages.Add($"Duplicate tag detected: **{key}:**. This search is now '**{key}:{value}...**. The previous use of this key is *ignored*.");
             }
             // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
             if (isNegated && (cleanKey == "before" || cleanKey == "after")) { // Attempting to negate before/after isn't fatal
-                result.ErrorMessages.Add($"The '{cleanKey}' tag cannot be negated. This search is now '{cleanKey} : {value}...'");
+                result.ErrorMessages.Add($"The **{cleanKey}** tag cannot be negated. This search is now **{cleanKey} : {value}...**");
                 isNegated = false; // revoke negation for these keys
             }
             // we didn't actually remove "in", we just ignored it
@@ -249,7 +249,7 @@ public class SearchParserService
                 {
                     if (a.Value > b.Value)
                     {
-                        result.ErrorMessages.Add($"Your start date is after your end date. This search is now 'after{b.Value:yyyy-MM-dd} before:{a.Value:yyyy-MM-dd}...'");
+                        result.ErrorMessages.Add($"Your start date is after your end date. This search is now **after:{b.Value:yyyy-MM-dd} before:{a.Value:yyyy-MM-dd}...**");
 
                         // Swap the values inside the filter objects in the dictionary
                         (b.Value, a.Value) = (a.Value, b.Value);
@@ -280,11 +280,11 @@ public class SearchParserService
         {
             // Check if it's a key without a value
             if (toCheck.EndsWith(':')) {
-                return $"Tag '{toCheck}' is missing a value. This search excludes '{toCheck}'";
+                return $"Tag **{toCheck}** is missing a value. This search excludes **{toCheck}**.";
             }
             // or a value without key
             else {
-                return $"Unrecognized filter without key: '{toCheck}'. This search excludes '{toCheck}'";
+                return $"Unrecognized filter without key: **{toCheck}**. This search excludes **{toCheck}**.";
             }
         }
         return null;
@@ -327,7 +327,7 @@ public class SearchParserService
             case ValType.Int:
                 if (!int.TryParse(value, out _))
                 {
-                    error = $"'{value}' is not a whole number.";
+                    error = $"**{value}** is not a whole number.";
                     return false;
                 }
                 break;
@@ -335,12 +335,12 @@ public class SearchParserService
             case ValType.DateTime:
                 string normalized = ProcessDateValue(value);
                 if (string.IsNullOrEmpty(normalized)) {
-                    error = $"Date (read as '{normalized}') cannot be empty.";
+                    error = $"Date (read as **{normalized}**) cannot be empty.";
                     return false;
                 }
                 if (!DateTime.TryParse(normalized, System.Globalization.CultureInfo.InvariantCulture, out _))
                 {
-                    error = $"'{value}' (read as '{normalized}') is not a valid date or alias. Please use YYYY-MM-DD or a shortcut below.";
+                    error = $"**{value}** (read as **{normalized}**) is not a valid date or alias. Please use YYYY-MM-DD or a shortcut below.";
                     return false;
                 }
                 break;
@@ -374,7 +374,7 @@ public class SearchParserService
     private static string GeneratePreview(string type, Dictionary<string, IFilter> filters)
     {
         string tableMessage = $"Showing all results";
-        tableMessage += (type!="all") ? $" from **{type.ToUpper()}**" : " from ALL tables";
+        tableMessage += (type!="all") ? $" from **{type.ToUpper()}**" : " from **ALL** tables";
         if(filters.Count == 0) return tableMessage;
 
         // Build string snippets for each filter

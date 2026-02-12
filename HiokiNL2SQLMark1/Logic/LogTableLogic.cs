@@ -61,7 +61,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     // Wire up pagination and sorting
     builder.AddAttribute(6, "OnPageChange", EventCallback.Factory.Create<int>(this, ChangePage));
     builder.AddAttribute(7, "OnSort", EventCallback.Factory.Create<string>(this, ToggleSort));
-    builder.AddAttribute(8, "GetSortIcon", (Func<string, string>)GetSortIcon);
+    builder.AddAttribute(8, "GetSortIcon", GetSortIcon);
     
     // Wire up Actions
     builder.AddAttribute(9, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
@@ -292,26 +292,26 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <param name="isStep">Whether to load caches for step table (versus FCT table)</param>
     /// <returns></returns>
     public async Task InitializeCaches()
-{
-    if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
     {
-        using var db = await _dbFactory.CreateDbContextAsync();
-        var query = _querySelector(db).AsNoTracking();
+        if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+            var query = _querySelector(db).AsNoTracking();
 
-        // Run sequentially to avoid context collisions
-        modeCache = await query
-            .Select("Mode")
-            .Distinct()
-            .OrderBy("it")
-            .ToDynamicListAsync<string>();
+            // Run sequentially to avoid context collisions
+            modeCache = await query
+                .Select("Mode")
+                .Distinct()
+                .OrderBy("it")
+                .ToDynamicListAsync<string>();
 
-        resultCache = await query
-            .Select("Result")
-            .Distinct()
-            .OrderBy("it")
-            .ToDynamicListAsync<string>();
+            resultCache = await query
+                .Select("Result")
+                .Distinct()
+                .OrderBy("it")
+                .ToDynamicListAsync<string>();
+        }
     }
-}
 
     /// <summary>
     /// Resets the common filters

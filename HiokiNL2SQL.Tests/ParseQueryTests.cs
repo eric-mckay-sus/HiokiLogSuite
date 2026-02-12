@@ -33,7 +33,7 @@ public class SearchParserTests
 
         // Assert
         Assert.Equal("group", result.CurrentType);
-        Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate 'in' tag"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate **in** tag"));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class SearchParserTests
 
         // Assert
         Assert.Single(result.ErrorMessages);
-        Assert.Contains(result.ErrorMessages, e => e.Contains(isKey ? $"Tag '{gap}' is missing a value." : $"Unrecognized filter without key: '{gap}'"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains(isKey ? $"Tag **{gap}** is missing a value." : $"Unrecognized filter without key: **{gap}**"));
         
         // Verify valid tags were still parsed
         foreach (var filterPart in patternHits.Split(','))
@@ -75,11 +75,11 @@ public class SearchParserTests
 
     [Theory]
     // Scenario 1: User puts hyphen on value instead of key
-    [InlineData("barcode:-A123", "barcode", "A123", true, "This search is now '-barcode:A123...'")]
+    [InlineData("barcode:-A123", "barcode", "A123", true, "This search is now **-barcode:A123...**")]
     // Scenario 2: Literal hyphen in quotes should NOT trigger auto-negation
     [InlineData("barcode:\"-A123\"", "barcode", "-A123", false, "")] 
     // Scenario 3: Double negation (hyphen on both) should probably just result in negation
-    [InlineData("-barcode:-A123", "barcode", "A123", true, "This search is now '-barcode:A123...'")]
+    [InlineData("-barcode:-A123", "barcode", "A123", true, "This search is now **-barcode:A123...**")]
     public void ParseQuery_ShouldHandleHyphenOnValue(string input, string key, string expectedValue, bool expectedNegation, string expectedErrorSnippet)
     {
         // Act
@@ -139,7 +139,7 @@ public class SearchParserTests
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
-        Assert.Contains(result.ErrorMessages, e => e.Contains("The tag 'unknowntag' wasn't recognized"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("The tag **unknowntag** wasn't recognized"));
     }
 
     [Theory]
@@ -165,7 +165,7 @@ public class SearchParserTests
         var result = _parser.ParseQuery(input, "all"); 
 
         // Assert
-        Assert.Contains(result.ErrorMessages, e => e.Contains("is not available when searching 'fct'"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("is not available when searching **fct**"));
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public class SearchParserTests
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
-        Assert.Contains(result.ErrorMessages, e => e.Contains("The tag '-part:' is not available when searching 'group'"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("The tag **-part:** is not available when searching **group**"));
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class SearchParserTests
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
-        Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected: '-barcode:'"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected: **-barcode:**"));
         Assert.Equal("B456", result.Filters["barcode"].GetValue());
     }
 
@@ -220,7 +220,7 @@ public class SearchParserTests
 
         // Assert
         // The parser should catch that these tags cannot be negated
-        Assert.Contains(result.ErrorMessages, e => e.Contains($"The '{key}' tag cannot be negated"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains($"The **{key}** tag cannot be negated"));
         // It should then perform the non-negated action (fallback logic)
         if(key == "in")
         {
@@ -228,7 +228,7 @@ public class SearchParserTests
         } else
         {
             Assert.True(result.Filters.ContainsKey(key));
-            Assert.False(result.Filters[key].IsNegated, $"The '{key}' tag should have had negation revoked.");
+            Assert.False(result.Filters[key].IsNegated, $"The **{key}** tag should have had negation revoked.");
         }
     }
 
@@ -271,7 +271,7 @@ public class SearchParserTests
         // Assert
         Assert.Equal(3, result.ErrorMessages.Count);
         Assert.Contains(result.ErrorMessages, e => e.Contains("not a valid table"));
-        Assert.Contains(result.ErrorMessages, e => e.Contains("'boom' wasn't recognized"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("**boom** wasn't recognized"));
         Assert.Contains(result.ErrorMessages, e => e.Contains("Security Issue"));
     }
 
@@ -281,14 +281,14 @@ public class SearchParserTests
         // Arrange:
         // 1. Mismatched tag for mode (comp: is for groups, but we are in fct)
         // 2. Trailing garbage text (malformed input)
-        string input = "in:fct comp:Resistor unexpected_junk";
+        string input = "in:fct comp:UN-T unexpected_junk";
 
         // Act
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
         Assert.Equal(2, result.ErrorMessages.Count);
-        Assert.Contains(result.ErrorMessages, e => e.Contains("not available when searching 'fct'"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("not available when searching **fct**"));
         Assert.Contains(result.ErrorMessages, e => e.Contains("Unrecognized filter without key"));
     }
 
@@ -306,7 +306,7 @@ public class SearchParserTests
         // Assert
         Assert.Equal(2, result.ErrorMessages.Count);
         Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected"));
-        Assert.Contains(result.ErrorMessages, e => e.Contains("'xyz' wasn't recognized"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains("**xyz** wasn't recognized"));
         
         // Verify that logic still preserved the last valid value despite errors elsewhere
         Assert.Equal("A2", result.Filters["barcode"].GetValue());
