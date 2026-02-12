@@ -14,6 +14,7 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
 builder.Services.AddTransient<GroupTableLogic>();
 builder.Services.AddTransient<StepTableLogic>();
 builder.Services.AddTransient<FctTableLogic>();
+builder.Services.AddScoped<PowerSearchLogic>();
 
 // Services for the power search page
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());

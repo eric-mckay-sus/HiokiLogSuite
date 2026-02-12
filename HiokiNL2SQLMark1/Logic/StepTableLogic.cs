@@ -3,6 +3,13 @@ using JS = Microsoft.JSInterop.IJSRuntime;
 using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
+/// <summary>
+/// Model class for a step table.
+/// Inherits from LogTableLogic
+/// </summary>
+/// <param name="dbFactory">Generates a new DB context per thread</param>
+/// <param name="js">To handle saving to CSV</param>
+/// <param name="navManager">To navigate away for barcode "drill-down"</param>
 public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navManager)
 {

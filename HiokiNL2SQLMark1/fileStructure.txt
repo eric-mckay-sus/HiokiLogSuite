@@ -1,0 +1,32 @@
+HiokiNL2SQLMark1/
+├──Components/
+│  ├──Layout/
+│  │  ├──MainLayout.razor
+│  │  ├──MainLayout.razor.css
+│  │  ├──NavMenu.razor
+│  │  └──NavMenu.razor.css
+│  ├──Pages/
+│  │  ├──FilterWrapper.razor
+│  │  ├──Group.razor
+│  │  ├──Step.razor
+│  │  ├──Fct.razor
+│  │  └──FilterWrapper.razor
+│  ├──_Imports.razor
+│  ├──App.razor
+│  └──Routes.razor
+├──Logic/
+│  ├──Filter.cs
+│  ├──ILogTableLogic.cs
+│  ├──LogTableLogic.cs
+│  ├──GroupTableLogic.cs
+│  ├──StepTableLogic.cs
+│  ├──FctTableLogic.cs
+│  └──PowerSearchLogic.cs
+├──wwwroot/
+│  ├──app.css
+│  └──favicon.png
+├──HiokiNL2SQLMark1.csproj
+├──Program.cs
+├──LogTableBase.cs
+├──SearchParserService.cs
+└──LogDbContext.cs

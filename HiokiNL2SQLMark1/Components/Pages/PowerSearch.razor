@@ -1,24 +1,16 @@
 ﻿@page "/"
 @rendermode InteractiveServer
+@inject PowerSearchLogic State
 @using Microsoft.IdentityModel.Tokens
-@using RegEx = System.Text.RegularExpressions
-@using System.Threading.Tasks
-@using Microsoft.EntityFrameworkCore
-@using System.Text.RegularExpressions
-@using System.Timers
-@inject IJSRuntime JSRuntime // to handle refocusing the search bar upon selecting a tag
-@inject NavigationManager NavManager // to update the URL with filter changes
-@inject SearchParserService ParserService // delegate the actual query parsing
-@inject IEnumerable<ILogTableLogic> TableLogics // Holds all three logic implementations
 @implements IDisposable // for the automatic Dispose method
 
-<PageTitle>@_lastExecutedQuery</PageTitle>
+<PageTitle>@State.LastExecutedQuery</PageTitle>
 
 <h1>Hioki 1220 ICT Power Search</h1>
 
-@if (errorMessages != null && errorMessages.Count != 0)
+@if (State.errorMessages != null && State.errorMessages.Count != 0)
 {
-    @foreach(string message in errorMessages){
+    @foreach(string message in State.errorMessages){
         bool isWarning = message.Contains("This search", StringComparison.OrdinalIgnoreCase);
         string alertClass = isWarning ? "alert-warning" : "alert-danger";
         string iconClass = isWarning ? "bi-exclamation-triangle" : "bi-exclamation-octagon-fill";
@@ -30,7 +22,7 @@
                         @((MarkupString)message)
                     </Markdown>
                 </span>
-            <button type="button" class="btn-close" @onclick="() => errorMessages.Remove(message)"></button>
+            <button type="button" class="btn-close" @onclick="() => State.errorMessages.Remove(message)"></button>
         </div>
     }
 }
@@ -39,60 +31,60 @@
         <span class="input-group-text bg-dark text-white font-monospace"><i class="bi bi-chevron-right" style="font-size: 1.5rem;"></i></span>
     
         <input type="text" id="searchBar" class="form-control form-control-lg font-monospace" 
-            value="@commandInput"
-            @oninput="HandleInput"
+            value="@State.commandInput"
+            @oninput="State.HandleInput"
             @onkeydown="HandleKeyDown"
-            placeholder="Search in @(CurrentType.ToUpper())..." />
+            placeholder="Search in @(State.CurrentType.ToUpper())..." />
             @* placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" /> *@
 
         <span class="input-group-text clear-addon">
-            @if (!string.IsNullOrEmpty(commandInput))
+            @if (!string.IsNullOrEmpty(State.commandInput))
             {
                 <button type="button" class="btn-close" aria-label="Clear" 
-                        @onclick="ClearSearchBar" 
+                        @onclick="State.ClearSearchBar" 
                         style="font-size: 0.8rem;"></button>
             }
         </span>
         <button class="btn btn-primary px-4 d-flex align-items-center"
-                @onclick="async () => await ExecutePowerSearch()">
+                @onclick="async () => await State.ExecutePowerSearch()">
                 <i class="bi bi-arrow-right" style="font-size: 1.5rem;"></i></button>
     </div>
     <div class="d-flex gap-2 mt-0 mb-2 filter-row">
         @foreach(string type in SearchParserService.availableTypes){
             <button 
-                class="btn btn-sm @(CurrentType == type ? "btn-primary" : "btn-outline-secondary")"
+                class="btn btn-sm @(State.CurrentType == type ? "btn-primary" : "btn-outline-secondary")"
                 title="Switch to @type @(type=="all" ? "tables" : "table")"
-                @onclick='() => SetType(type)'>@(char.ToUpper(type[0]) + type[1..])
+                @onclick='() => State.SetType(type)'>@(char.ToUpper(type[0]) + type[1..])
             </button>
         }
     </div>
     <div class="input-group mb-0">
     </div>
     <div class="mt-1 px-2">
-        @if (!string.IsNullOrWhiteSpace(Preview))
+        @if (!string.IsNullOrWhiteSpace(State.Preview))
         {
             <small class="text-muted d-inline-flex">
                 <i class="bi bi-search me-1"></i> 
-                <Markdown>@((MarkupString)Preview)</Markdown>
+                <Markdown>@((MarkupString)State.Preview)</Markdown>
             </small>
         }
     </div>
     <div class="mt-2">
-        <small class="text-muted markdown-inline align-items-center flex-wrap gap-1">
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
             <span>Supported keys for this mode:</span>
-            @foreach (string key in SearchParserService.GetSupportedKeysThisMode(CurrentType))
+            @foreach (string key in SearchParserService.GetSupportedKeysThisMode(State.CurrentType))
             {
-                <span class="badge @GetBadgeClass(key, true) align-middle" 
+                <span class="badge @State.GetBadgeClass(key, true) align-middle" 
                     title="@SearchParserService.GetTagTooltip(key, false)"
-                    style="cursor: @(commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
-                    @onclick="() => AppendKey(key, false)">
+                    style="cursor: @(State.commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
+                    @onclick="() => State.AppendKey(key, false)">
                     @key
                     @* If pressing the remove tag button, stop the badge action *@
-                    @if(commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase)) {
+                    @if(State.commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase)) {
                         <i class="bi bi-x-lg ms-1 remove-pill-btn" 
                         title="Remove filter"
                         @onclick:stopPropagation="true"
-                        @onclick="() => RemoveTagFromQuery(key)"></i>
+                        @onclick="() => State.RemoveTagFromQuery(key)"></i>
                     }
                     </span>
             }
@@ -101,11 +93,11 @@
     <div class="mt-2">
         <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
             <span>Date aliases:</span>
-            @foreach(string alias in dateAliases)
+            @foreach(string alias in State.dateAliases)
             {
                 <span class="badge search-tag secondary align-middle"
                     style="cursor: pointer;"
-                    @onclick='() => AppendShortcut("after", alias)'>@alias
+                    @onclick='() => State.AppendShortcut("after", alias)'>@alias
                 </span>
             }
         </small>
@@ -117,7 +109,7 @@
             @foreach (string key in SearchParserService.AllTags)
             {
                 <span @key="key"
-                    class="badge @GetBadgeClass(key, false) align-middle"
+                    class="badge @State.GetBadgeClass(key, false) align-middle"
                     title="@SearchParserService.GetTagTooltip(key, true)"
                     style="cursor: help;">
                     @key
@@ -128,20 +120,20 @@
 </div>
 
 @* If there's a search in progress, show the loading screen *@
-@if (_isSearching){
+@if (State.IsSearching){
     <div class="d-flex flex-column align-items-center my-5">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <h4 class="mt-3 text-muted">@Preview.Replace("Showing", "Loading")</h4>
+        <h4 class="mt-3 text-muted">@State.Preview.Replace("Showing", "Loading")</h4>
     </div>
 } else{
     @* If we have no input, a "no results" message is unhelpful *@
-    @if (string.IsNullOrWhiteSpace(commandInput) && AllCount == 0)
+    @if (string.IsNullOrWhiteSpace(State.commandInput) && State.AllCount == 0)
     {
         <div class="text-center my-3 py-3 text-muted">
             <i class="bi bi-search" style="font-size: 3rem;"></i>
-            <h3 class="mt-3">Search @($"{CurrentType} {(CurrentType == "all" ? "tables" : "table")}") </h3>
+            <h3 class="mt-3">Search @($"{State.CurrentType} {(State.CurrentType == "all" ? "tables" : "table")}") </h3>
             <p>Start typing to see a preview of your query below the search bar.</p>
             <div class="d-flex justify-content-center gap-2 mt-3">
                 <span class="badge bg-light text-dark border">barcode:A123</span>
@@ -150,109 +142,37 @@
             </div>
         </div>
     }
-    @* If we have a search with no results at all, say so *@
-    else if (AllCount == 0 && !filters.IsNullOrEmpty()){
-        <div class="text-center my-5 py- text-muted">
-            <i class="bi bi-clipboard-x" style="font-size: 3rem;"></i>
-            <h4 class="mt-3">No results matched these criteria.</h4>
-            <p>Try adjusting your filters or checking for typos.</p>
-        </div>
-    } else { @* Otherwise, go on a by-table basis *@
-        @foreach (var logic in TableLogics)
-        {
-            bool isTargeted = CurrentType == "all" || CurrentType == logic.TableName;
-            @* Only show tables that are relevant to the search and have results *@
-            if (isTargeted && logic.TotalCount > 0 && _lastExecutedQuery != "Hioki ICT Power Search")
+    else if (State.TableLogics != null)
+    {
+        @* If we have a search with no results at all, say so *@
+        @if (State.AllCount == 0 && State.filters?.Count != 0){
+            <div class="text-center my-5 py- text-muted">
+                <i class="bi bi-clipboard-x" style="font-size: 3rem;"></i>
+                <h4 class="mt-3">No results matched these criteria.</h4>
+                <p>Try adjusting your filters or checking for typos.</p>
+            </div>
+        } else { @* Otherwise, go on a by-table basis *@
+            @foreach (var logic in State.TableLogics)
             {
-                <div class="table-section mb-5">
-                    <h2 class="mb-3">@logic.DisplayName</h2>
-                    @logic.RenderTable()
-                </div>
-            } else if (CurrentType != "all" && AllCount == 0 && !_isSearching && _lastExecutedQuery != "Hioki ICT Power Search")
-            {
-                <h4 style="text-align: center;">No @logic.TableName results matched these criteria.</h4>
+                if (logic == null) continue;
+                bool isTargeted = State.CurrentType == "all" || State.CurrentType == logic.TableName;
+                @* Only show tables that are relevant to the search and have results *@
+                if (isTargeted && logic.TotalCount > 0 && State.LastExecutedQuery != "Hioki ICT Power Search")
+                {
+                    <div class="table-section mb-5">
+                        <h2 class="mb-3">@logic.DisplayName</h2>
+                        @logic.RenderTable()
+                    </div>
+                } else if (State.CurrentType != "all" && State.AllCount == 0 && !State.IsSearching && State.LastExecutedQuery != "Hioki ICT Power Search")
+                {
+                    <h4 style="text-align: center;">No @logic.TableName results matched these criteria.</h4>
+                }
             }
         }
     }
 }
 
 @code{
-    /// <summary>
-    /// The methods and state necessary to run and display a power search
-    /// </summary>
-    string CurrentType = "all"; // the table to check
-    string commandInput = ""; // the input from the search bar
-    string Preview = ""; // the human-readable preview of the query to be executed
-    List<string> errorMessages = []; // the text of the error message, if applicable
-    readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",]; // the list of available date aliases
-    Dictionary<string, IFilter>? filters; // the key-value pairs parsed from command input
-    private Timer? _debounceTimer; // to smooth the preview rendering
-    bool _isProcessingNavigation;
-    bool _isSearching;
-    int AllCount => TableLogics.Sum(t => t.TotalCount);
-    string _lastExecutedQuery = "Hioki ICT Power Search";
-
-    /// <summary>
-    /// Parse search bar input, update the model, then tell the view  
-    /// </summary>
-    /// <returns></returns>
-    private async Task ExecutePowerSearch(bool isNavigatingInternal=false, bool skipUrlUpdate=false)
-    {
-        // Identify tables targeted by this query based on CurrentType
-        var targets = TableLogics
-            .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
-
-        // Clear untargeted tables, run targeted ones in parallel
-        foreach (var table in TableLogics.Except(targets)) table.ClearData();
-
-        var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
-
-        this.filters = parseResult.Filters;
-        this.errorMessages = parseResult.ErrorMessages;
-        this.CurrentType = parseResult.CurrentType;
-        this.Preview = parseResult.Preview;
-
-        // Detect fatal versus non-fatal errors
-        bool hasFatalErrors = errorMessages.Any(m => !m.Contains("This search", StringComparison.OrdinalIgnoreCase));
-        if (hasFatalErrors) // if there was an fatal error, don't execute the search (warnings ok)
-        {
-            foreach (var table in TableLogics) table.ClearData();
-            _isSearching = false;
-            StateHasChanged();
-            return;
-        }
-
-        if(!skipUrlUpdate){
-            _isProcessingNavigation = true;
-            try{
-                if(!isNavigatingInternal){
-                    // Update the URL query string
-                    string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
-
-                    // 'false' means don't reload the page, just update the address bar
-                    NavManager.NavigateTo(newUri, replace: false);
-                } 
-            } finally{
-                await Task.Yield(); // if something goes wrong, give the browser a second, then unlock navigation
-                _isProcessingNavigation=false;
-            }
-        }
-
-        // Inform the UI that we're loading
-        _isSearching = true;
-        _lastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
-        StateHasChanged();
-
-        try{
-            // Parallelize search
-            await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(filters)));
-        } catch (Exception ex){
-            errorMessages.Add($"Search failed: {ex.Message}");
-        } finally{
-            _isSearching = false;
-            StateHasChanged();
-        }
-    }
 
     /// <summary>
     /// When the page opens, check the URL for filters.
@@ -262,13 +182,13 @@
     protected override async Task OnInitializedAsync()
     {
         // Try to get the "q" parameter from the current URI
-        Uri? uri = NavManager.ToAbsoluteUri(NavManager.Uri);
+        Uri? uri = State.NavManager.ToAbsoluteUri(State.NavManager.Uri);
 
         if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var queryVal))
         {
-            commandInput = queryVal;
-            SyncLivePreview();
-            await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true);
+            State.commandInput = queryVal;
+            State.SyncLivePreview();
+            await State.ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true);
         }
     }
 
@@ -277,7 +197,7 @@
     /// </summary>
     protected override void OnInitialized()
     {
-        NavManager.LocationChanged += HandleLocationChanged;
+        State.OnRefreshRequested += HandleRefreshRequested;
     }
 
     /// <summary>
@@ -285,104 +205,8 @@
     /// </summary>
     public void Dispose()
     {
-        NavManager.LocationChanged -= HandleLocationChanged;
-        _debounceTimer?.Dispose();
-    }
-
-    /// <summary>
-    /// Check the search bar for filters, then update the URL as necessary
-    /// </summary>
-    /// <param name="sender">The origin of this call</param>
-    /// <param name="e">The information about the event to handle</param>
-    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        if(_isProcessingNavigation) return;
-        Uri? uri = NavManager.ToAbsoluteUri(e.Location);
-        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-        // If there are query parameters, get them
-        if (queryParams.TryGetValue("q", out var queryVal))
-        {
-            // If the filter state doesn't match the URL, update the search bar
-            if (commandInput != queryVal)
-            {
-                UpdateSearchState(queryVal);
-            }
-        } else {
-            // If there aren't query parameters, ensure the search bar is empty
-            if(!string.IsNullOrEmpty(commandInput)){
-                UpdateSearchState(String.Empty);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Helper to actually execute the new search
-    /// </summary>
-    /// <param name="newValue">The content to put in the search bar</param>
-    private void UpdateSearchState(string newValue)
-    {
-        commandInput = newValue;
-        _ = InvokeAsync(async () => {
-            SyncLivePreview();
-            await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true); 
-            StateHasChanged();
-        });
-    }
-
-    /// <summary>
-    /// Helper to append the datetime associated with a date shortcut to keep AppendKey for key checking only
-    /// </summary>
-    /// <param name="key">The key to append</param>
-    /// <param name="shortcut">The shortcut to append</param>
-    /// <returns></returns>
-    private async Task AppendShortcut(string key, string shortcut)
-    {
-        string toAppend = $"{key}:{shortcut} ";
-        // Short-circuit if search bar is empty
-        if(string.IsNullOrEmpty(commandInput)){
-            commandInput = toAppend;
-            await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
-            return;
-        }
-
-        // If the shortcut is already touching a tag or the key/shortcut is already present in the search bar, only add the shortcut
-        if (commandInput.Contains(shortcut) || commandInput.Contains(key) || commandInput.TrimEnd()[^1] == ':'){
-            toAppend = $"{shortcut} ";
-        } else { // technically unnecessary bc the parser is smart enough but it's easier to read
-            toAppend = ' ' + toAppend;
-        }
-
-        // Append the shortcut
-        commandInput = commandInput.TrimEnd() + toAppend;
-        SyncLivePreview();
-        await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
-    }
-
-    /// <summary>
-    /// Helper for quick select table tabs. Automatically runs a search for the target table if the last query had results or the command input has content
-    /// </summary>
-    /// <param name="toType">The target table</param>
-    private async Task SetType(string toType){
-        if(Regex.IsMatch(commandInput, ParserService.inPattern, RegexOptions.IgnoreCase)){ // if the search already has an "in" tag, replace it
-            commandInput = Regex.Replace(commandInput, ParserService.inPattern, $"in:{toType}", RegexOptions.IgnoreCase);
-        } else { // otherwise, just append it
-            await AppendKey("in", true);
-            commandInput += toType;
-        }
-        CurrentType = toType;
-        SyncLivePreview();
-        // If the user is currently viewing a search result or has something in the search bar, they probably want to search now
-        if (AllCount > 0){
-            await ExecutePowerSearch();
-        }
-    } 
-
-    /// <summary>
-    /// Helper for search bar X button
-    /// </summary>
-    private void ClearSearchBar(){
-        commandInput = "";
-        SyncLivePreview();
+        State.OnRefreshRequested -= HandleRefreshRequested;
+        State.DebounceTimer?.Dispose();
     }
 
     /// <summary>
@@ -390,148 +214,42 @@
     /// </summary>
     /// <param name="e">the key to handle</param>
     /// <returns></returns>
-    private async Task HandleKeyDown(KeyboardEventArgs e){
-        if(e.Key == "Enter") await ExecutePowerSearch();
+    public async Task HandleKeyDown(KeyboardEventArgs e){
+        if(e.Key == "Enter") await State.ExecutePowerSearch();
     }
 
     /// <summary>
-    /// Manage the debounce timer and notify the preview
+    /// Check the search bar for filters, then update the URL as necessary
     /// </summary>
-    /// <param name="e">Detects a change in input</param>
-    private void HandleInput(ChangeEventArgs e){
-        commandInput = e.Value?.ToString() ?? "";
-
-        // Stop the old (if there is one)
-        if (_debounceTimer != null) {
-            _debounceTimer.Stop();
-            _debounceTimer.Dispose();
-        }
-
-        // Start the new
-        _debounceTimer = new Timer(300);
-        _debounceTimer.Elapsed += OnUserStoppedTyping;
-        _debounceTimer.AutoReset = false;
-        _debounceTimer.Start();
-    }
-
-    /// <summary>
-    /// As the user types, get the interpretation of their search
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void OnUserStoppedTyping(object? sender, ElapsedEventArgs e)
+    /// <param name="sender">The origin of this call</param>
+    /// <param name="e">The information about the event to handle</param>
+    public async Task HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        // Timer runs on a background thread, so use InvokeAsync to update the UI thread.
-        InvokeAsync(() =>
+        if(State.IsProcessingNavigation) return;
+        Uri? uri = State.NavManager.ToAbsoluteUri(e.Location);
+        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        // If there are query parameters, get them
+        if (queryParams.TryGetValue("q", out var queryVal))
         {
-            var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
-            this.Preview = liveResult.Preview;
-
-            // Update the CurrentType if the user entered the "in" tag
-            if (!string.IsNullOrEmpty(liveResult.CurrentType)) 
-                CurrentType = liveResult.CurrentType;
-
-            StateHasChanged();
-        });
+            // If the filter state doesn't match the URL, update the search bar
+            if (State.commandInput != queryVal)
+            {
+                await State.UpdateSearchState(queryVal);
+            }
+        } else {
+            // If there aren't query parameters, ensure the search bar is empty
+            if(!string.IsNullOrEmpty(State.commandInput)){
+                await State.UpdateSearchState(string.Empty);
+            }
+        }
     }
 
     /// <summary>
-    /// Updates the live preview based on current search bar contents
+    /// Runs whenever PowerSearchLogic calls NotifyStateChanged()
     /// </summary>
-    private void SyncLivePreview()
+    private void HandleRefreshRequested()
     {
-        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
-        this.Preview = liveResult.Preview;
-    }
-
-    /// <summary>
-    /// Toggles color depending on whether the input key is present in the search bar
-    /// </summary>
-    /// <param name="key">The tag to check against the search bar contents</param>
-    /// <param name="thisMode">Whether the tag is active in this mode (lighter styling)</param>
-    /// <returns>The badge style reflecting its activation state</returns>
-    private string GetBadgeClass(string key, bool thisMode){
-        // Highlight red for negative presence (-key:)
-        if (commandInput.Contains($"-{key}:", StringComparison.OrdinalIgnoreCase))
-        {
-            return thisMode ? "search-tag is-active negative" : "search-tag is-active-tertiary negative";
-        }
-
-        // Highlight blue for positive presence (key:)
-        if (commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase))
-        {
-            return thisMode ? "search-tag is-active" : "search-tag is-active-tertiary";
-        }
-
-        // Otherwise, revert to respective default (inactive) states
-        return thisMode ? "search-tag secondary" : "search-tag tertiary";
-    }
-
-    /// <summary>
-    /// Removes a key and its associated value from the query
-    /// </summary>
-    /// <param name="key">The key to remove the tag for</param>
-    /// <returns></returns>
-    private void RemoveTagFromQuery(string key)
-    {
-        if (string.IsNullOrWhiteSpace(commandInput)) return; // in the case this method is somehow triggered without any filters
-
-        // Pattern handles: -?key: followed by ("quoted value" OR unquotedValue)
-        string pattern = $@"-?{key}:(""[^""]*""|[^\s]*)";
-
-        commandInput = Regex.Replace(commandInput, pattern, "", RegexOptions.IgnoreCase).Trim();
-
-        // Clean up double spaces
-        commandInput = Regex.Replace(commandInput, @"\s+", " ");
-
-        if(key.Contains("in")) CurrentType = "all";
-
-        // Sync the preview and re-execute search to update the DataViews
-        SyncLivePreview();
-
-        // If the input is now empty, clear the results entirely
-        if (string.IsNullOrEmpty(commandInput))
-        {
-            var targets = TableLogics
-                .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
-            foreach (var table in TableLogics.Except(targets)) table.ClearData();
-        }
-    }
-
-    /// <summary>
-    /// Appends the input key to the search bar if not currently there
-    /// </summary>
-    /// <param name="key">The tag to be appended to the search</param>
-    /// <param name="fromTableTab">whether this call is from a table tab (or from the quick select options)</param>
-    /// <returns>Whether the key was appended (or if it was already in the </returns>
-    private async Task<bool> AppendKey(string key, bool fromTableTab)
-    {
-        // Check if the key is already present (case-insensitive)
-        if (commandInput.Contains(key, StringComparison.OrdinalIgnoreCase))
-        {
-            return false; // Do nothing; we don't want to duplicate it
-        }
-
-        // If the search bar is currently empty, append right away, otherwise ensure there is a space between the current last character and the key
-        commandInput = string.IsNullOrWhiteSpace(commandInput) ? $"{key}:" : $"{commandInput.TrimEnd()} {key}:";
-
-        // Trigger the JS helper to put the cursor back in the box if using quick select options
-        if(!fromTableTab){ 
-            await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
-        }
-        SyncLivePreview();
-        return true;
-    }
-
-    /// <summary>
-    /// Traces a barcode through all tables
-    /// </summary>
-    /// <param name="barcode">The barcode to trace</param>
-    /// <returns></returns>
-    private async Task HandleBarcodeClick(string barcode)
-    {
-        commandInput = $"in:all barcode:{barcode}";
-        SyncLivePreview();
-        await ExecutePowerSearch(); // This triggers the search immediately
+        // We use the Component's InvokeAsync to safely update the UI
+        InvokeAsync(StateHasChanged);
     }
 }

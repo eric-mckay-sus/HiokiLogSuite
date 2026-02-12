@@ -5,11 +5,12 @@ using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
-/// Model class for an FCT table
+/// Model class for an FCT table.
+/// Inherits from LogTableLogic
 /// </summary>
-/// <param name="dbFactory">The context factory to create a new context per thread</param>
-/// <param name="js">The JS Runtime used for </param>
-/// <param name="navManager"></param>
+/// <param name="dbFactory">Generates a new DB context per thread</param>
+/// <param name="js">To handle saving to CSV</param>
+/// <param name="navManager">To navigate away for barcode "drill-down"</param>
 public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navManager)
 {
