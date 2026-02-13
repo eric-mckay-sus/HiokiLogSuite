@@ -1,0 +1,93 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject PowerSearchLogic State
+@implements IDisposable // for the automatic Dispose method
+
+<PageTitle>@State.LastExecutedQuery</PageTitle>
+
+<h1>Hioki 1220 ICT Power Search</h1>
+
+<ErrorDisplay Messages="State.errorMessages" />
+
+<div class="command-container mb-4">
+    <SearchBar />
+    <Preview />
+    <SearchTags />
+</div>
+
+<SearchResults />
+
+@code{
+
+    /// <summary>
+    /// When the page opens, check the URL for filters.
+    /// If there are filters, immediately run a query with them.
+    /// </summary>
+    /// <returns></returns>
+    protected override async Task OnInitializedAsync()
+    {
+        // Try to get the "q" parameter from the current URI
+        Uri? uri = State.NavManager.ToAbsoluteUri(State.NavManager.Uri);
+
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var queryVal))
+        {
+            State.commandInput = queryVal;
+            State.SyncLivePreview();
+            await State.ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true);
+        }
+    }
+
+    /// <summary>
+    /// When this page opens, continuously watch the query for filter changes
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        State.OnRefreshRequested += HandleRefreshRequested;
+        State.NavManager.LocationChanged += HandleLocationChanged;
+    }
+
+    /// <summary>
+    /// When this page closes, inform the viewmodel and location manager, then kill the timer thread
+    /// </summary>
+    public void Dispose()
+    {
+        State.OnRefreshRequested -= HandleRefreshRequested;
+        State.NavManager.LocationChanged -= HandleLocationChanged;
+        State.DebounceTimer?.Dispose();
+    }
+
+    /// <summary>
+    /// Runs whenever PowerSearchLogic calls NotifyStateChanged()
+    /// </summary>
+    private void HandleRefreshRequested() => InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// Check the search bar for filters, then update the URL as necessary
+    /// </summary>
+    /// <param name="sender">The origin of this call</param>
+    /// <param name="e">The information about the event to handle</param>
+    public void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = Task.Run(async () =>
+        {
+            if(State.IsProcessingNavigation) return;
+            Uri? uri = State.NavManager.ToAbsoluteUri(e.Location);
+            var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            // If there are query parameters, get them
+            if (queryParams.TryGetValue("q", out var queryVal))
+            {
+                // If the filter state doesn't match the URL, update the search bar
+                if (State.commandInput != queryVal)
+                {
+                    await State.UpdateSearchState(queryVal);
+                }
+            } else {
+                // If there aren't query parameters, ensure the search bar is empty
+                if(!string.IsNullOrEmpty(State.commandInput)){
+                    await State.UpdateSearchState(string.Empty);
+                }
+            }
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+}

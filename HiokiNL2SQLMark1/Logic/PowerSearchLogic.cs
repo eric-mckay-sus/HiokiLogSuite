@@ -8,11 +8,7 @@ namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
 /// The methods and state necessary to run and display a power search
 /// </summary>
-public class PowerSearchLogic(
-    IEnumerable<ILogTableLogic> tableLogics,
-    SearchParserService parserService,
-    NavigationManager navManager,
-    IJSRuntime jsRuntime)
+public class PowerSearchLogic()
 {
     public string CurrentType = "all"; // the table to check
     public string commandInput = ""; // the input from the search bar
@@ -26,13 +22,32 @@ public class PowerSearchLogic(
     public int AllCount => TableLogics.Sum(t => t.TotalCount);
     public string LastExecutedQuery = "Hioki ICT Power Search";
 
-    public readonly IEnumerable<ILogTableLogic> TableLogics = tableLogics;
-    private readonly SearchParserService ParserService = parserService;
-    public readonly NavigationManager NavManager = navManager;
-    private readonly IJSRuntime JSRuntime = jsRuntime;
+    public readonly IEnumerable<ILogTableLogic> TableLogics;
+    private readonly SearchParserService ParserService;
+    public readonly NavigationManager NavManager;
+    private readonly IJSRuntime JSRuntime;
 
     public event Action? OnRefreshRequested;
-    private void NotifyStateChanged() => OnRefreshRequested?.Invoke();
+    public void NotifyStateChanged() => OnRefreshRequested?.Invoke();
+
+    public PowerSearchLogic(
+        IEnumerable<ILogTableLogic> tableLogics,
+        SearchParserService parserService,
+        NavigationManager navManager,
+        IJSRuntime jsRuntime) : this()
+    {
+        TableLogics = tableLogics;
+        ParserService = parserService;
+        NavManager = navManager;
+        JSRuntime = jsRuntime;
+
+        // Wire each table's notification to this class
+        foreach (var table in TableLogics)
+        {
+            table.OnNotifyUI = NotifyStateChanged;
+            table.TriggerPowerSearch = (query) => _ = UpdateSearchState(query);
+        }
+    }
 
     /// <summary>
     /// Parse search bar input, update the model, then tell the view  
@@ -121,6 +136,7 @@ public class PowerSearchLogic(
         if(string.IsNullOrEmpty(commandInput)){
             commandInput = toAppend;
             await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+            NotifyStateChanged();
             return;
         }
 
@@ -135,6 +151,7 @@ public class PowerSearchLogic(
         commandInput = commandInput.TrimEnd() + toAppend;
         SyncLivePreview();
         await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+        NotifyStateChanged();
     }
 
     /// <summary>
@@ -154,6 +171,7 @@ public class PowerSearchLogic(
         if (AllCount > 0){
             await ExecutePowerSearch();
         }
+        NotifyStateChanged();
     } 
 
     /// <summary>
@@ -161,7 +179,10 @@ public class PowerSearchLogic(
     /// </summary>
     public void ClearSearchBar(){
         commandInput = "";
+        filters = [];
+        errorMessages = [];
         SyncLivePreview();
+        NotifyStateChanged();
     }
 
     /// <summary>
@@ -182,6 +203,7 @@ public class PowerSearchLogic(
         DebounceTimer.Elapsed += OnUserStoppedTyping;
         DebounceTimer.AutoReset = false;
         DebounceTimer.Start();
+        NotifyStateChanged();
     }
 
     /// <summary>
@@ -209,6 +231,7 @@ public class PowerSearchLogic(
     {
         var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
         Preview = liveResult.Preview;
+        NotifyStateChanged();
     }
 
     /// <summary>
@@ -263,6 +286,7 @@ public class PowerSearchLogic(
                 .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
             foreach (var table in TableLogics.Except(targets)) table.ClearData();
         }
+        NotifyStateChanged();
     }
 
     /// <summary>
@@ -287,6 +311,7 @@ public class PowerSearchLogic(
             await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
         }
         SyncLivePreview();
+        NotifyStateChanged();
         return true;
     }
 }

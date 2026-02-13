@@ -15,7 +15,8 @@ public interface ILogTableLogic
     // Shared UI state for the MasterTable
     int CurrentPage { get; }
     int TotalPages { get; }
-    
+    Action? OnNotifyUI { get; set; }
+    Action<string>? TriggerPowerSearch { get; set; } 
     
     RenderFragment RenderTable();
 }

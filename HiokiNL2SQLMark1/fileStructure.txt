@@ -6,11 +6,18 @@ HiokiNL2SQLMark1/
 │  │  ├──NavMenu.razor
 │  │  └──NavMenu.razor.css
 │  ├──Pages/
+│  │  ├──PowerSearchComponents/
+│  │  │  ├──PowerSearch.razor
+│  │  │  ├──ErrorDisplay.razor
+│  │  │  ├──SearchBar.razor
+│  │  │  ├──Preview.razor
+│  │  │  ├──SearchTags.razor
+│  │  │  └──SearchResults.razor
 │  │  ├──FilterWrapper.razor
 │  │  ├──Group.razor
 │  │  ├──Step.razor
 │  │  ├──Fct.razor
-│  │  └──FilterWrapper.razor
+│  │  └──MasterTable.razor
 │  ├──_Imports.razor
 │  ├──App.razor
 │  └──Routes.razor

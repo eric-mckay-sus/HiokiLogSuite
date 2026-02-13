@@ -1,0 +1,64 @@
+@using System.Threading.Tasks
+@implements IDisposable
+@inject PowerSearchLogic State
+<div class="mt-2">
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+            <span>Supported keys for this mode:</span>
+            @foreach (string key in SearchParserService.GetSupportedKeysThisMode(State.CurrentType))
+            {
+                <span class="badge @State.GetBadgeClass(key, true) align-middle" 
+                    title="@SearchParserService.GetTagTooltip(key, false)"
+                    style="cursor: @(State.commandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");" 
+                    @onclick="() => State.AppendKey(key, false)">
+                    @key
+                    @* If pressing the remove tag button, stop the badge action *@
+                    @if(State.commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase)) {
+                        <i class="bi bi-x-lg ms-1 remove-pill-btn" 
+                        title="Remove filter"
+                        @onclick:stopPropagation="true"
+                        @onclick="() => State.RemoveTagFromQuery(key)"></i>
+                    }
+                    </span>
+            }
+        </small>
+    </div>
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+            <span>Date aliases:</span>
+            @foreach(string alias in State.dateAliases)
+            {
+                <span class="badge search-tag secondary align-middle"
+                    style="cursor: pointer;"
+                    @onclick='() => State.AppendShortcut("after", alias)'>@alias
+                </span>
+            }
+        </small>
+    </div>
+    
+    <div class="mt-2">
+        <small class="text-muted d-inline-flex align-items-center flex-wrap gap-1">
+            <span>All supported keys:</span>
+            @foreach (string key in SearchParserService.AllTags)
+            {
+                <span @key="key"
+                    class="badge @State.GetBadgeClass(key, false) align-middle"
+                    title="@SearchParserService.GetTagTooltip(key, true)"
+                    style="cursor: help;">
+                    @key
+                </span>
+            }
+        </small>
+    </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Listen for changes from the SearchBar so we can update highlights
+        State.OnRefreshRequested += HandleRefreshRequested;
+    }
+    private void HandleRefreshRequested() => InvokeAsync(StateHasChanged);
+    public void Dispose()
+    {
+        State.OnRefreshRequested -= HandleRefreshRequested;
+    }
+}

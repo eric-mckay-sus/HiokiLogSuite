@@ -4,6 +4,8 @@ using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 using System.Runtime.CompilerServices;
+using Microsoft.Net.Http.Headers;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -47,28 +49,30 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public List<string> modeCache = [];
     public List<string> resultCache = [];
 
+    public Action? OnNotifyUI { get; set; } 
+    public Action<string>? TriggerPowerSearch { get; set; } 
     public virtual RenderFragment RenderTable() => builder =>
-{
-    builder.OpenComponent<Components.Pages.MasterTable<T>>(0);
+    {
+        builder.OpenComponent<Components.Pages.MasterTable<T>>(0);
 
-    // Pass all necessary parameters from this Logic instance to the MasterTable
-    builder.AddAttribute(1, "Items", DataView);
-    builder.AddAttribute(2, "CurrentPage", CurrentPage);
-    builder.AddAttribute(3, "TotalPages", TotalPages);
-    builder.AddAttribute(4, "TotalCount", TotalCount);
-    builder.AddAttribute(5, "PageSize", PageSize);
-    
-    // Wire up pagination and sorting
-    builder.AddAttribute(6, "OnPageChange", EventCallback.Factory.Create<int>(this, ChangePage));
-    builder.AddAttribute(7, "OnSort", EventCallback.Factory.Create<string>(this, ToggleSort));
-    builder.AddAttribute(8, "GetSortIcon", GetSortIcon);
-    
-    // Wire up Actions
-    builder.AddAttribute(9, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
-    builder.AddAttribute(10, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
+        // Pass all necessary parameters from this Logic instance to the MasterTable
+        builder.AddAttribute(1, "Items", DataView);
+        builder.AddAttribute(2, "CurrentPage", CurrentPage);
+        builder.AddAttribute(3, "TotalPages", TotalPages);
+        builder.AddAttribute(4, "TotalCount", TotalCount);
+        builder.AddAttribute(5, "PageSize", PageSize);
+        
+        // Wire up pagination and sorting
+        builder.AddAttribute(6, "OnPageChange", EventCallback.Factory.Create<int>(this, ChangePage));
+        builder.AddAttribute(7, "OnSort", EventCallback.Factory.Create<string>(this, ToggleSort));
+        builder.AddAttribute(8, "GetSortIcon", GetSortIcon);
+        
+        // Wire up Actions
+        builder.AddAttribute(9, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
+        builder.AddAttribute(10, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
 
-    builder.CloseComponent();
-};
+        builder.CloseComponent();
+    };
 
     /// <summary>
     /// Applies filters and sorts, then reloads the table based on the query and page number
@@ -94,6 +98,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
             .Take(PageSize)
             .ToListAsync();
         IsLoading = false;
+        OnNotifyUI?.Invoke();
     }
 
     /// <summary>
@@ -238,7 +243,14 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     {
         string query = $"in:all barcode:{barcode}";
         // Redirect to the PowerSearch page to view all results
-        Nav.NavigateTo($"/?q={Uri.EscapeDataString(query)}");
+        if (OnNotifyUI != null)
+        {
+            TriggerPowerSearch?.Invoke(query);
+        }
+        else
+        {
+            Nav.NavigateTo($"/?q={Uri.EscapeDataString(query)}");
+        }
     }
 
     /// <summary>
