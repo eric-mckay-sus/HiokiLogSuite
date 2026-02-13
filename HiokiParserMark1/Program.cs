@@ -8,6 +8,7 @@ using System.Globalization;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 using System.Numerics;
+using DotNetEnv.Extensions;
 
 /// <summary>
 /// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
@@ -248,7 +249,7 @@ partial class Program // must be marked partial to allow compile-time compilatio
             // Parse barcode
             line = reader.ReadLine();
             package.Barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
-            if (line == null) // if Barcode is null, say which file, and skip it (barcode is primary key)
+            if (line == "UNKNOWN") // if Barcode is null, say which file, and skip it (barcode is primary key)
             {
                 Console.Error.WriteLine($"Error reading barcode for {file}");
                 return;
@@ -279,26 +280,30 @@ partial class Program // must be marked partial to allow compile-time compilatio
                 return;
             }
 
-            // Determine if this is a group or step file
-            string groupOrStep = reader.ReadLine()?.Split(',')[0].Trim() ?? "";
-            reader.ReadLine(); // Cut the column name row
-
             using SqlConnection connection = new(ConnectionString); // Create the connection to be used for the rest of the program
             await connection.OpenAsync();
             using SqlTransaction transaction = connection.BeginTransaction(); // Create the transaction to be used for the rest of the program
             try
             {
-                ParsingContext context = new ParsingContext(reader, connection, transaction, package); // Compile everything the parser needs to know into a context object
-                if (groupOrStep.Contains("-----  Group  -----"))
+                ParsingContext context = new(reader, connection, transaction, package); // Compile everything the parser needs to know into a context object
+                line = reader.ReadLine(); // This will tell us whether we're dealing with group or step section
+                while(!reader.EndOfStream)
                 {
-                    await ParseGroupFile(context);
-                }
-                else
-                {
-                    string? groupLine = reader.ReadLine();
-                    string[]? groupParts = groupLine?.Split(',');
-                    context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
-                    await ParseStepFile(context);
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    if (line.Contains("-----  Group  -----"))
+                    {
+                        reader.ReadLine(); // Cut the column name row
+                        await ParseGroupFile(context);
+                    }
+                    else if (line.Contains("-----  Component  -----"))
+                    {
+                        reader.ReadLine(); // Cut the column name row
+                        string? groupLine = reader.ReadLine(); // Get the line containing the group number
+                        string[]? groupParts = groupLine?.Split(',');
+                        context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
+                        await ParseStepFile(context);
+                    }
+                    line = await reader.ReadLineAsync();
                 }
                 transaction.Commit();
             }
@@ -334,10 +339,12 @@ partial class Program // must be marked partial to allow compile-time compilatio
                        VALUES (@barcode, @testTime, @groupNum, @timesTested, @result,
                        @comp, @short, @open, @ic, @macro, @function)"; // Reflects order in DB
         string[] paramNames = ["@result", "@comp", "@short", "@open", "@ic", "@macro", "@function"]; // to map the line values to their parameters in SQL, reflects order in CSV
-        while (!context.Reader.EndOfStream) // The rest of the file are group test results to parse
+        
+        string? raw;
+        while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            string? line = context.Reader.ReadLine();
-            string[]? split = line?.Split(",");
+            if (raw != null && raw.Contains("[EOT]")) return; // If we find EOT, that means the group section is complete
+            string[]? split = raw?.Split(",");
             if (split != null)
             {
                 // The reference ID of all result columns in group table
@@ -401,7 +408,8 @@ partial class Program // must be marked partial to allow compile-time compilatio
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            if (string.IsNullOrWhiteSpace(raw)) continue;
+            if (string.IsNullOrWhiteSpace(raw)) continue; // If the line is empty, skip it
+            if (raw.Contains("[EOT]")) break; // If we see EOT, the step results are finished
 
             string[] line = raw.Split(',');
             if (line[0].StartsWith("Gr"))
@@ -412,6 +420,7 @@ partial class Program // must be marked partial to allow compile-time compilatio
             if (line[0].Contains("-----  FCT  -----"))
             {
                 await ParseFctSection(context);
+                break;
             }
             if (line.Length < 13) continue;
 
@@ -507,6 +516,8 @@ partial class Program // must be marked partial to allow compile-time compilatio
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
+            if (raw.Contains("[EOT]")) break; // If we see EOT, the FCT section is finished
+            
             string[] line = raw.Split(',');
             if (line[0].StartsWith("Gr")) // found new group
             {
