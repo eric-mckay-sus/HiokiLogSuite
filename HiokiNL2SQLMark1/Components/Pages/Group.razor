@@ -95,10 +95,10 @@ else
             TotalPages="Logic.TotalPages"
             TotalCount="Logic.TotalCount"
             PageSize="Logic.PageSize"
-            OnPageChange="ChangePage"
+            OnPageChange="Logic.ChangePage"
             CurrentSortColumn="@Logic.CurrentSortColumn"
-            OnSort="ToggleSort"
-            GetSortIcon="GetSortIcon"
+            OnSort="Logic.ToggleSort"
+            GetSortIcon="Logic.GetSortIcon"
             OnSaveToCsv="Logic.SaveToCSV" 
             OnBarcodeClick="Logic.HandleBarcodeClick" />
 }

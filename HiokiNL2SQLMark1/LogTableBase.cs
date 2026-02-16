@@ -31,28 +31,6 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     } 
 
     /// <summary>
-    /// Jumps to the specified new page
-    /// </summary>
-    /// <param name="newPage">The page number to jump to</param>
-    /// <returns></returns>
-    public async Task ChangePage(int newPage) => await Logic.ChangePage(newPage);
-
-    /// <summary>
-    /// Helper to render the arrow
-    /// </summary>
-    /// <param name="column">The column for which to update the sort icon</param>
-    /// <returns>The Unicode arrow representing the sort direction</returns>
-    public string GetSortIcon(string column) => Logic.GetSortIcon(column);
-
-    /// <summary>
-    /// Cycles through sort directions when column is toggled
-    /// Cycle order: None -> Asc -> Desc
-    /// </summary>
-    /// <param name="column">The column to be toggled</param>
-    /// <returns></returns>
-    public async Task ToggleSort(string column) => await Logic.ToggleSort(column);
-
-    /// <summary>
     /// Clears all filters on a query
     /// </summary>
     /// <returns></returns>

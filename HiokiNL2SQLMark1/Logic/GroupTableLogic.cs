@@ -4,8 +4,7 @@ using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
-/// Model class for a group table.
-/// Inherits from LogTableLogic
+/// Model class for a group table. Inherits from LogTableLogic
 /// </summary>
 /// <param name="dbFactory">Generates a new DB context per thread</param>
 /// <param name="js">To handle saving to CSV</param>
@@ -13,19 +12,19 @@ namespace HiokiNL2SQLMark1.Logic;
 public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) : 
     LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navManager)
 {
-    public override string TableName => "group";
-    public override string DisplayName => "Group Results";
-    public Filter<string?> FilterComp = new("comp", null);
-    public Filter<string?> FilterShort = new("short", null);
-    public Filter<string?> FilterMacro = new("macro", null);
-    public Filter<string?> FilterIC = new("ic", null);
-    public Filter<string?> FilterFunction = new("function", null);
+    public override string TableName => "group"; // This table's internal "type" as it would appear in currentType
+    public override string DisplayName => "Group Results"; // The label to apply to this table in the view
+    public Filter<string?> FilterComp = new("comp", null); // to filter component test results
+    public Filter<string?> FilterShort = new("short", null); // to filter short circuit test results
+    public Filter<string?> FilterMacro = new("macro", null); // to filter macro test results
+    public Filter<string?> FilterIC = new("ic", null); // to filter IC test results
+    public Filter<string?> FilterFunction = new("function", null); // to filter functional test results
 
     /// <summary>
-    /// Applies all filters available to the group table
+    /// Calls the base class to apply the generic filters, then applies the group-specific ones
     /// </summary>
-    /// <param name="query">The query to which the filters will be appended</param>
-    /// <returns>The query, now with filters</returns>
+    /// <param name="query">The query to which the filters will be applied</param>
+    /// <returns>The query, with all filters applied</returns>
     public override IQueryable<GroupResult> ApplyFilters(IQueryable<GroupResult> query)
     {
         // Apply the base filters (Barcode, Date, etc.)
@@ -82,6 +81,9 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
         return false;
     }
 
+    /// <summary>
+    /// Reset the group-specific filters, then pass to the base class to reset the generic ones
+    /// </summary>
     public override void ResetFilterState()
     {
         FilterComp.Value = null;

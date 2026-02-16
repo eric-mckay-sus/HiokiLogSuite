@@ -16,24 +16,27 @@ public class PowerSearchLogic()
     public readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",]; // the list of available date aliases
     public Dictionary<string, IFilter> filters = []; // the key-value pairs parsed from command input
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
-    public bool IsProcessingNavigation;
-    public bool IsSearching;
-    public int AllCount => TableLogics.Sum(t => t.TotalCount);
-    public string LastExecutedQuery = "Hioki ICT Power Search";
+    public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
+    public bool IsSearching; // Whether the system is currently getting query results
+    public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
+    public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 
-    public readonly IEnumerable<ILogTableLogic> TableLogics;
-    private readonly SearchParserService ParserService;
-    public readonly NavigationManager NavManager;
-    private readonly IJSRuntime JSRuntime;
+    public readonly IEnumerable<ILogTableLogic> TableLogics; // The list of logic engines to perform the searches
+    private readonly SearchParserService ParserService; // The service to which command input will be passed to get a filter dictionary back
+    public readonly NavigationManager NavManager; // Controls the navigation between URLs constructed from modifying filters
+    private readonly IJSRuntime JSRuntime; // Controls cursor focus when applying quick select tags
 
-    public event Action? OnRefreshRequested;
-    public void NotifyStateChanged() => OnRefreshRequested?.Invoke();
+    public event Action? OnRefreshRequested; // The trigger for the view (implemented in the view)
+    public void NotifyStateChanged() => OnRefreshRequested?.Invoke(); // The method to trigger a refresh in the view
 
-    public PowerSearchLogic(
-        IEnumerable<ILogTableLogic> tableLogics,
-        SearchParserService parserService,
-        NavigationManager navManager,
-        IJSRuntime jsRuntime) : this()
+    /// <summary>
+    /// Constructs a new power search engine from the necessary parts, and wires the table engines to this display.
+    /// </summary>
+    /// <param name="tableLogics">The list of table engines to use</param>
+    /// <param name="parserService">The service to parse command input</param>
+    /// <param name="navManager">The navigation manager for URL use and manipulation</param>
+    /// <param name="jsRuntime">The JS runtime to control cursor focus</param>
+    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, SearchParserService parserService, NavigationManager navManager, IJSRuntime jsRuntime) : this()
     {
         TableLogics = tableLogics;
         ParserService = parserService;
@@ -85,7 +88,7 @@ public class PowerSearchLogic()
                     // Update the URL query string
                     string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
 
-                    // 'false' means don't reload the page, just update the address bar
+                    // 'false' means to not overwrite the current URL in browser history
                     NavManager.NavigateTo(newUri, replace: false);
                 } 
             } finally{
@@ -97,7 +100,6 @@ public class PowerSearchLogic()
         // Inform the UI that we're loading
         IsSearching = true;
         LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
-        NotifyStateChanged();
 
         try{
             // Parallelize search
@@ -111,19 +113,18 @@ public class PowerSearchLogic()
     }
 
     /// <summary>
-    /// Helper to actually execute the new search
+    /// Fills search bar with input string, then executes a search (used for URL navigation)
     /// </summary>
     /// <param name="newValue">The content to put in the search bar</param>
     public async Task UpdateSearchState(string newValue)
     {
         commandInput = newValue;
         SyncLivePreview();
-        await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true); 
-        NotifyStateChanged();
+        await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true); // This ends with a NotifyStateChanged()
     }
 
     /// <summary>
-    /// Helper to append the datetime associated with a date shortcut to keep AppendKey for key checking only
+    /// Helper for quick select date aliases
     /// </summary>
     /// <param name="key">The key to append</param>
     /// <param name="shortcut">The shortcut to append</param>
@@ -150,7 +151,6 @@ public class PowerSearchLogic()
         commandInput = commandInput.TrimEnd() + toAppend;
         SyncLivePreview();
         await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
-        NotifyStateChanged();
     }
 
     /// <summary>
@@ -170,7 +170,6 @@ public class PowerSearchLogic()
         if (AllCount > 0){
             await ExecutePowerSearch();
         }
-        NotifyStateChanged();
     } 
 
     /// <summary>
@@ -180,8 +179,7 @@ public class PowerSearchLogic()
         commandInput = "";
         filters = [];
         errorMessages = [];
-        SyncLivePreview();
-        NotifyStateChanged();
+        SyncLivePreview(); // calls NotifyStateChanged internally
     }
 
     /// <summary>
@@ -206,22 +204,11 @@ public class PowerSearchLogic()
     }
 
     /// <summary>
-    /// As the user types, get the interpretation of their search
+    /// Overload for SyncLivePreview to be triggered by HandleInput
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-    private void OnUserStoppedTyping(object? sender, ElapsedEventArgs e)
-    {
-        // Timer runs on a background thread, so use InvokeAsync to update the UI thread.
-        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
-        Preview = liveResult.Preview;
-
-        // Update the CurrentType if the user entered the "in" tag
-        if (!string.IsNullOrEmpty(liveResult.CurrentType)) 
-            CurrentType = liveResult.CurrentType;
-
-        NotifyStateChanged();
-    }
+    private void OnUserStoppedTyping(object? sender, ElapsedEventArgs e) => SyncLivePreview();
 
     /// <summary>
     /// Updates the live preview based on current search bar contents
@@ -230,6 +217,11 @@ public class PowerSearchLogic()
     {
         var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
         Preview = liveResult.Preview;
+
+        // Update the CurrentType if the user entered the "in" tag
+        if (!string.IsNullOrEmpty(liveResult.CurrentType)) 
+            CurrentType = liveResult.CurrentType;
+        
         NotifyStateChanged();
     }
 
@@ -271,19 +263,75 @@ public class PowerSearchLogic()
         commandInput = Regex.Replace(commandInput, pattern, "", RegexOptions.IgnoreCase).Trim();
 
         // Clean up double spaces
-        commandInput = Regex.Replace(commandInput, @"\s+", " ");
+        commandInput = NormalizeWhiteSpace(commandInput);
 
+        // If removing the 'in' tag, release the type it had set
         if(key.Contains("in")) CurrentType = "all";
-
-        // Sync the preview and re-execute search to update the DataViews
-        SyncLivePreview();
 
         // If the input is now empty, clear the results entirely
         if (string.IsNullOrEmpty(commandInput))
         {
             foreach (var table in TableLogics) table.ClearData();
         }
-        NotifyStateChanged();
+
+        SyncLivePreview(); // calls NotifyStateChanged internally
+    }
+
+    /// <summary>
+    /// Performant helper to replace multiple spaces with one
+    /// </summary>
+    /// <param name="input">The string for which to normalize whitespace</param>
+    /// <returns>The input string with spaces normalized</returns>
+    public static string NormalizeWhiteSpace(string input)
+    {
+        int len = input.Length,
+            index = 0,
+            i = 0;
+        var src = input.ToCharArray();
+        bool skip = false;
+        char ch;
+        for (; i < len; i++)
+        {
+            ch = src[i];
+            switch (ch)
+            {
+                case '\u0020':
+                case '\u00A0':
+                case '\u1680':
+                case '\u2000':
+                case '\u2001':
+                case '\u2002':
+                case '\u2003':
+                case '\u2004':
+                case '\u2005':
+                case '\u2006':
+                case '\u2007':
+                case '\u2008':
+                case '\u2009':
+                case '\u200A':
+                case '\u202F':
+                case '\u205F':
+                case '\u3000':
+                case '\u2028':
+                case '\u2029':
+                case '\u0009':
+                case '\u000A':
+                case '\u000B':
+                case '\u000C':
+                case '\u000D':
+                case '\u0085':
+                    if (skip) continue;
+                    src[index++] = ch;
+                    skip = true;
+                    continue;
+                default:
+                    skip = false;
+                    src[index++] = ch;
+                continue;
+            }
+        }
+
+        return new string(src, 0, index);
     }
 
     /// <summary>
@@ -307,8 +355,7 @@ public class PowerSearchLogic()
         if(!fromTableTab){ 
             await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
         }
-        SyncLivePreview();
-        NotifyStateChanged();
+        SyncLivePreview(); // calls NotifyStateChanged internally
         return true;
     }
 }

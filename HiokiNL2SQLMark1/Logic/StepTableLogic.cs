@@ -4,8 +4,7 @@ using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
-/// Model class for a step table.
-/// Inherits from LogTableLogic
+/// Model class for a step table. Inherits from LogTableLogic
 /// </summary>
 /// <param name="dbFactory">Generates a new DB context per thread</param>
 /// <param name="js">To handle saving to CSV</param>
@@ -13,12 +12,17 @@ namespace HiokiNL2SQLMark1.Logic;
 public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navManager)
 {
-    public override string TableName => "step";
-    public override string DisplayName => "Step Results";
-    public Filter<string?> FilterPartName = new("part", null);
-    public Filter<int?> FilterStep = new("step", null);
-    public Filter<string?> FilterMode = new("mode", null);
+    public override string TableName => "step"; // This table's internal "type" as it would appear in currentType
+    public override string DisplayName => "Step Results"; // The label to apply to this table in the view
+    public Filter<string?> FilterPartName = new("part", null); // to filter part name
+    public Filter<int?> FilterStep = new("step", null); // to filter test step
+    public Filter<string?> FilterMode = new("mode", null); // to filter test mode
 
+    /// <summary>
+    /// Calls the base class to apply the generic filters, then applies the step-specific ones
+    /// </summary>
+    /// <param name="query">The query to which the filters will be applied</param>
+    /// <returns>The query, with all filters applied</returns>
     public override IQueryable<StepResult> ApplyFilters(IQueryable<StepResult> query)
     {
         // Apply the base filters (Barcode, Date, etc.)
@@ -68,6 +72,9 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
         return false;
     }
 
+    /// <summary>
+    /// Reset the step-specific filters, then pass to the base class to reset the generic ones
+    /// </summary>
     public override void ResetFilterState()
     {
         FilterPartName.Value = null;

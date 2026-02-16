@@ -11,7 +11,7 @@ namespace HiokiNL2SQLMark1.Logic;
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager) : ILogTableLogic where T : class, IHiokiLog
 {
-    // For compliance with ILogTable
+    // For compliance with ILogTable (these values should never be seen)
     public virtual string TableName => "unknown";
     public virtual string DisplayName => "Unknown Table";
 
@@ -19,32 +19,33 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory; // generates a new DbContext on demand (thread-safe)
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
     protected readonly IJSRuntime JS = js; // for handling CSV download
-    protected readonly NavigationManager Nav = navManager;
+    protected readonly NavigationManager Nav = navManager; // for navigating to the power search page in a barcode "drill-down"
 
     // Shared filters
-    public Filter<string?> FilterBarcode = new("barcode", null);
-    public Filter<DateTime?> FilterStartDate = new("after", null);
-    public Filter<DateTime?> FilterEndDate = new("before", null);
-    public Filter<string?> FilterResult = new("result", null);
-    public Filter<int?> FilterGroup = new("group", null);
+    public Filter<string?> FilterBarcode = new("barcode", null); // to filter barcodes (substring containment)
+    public Filter<DateTime?> FilterStartDate = new("after", null); // to filter start date (inclusive)
+    public Filter<DateTime?> FilterEndDate = new("before", null); // to filter end date (inclusive of whole day unless time given)
+    public Filter<string?> FilterResult = new("result", null); // to filter entire entry's result
+    public Filter<int?> FilterGroup = new("group", null); // to filter group number
 
     // Pagination variables
-    public int CurrentPage { get; set; } = 1;
-    public int PageSize = 50;
-    public int TotalCount { get; set; }
+    public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
+    public int PageSize = 50; // The number of results per page
+    public int TotalCount { get; set; } // the total number of results
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
 
     // For sorting
-    public string CurrentSortColumn = "";
-    private enum SortDirection { None, Asc, Desc }
-    private SortDirection SortDir = SortDirection.None;
+    public string CurrentSortColumn = ""; // The name of the column that results are currently being sorted by
+    private enum SortDirection { None, Asc, Desc } // Enumerates the sorting states of a column
+    private SortDirection SortDir = SortDirection.None; // The sort direction of the currently sorted column
     
     // Data storage
-    public bool IsLoading { get; set; }
-    public List<T> DataView = [];
-    public List<string> modeCache = [];
-    public List<string> resultCache = [];
+    public bool IsLoading { get; set; } // Whether the query is currently loading the table display
+    public List<T> DataView = []; // Stores the query results, only of the current page
+    public List<string> modeCache = []; // The list of test modes to choose from
+    public List<string> resultCache = []; // The list of test result types to choose from
 
+    // Provided to the UI
     public Action? OnNotifyUI { get; set; } 
     public Action<string>? TriggerPowerSearch { get; set; } 
     public virtual RenderFragment RenderTable() => builder =>

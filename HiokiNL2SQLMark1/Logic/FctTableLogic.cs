@@ -1,12 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using JS = Microsoft.JSInterop.IJSRuntime;
 using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
-/// Model class for an FCT table.
-/// Inherits from LogTableLogic
+/// Model class for a FCT table. Inherits from LogTableLogic
 /// </summary>
 /// <param name="dbFactory">Generates a new DB context per thread</param>
 /// <param name="js">To handle saving to CSV</param>
@@ -14,11 +12,16 @@ namespace HiokiNL2SQLMark1.Logic;
 public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
     LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navManager)
 {
-    public override string TableName => "fct";
-    public override string DisplayName => "FCT Results";
-    public Filter<int?> FilterStep = new("step", null);
-    public Filter<string?> FilterMode = new("mode", null);
+    public override string TableName => "fct"; // This table's internal "type" as it would appear in currentType
+    public override string DisplayName => "FCT Results"; // The label to apply to this table in the view
+    public Filter<int?> FilterStep = new("step", null); // to filter test steps
+    public Filter<string?> FilterMode = new("mode", null); // to filter test modes
 
+    /// <summary>
+    /// Calls the base class to apply the generic filters, then applies the FCT-specific ones
+    /// </summary>
+    /// <param name="query">The query to which the filters will be applied</param>
+    /// <returns>The query, with all filters applied</returns>
     public override IQueryable<FctResult> ApplyFilters(IQueryable<FctResult> query)
     {
         // Apply the base filters (Barcode, Date, etc.)
@@ -39,7 +42,7 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
     }
 
     /// <summary>
-    /// Checks if a tag is FCT-specific. If it is, this method adds it
+    /// Checks if a tag from the dictionary is FCT-specific. If it is, this method adds it
     /// </summary>
     /// <param name="filter">The filter to check for</param>
     /// <returns>Whether the input key was FCT-specific</returns>
@@ -63,6 +66,9 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
         return false;
     }
 
+    /// <summary>
+    /// Reset the FCT-specific filters, then pass to the base class to reset the generic ones
+    /// </summary>
     public override void ResetFilterState()
     {
         FilterStep.Value = null;
