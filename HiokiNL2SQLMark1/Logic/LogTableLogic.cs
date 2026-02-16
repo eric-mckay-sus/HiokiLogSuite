@@ -49,8 +49,14 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public Action? OnNotifyUI { get; set; } // Trigger so this method can tell the view to update (this is not architecturally correct for MVVM)
     public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string
     private int? LastQueryHash;
-    public bool IsOld => LastQueryHash != GetFilterStateHash();
-    public virtual int GetFilterStateHash() => HashCode.Combine(FilterBarcode.Value, FilterStartDate.Value, FilterEndDate.Value, FilterResult.Value, FilterGroup.Value);
+    public bool IsStale => LastQueryHash != GetFilterStateHash();
+    public virtual int GetFilterStateHash() => HashCode.Combine(
+        FilterBarcode.Value?.Trim() ?? "",   // Treat null, " ", and "" as the same
+        FilterStartDate.Value,               // DateTime is a value type, usually safe
+        FilterEndDate.Value,
+        FilterResult.Value ?? "",            // Normalize null to empty string
+        FilterGroup.Value                    // Integer is also a value type
+    );
 
     /// <summary>
     /// Renders the table representing this query and its results
@@ -78,7 +84,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         builder.AddAttribute(11, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
 
         // State for table display
-        builder.AddAttribute(12, "IsOld", IsOld);
+        builder.AddAttribute(12, "IsStale", IsStale);
         builder.AddAttribute(13, "IsLoading", IsLoading);
 
         builder.CloseComponent();
@@ -159,6 +165,18 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <returns></returns>
     public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict)
     {
+        DictionaryToFiltersNoRefresh(filterDict);
+        await RefreshData();
+    }
+
+    /// <summary>
+    /// Maps a dictionary of filter key-value pairs to the individual filter properties, then calls for a refresh
+    /// First checks if the filter is table-specific (inferred from LogTableLogic instantiation)
+    /// </summary>
+    /// <param name="filterDict">The dictionary of search tags mapped to values</param>
+    /// <returns></returns>
+    public void DictionaryToFiltersNoRefresh(Dictionary<string, IFilter> filterDict)
+    {
         // Ensure no old filters persist
         ResetFilterState();
         
@@ -181,7 +199,6 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
                     FilterEndDate = f; break;
             }
         }
-        await RefreshData();
     }
 
     /// <summary>

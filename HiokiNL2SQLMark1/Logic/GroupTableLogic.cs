@@ -25,7 +25,7 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
     /// </summary>
     /// <returns>The hash of all filters applicable to a group table</returns>
     public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
-            FilterComp.Value, FilterShort.Value, FilterMacro.Value, FilterIC.Value, FilterFunction.Value);
+            FilterComp.Value?.Trim() ?? "", FilterShort.Value?.Trim() ?? "", FilterMacro.Value?.Trim() ?? "", FilterIC.Value?.Trim() ?? "", FilterFunction.Value?.Trim() ?? "");
 
     /// <summary>
     /// Calls the base class to apply the generic filters, then applies the group-specific ones

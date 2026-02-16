@@ -22,7 +22,7 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
     /// </summary>
     /// <returns>The hash of all filters applicable to a FCT table</returns>
     public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
-            FilterStep.Value, FilterMode.Value);
+            FilterStep.Value, FilterMode.Value?.Trim() ?? "");
 
     /// <summary>
     /// Calls the base class to apply the generic filters, then applies the FCT-specific ones

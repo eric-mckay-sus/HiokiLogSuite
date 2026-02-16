@@ -143,13 +143,14 @@ h1:focus {
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    transition: all 0.3s ease-in-out;
 }
 
 .table-container.stale {
     opacity: 0.5;
     filter: grayscale(50%);
     transition: all 0.5s ease-in-out;
-    pointer-events: none; /* Optional: prevent interaction with stale data */
+    pointer-events: none;
 }
 
 .table-container.loading {

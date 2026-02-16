@@ -23,7 +23,7 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
     /// </summary>
     /// <returns>The hash of all filters applicable to a step table</returns>
     public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
-            FilterPartName.Value, FilterStep.Value, FilterMode.Value);
+            FilterPartName.Value?.Trim() ?? "", FilterStep.Value, FilterMode.Value?.Trim() ?? "");
 
     /// <summary>
     /// Calls the base class to apply the generic filters, then applies the step-specific ones

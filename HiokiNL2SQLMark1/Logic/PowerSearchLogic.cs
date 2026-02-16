@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Timers;
+using BlazorBootstrap;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
@@ -216,6 +217,11 @@ public class PowerSearchLogic()
     {
         var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
         Preview = liveResult.Preview;
+
+        foreach (var table in TableLogics)
+        {
+            table.DictionaryToFiltersNoRefresh(liveResult.Filters);
+        }
 
         // Update the CurrentType if the user entered the "in" tag
         if (!string.IsNullOrEmpty(liveResult.CurrentType)) 

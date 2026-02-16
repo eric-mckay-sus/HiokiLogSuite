@@ -36,7 +36,7 @@
 </div>
 
 <div class="table-responsive-wrapper">
-    <div class="table-container @(IsLoading ? "loading" : IsOld ? "stale" : "")">
+    <div class="table-container @(IsLoading ? "loading" : IsStale ? "stale" : "")">
         <div class="res-table-wrapper">
             <table class="table res-table table-striped text-nowrap">
                 <thead class="table-dark">
@@ -116,7 +116,7 @@
     [Parameter] public EventCallback<int> OnPageSizeChange { get; set; }
 
     // Whether this table applies to the query primed in the search bar/query builder
-    [Parameter] public bool IsOld { get; set; }
+    [Parameter] public bool IsStale { get; set; }
 
     // Whether this table is currently loading
     [Parameter] public bool IsLoading { get; set; }

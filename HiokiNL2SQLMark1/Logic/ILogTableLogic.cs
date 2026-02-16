@@ -13,6 +13,7 @@ public interface ILogTableLogic
     
     // The core methods we need to trigger from the UI
     Task DictionaryToFilters(Dictionary<string, IFilter> filterDict);
+    void DictionaryToFiltersNoRefresh(Dictionary<string, IFilter> filterDict);
     void ClearData();
     RenderFragment RenderTable();
     
