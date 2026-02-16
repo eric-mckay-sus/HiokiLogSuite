@@ -30,7 +30,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
 
     // Pagination variables
     public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
-    public int PageSize = 50; // The number of results per page
+    public int PageSize { get; set; }= 50; // The number of results per page
     public int TotalCount { get; set; } // the total number of results
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
 
@@ -71,14 +71,15 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         builder.AddAttribute(6, "OnPageChange", EventCallback.Factory.Create<int>(this, ChangePage));
         builder.AddAttribute(7, "OnSort", EventCallback.Factory.Create<string>(this, ToggleSort));
         builder.AddAttribute(8, "GetSortIcon", GetSortIcon);
+        builder.AddAttribute(9, "OnPageSizeChange", EventCallback.Factory.Create<int>(this, AlterPageSize));
         
         // Wire up Actions
-        builder.AddAttribute(9, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
-        builder.AddAttribute(10, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
+        builder.AddAttribute(10, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
+        builder.AddAttribute(11, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
 
         // State for table display
-        builder.AddAttribute(11, "IsOld", IsOld);
-        builder.AddAttribute(12, "IsLoading", IsLoading);
+        builder.AddAttribute(12, "IsOld", IsOld);
+        builder.AddAttribute(13, "IsLoading", IsLoading);
 
         builder.CloseComponent();
     };
@@ -275,6 +276,22 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         {
             CurrentPage = newPage;
             await RefreshData(keepPage: true);
+        }
+    }
+
+    /// <summary>
+    /// Modifies the page size from PageSize to newSize
+    /// </summary>
+    /// <param name="newSize">The desired number of entries per page</param>
+    /// <returns></returns>
+    public async Task AlterPageSize(int newSize)
+    {
+        if (newSize != PageSize)
+        {
+            PageSize = newSize;
+            // Reset to page 1 because the number of pages has changed
+            CurrentPage = 1; 
+            await RefreshData();
         }
     }
 

@@ -8,6 +8,17 @@
 <div class="pagination-container d-flex justify-content-between align-items-center">
     <div class="d-flex align-items-center">
         <div class="text-muted me-3">Showing @StartRecord to @EndRecord of @TotalCount</div>
+        @* Page Size Dropdown *@
+        <div class="d-flex align-items-center me-3">
+            <span class="text-muted me-2">Rows:</span>
+            <select class="form-select form-select-sm" style="width: auto;" 
+                    @onchange="async (e) => await OnPageSizeChange.InvokeAsync(int.Parse(e.Value.ToString()))">
+                <option value="10" selected="@(PageSize == 10)">10</option>
+                <option value="25" selected="@(PageSize == 25)">25</option>
+                <option value="50" selected="@(PageSize == 50)">50</option>
+                <option value="100" selected="@(PageSize == 100)">100</option>
+            </select>
+        </div>
         <button class="btn btn-outline-success" @onclick="OnSaveToCsv">
             <i class="bi bi-download"></i> Save to CSV
         </button>
@@ -100,6 +111,9 @@
 
     // For following a barcode
     [Parameter] public EventCallback<string> OnBarcodeClick { get; set; }
+
+    // For following a barcode
+    [Parameter] public EventCallback<int> OnPageSizeChange { get; set; }
 
     // Whether this table applies to the query primed in the search bar/query builder
     [Parameter] public bool IsOld { get; set; }
