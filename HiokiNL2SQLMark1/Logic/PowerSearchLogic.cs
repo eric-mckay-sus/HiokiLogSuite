@@ -19,7 +19,7 @@ public class PowerSearchLogic()
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
-    public bool IsOld => commandInput != LastExecutedQuery.Replace("Search: ", ""); // Whether the search bar contents match the table(s) shown
+    public bool IsStale => commandInput != LastExecutedQuery.Replace("Search: ", ""); // Whether the search bar contents match the table(s) shown
     public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
     public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 
@@ -49,6 +49,7 @@ public class PowerSearchLogic()
         foreach (var table in TableLogics)
         {
             table.OnNotifyUI = NotifyStateChanged;
+            table.IsStaleOverride = () => IsStale;
             table.TriggerPowerSearch = (query) => _ = UpdateSearchState(query);
         }
     }
@@ -217,11 +218,6 @@ public class PowerSearchLogic()
     {
         var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
         Preview = liveResult.Preview;
-
-        foreach (var table in TableLogics)
-        {
-            table.DictionaryToFiltersNoRefresh(liveResult.Filters);
-        }
 
         // Update the CurrentType if the user entered the "in" tag
         if (!string.IsNullOrEmpty(liveResult.CurrentType)) 

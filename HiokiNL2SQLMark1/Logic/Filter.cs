@@ -10,8 +10,17 @@ namespace HiokiNL2SQLMark1.Logic;
 public class Filter<T> : IFilter
 {
     public string Key { get; set; } // The name of this filter (for self-identification)
+    public Action? OnChanged { get; set; }
     public bool IsActive { get; set; } // Whether this filter is being used in the current query (thus its value should be used). Automatically updated on value change
-    public bool IsNegated { get; set; } // Whether to filter by (or filter out)
+    private bool _isNegated; // Whether to filter by (or filter out). Internal property
+    public bool IsNegated { // Whether to filter by (or filter out). Methods for access & modification
+        get => _isNegated;
+        set 
+        {
+            _isNegated = value;
+            OnChanged?.Invoke();
+        }
+    } 
     private T? _value; // The internal value held by the filter
     public T? Value // The methods of accessing and modifying the filter's value
     { 
@@ -20,6 +29,7 @@ public class Filter<T> : IFilter
         {
             _value = value;
             IsActive = !IsDefault(value);
+            OnChanged?.Invoke();
         }
     }
 

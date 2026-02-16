@@ -13,7 +13,7 @@
         <div class="row g-3">
             @* div class col-____ tells Blazor it can use ____ columns out of 12 *@
             <FilterWrapper Filter="Logic.FilterBarcode" Label="Barcode" ColumnClass="col-4">
-                <input type="text" class="form-control" @bind="Logic.FilterBarcode.Value" placeholder="Scan or type..." />
+                <input type="text" class="form-control" @bind-value="Logic.FilterBarcode.Value" @bind-value:event="oninput" placeholder="Scan or type..." />
             </FilterWrapper>
             <div class="col-2">
                 <label class="form-label fw-bold">Start Date</label>
@@ -28,13 +28,13 @@
                 </div>
             </div>
             <FilterWrapper Filter="Logic.FilterGroup" Label="Group #" ColumnClass="col-1">
-                <input type="number" class="form-control" step="1" @bind="Logic.FilterGroup.Value" />
+                <input type="number" class="form-control" step="1" @bind-value="Logic.FilterGroup.Value" @bind-value:event="oninput" />
             </FilterWrapper>
             <FilterWrapper Filter="StepLogic.FilterStep" Label="Step #" ColumnClass="col-1">
-                <input type="number" class="form-control" step="1" @bind="StepLogic.FilterStep.Value" />
+                <input type="number" class="form-control" step="1" @bind-value="StepLogic.FilterStep.Value" @bind-value:event="oninput" />
             </FilterWrapper>
             <FilterWrapper Filter="StepLogic.FilterPartName" Label="Part Name" ColumnClass="col-2">
-                <input type="text" class="form-control" @bind="StepLogic.FilterPartName.Value" placeholder="e.g. R301..." />
+                <input type="text" class="form-control" @bind-value="StepLogic.FilterPartName.Value" @bind-value:event="oninput" placeholder="e.g. R301..." />
             </FilterWrapper>
             <FilterWrapper Filter="StepLogic.FilterMode" Label="Test Mode" ColumnClass="col-2">
                 <select class="form-select" @bind="StepLogic.FilterMode.Value">
@@ -62,28 +62,7 @@
     </div>
 </div>
 
-@if (!DataView.Any())
-{
-    <h4 style="text-align: center;">No step records found matching these criteria.</h4>
-}
-else
-{
-    <MasterTable TItem="StepResult" 
-            Items="DataView"
-            CurrentPage="Logic.CurrentPage"
-            TotalPages="Logic.TotalPages"
-            TotalCount="Logic.TotalCount"
-            PageSize="Logic.PageSize"
-            OnPageChange="Logic.ChangePage"
-            OnPageSizeChange="Logic.AlterPageSize"
-            CurrentSortColumn="@Logic.CurrentSortColumn"
-            OnSort="Logic.ToggleSort"
-            GetSortIcon="Logic.GetSortIcon" 
-            OnSaveToCsv="Logic.SaveToCSV" 
-            OnBarcodeClick="Logic.HandleBarcodeClick"
-            IsStale="Logic.IsStale" 
-            IsLoading="Logic.IsLoading" />
-}
+@Logic.RenderTable()
 
 @code {
     /// <summary>
@@ -92,5 +71,6 @@ else
     protected override void OnInitialized()
     {
         base.Logic = StepLogic;
+        Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
     }
 }

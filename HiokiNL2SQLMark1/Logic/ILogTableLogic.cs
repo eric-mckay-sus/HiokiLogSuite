@@ -22,4 +22,6 @@ public interface ILogTableLogic
     int TotalPages { get; }
     Action? OnNotifyUI { get; set; } // the trigger for which the view must watch
     Action<string>? TriggerPowerSearch { get; set; } // the trigger for which the viewmodel must watch
+    public Func<bool>? IsStaleOverride { get; set; }
+    bool IsStale { get; }
 }

@@ -9,17 +9,17 @@ namespace HiokiNL2SQLMark1.Logic;
 /// Holds all the methods necessary to store a table
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
-public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager) : ILogTableLogic where T : class, IHiokiLog
+public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 {
-    // For compliance with ILogTable (these values should never be seen)
+    // For compliance with ILogTable (these particular values should never be seen)
     public virtual string TableName => "unknown";
     public virtual string DisplayName => "Unknown Table";
 
     // Utilities
-    private readonly IDbContextFactory<LogDbContext> _dbFactory = dbFactory; // generates a new DbContext on demand (thread-safe)
-    private readonly Func<LogDbContext, IQueryable<T>> _querySelector = querySelector; // denotes the connection and query information
-    protected readonly IJSRuntime JS = js; // for handling CSV download
-    protected readonly NavigationManager Nav = navManager; // for navigating to the power search page in a barcode "drill-down"
+    private readonly IDbContextFactory<LogDbContext> _dbFactory; // generates a new DbContext on demand (thread-safe)
+    private readonly Func<LogDbContext, IQueryable<T>> _querySelector; // denotes the connection and query information
+    protected readonly IJSRuntime JS; // for handling CSV download
+    protected readonly NavigationManager Nav; // for navigating to the power search page in a barcode "drill-down"
 
     // Shared filters
     public Filter<string?> FilterBarcode = new("barcode", null); // to filter barcodes (substring containment)
@@ -30,7 +30,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
 
     // Pagination variables
     public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
-    public int PageSize { get; set; }= 50; // The number of results per page
+    public int PageSize { get; set; } = 50; // The number of results per page
     public int TotalCount { get; set; } // the total number of results
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
 
@@ -49,14 +49,45 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public Action? OnNotifyUI { get; set; } // Trigger so this method can tell the view to update (this is not architecturally correct for MVVM)
     public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string
     private int? LastQueryHash;
-    public bool IsStale => LastQueryHash != GetFilterStateHash();
-    public virtual int GetFilterStateHash() => HashCode.Combine(
-        FilterBarcode.Value?.Trim() ?? "",   // Treat null, " ", and "" as the same
-        FilterStartDate.Value,               // DateTime is a value type, usually safe
-        FilterEndDate.Value,
-        FilterResult.Value ?? "",            // Normalize null to empty string
-        FilterGroup.Value                    // Integer is also a value type
-    );
+    public Func<bool>? IsStaleOverride { get; set; }
+    public virtual bool IsStale => IsStaleOverride != null 
+        ? IsStaleOverride() 
+        : LastQueryHash != GetFilterStateHash();
+    
+    public virtual int GetFilterStateHash() {
+        var hash = new HashCode();
+        hash.Add(FilterBarcode.IsNegated);
+        hash.Add(FilterBarcode.Value?.Trim() ?? "");  // Treat null, " ", and "" as the same
+        hash.Add(FilterStartDate.Value);              // DateTime is a value type, usually safe
+        hash.Add(FilterEndDate.Value);
+        hash.Add(FilterResult.IsNegated);
+        hash.Add(FilterResult.Value ?? "");           // Normalize null to empty string
+        hash.Add(FilterGroup.IsNegated);
+        hash.Add(FilterGroup.Value);                  // Integer is also a value type
+        return hash.ToHashCode();
+    }
+
+    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager)
+    {
+        _dbFactory = dbFactory;
+        _querySelector = querySelector;
+        JS = js;
+        Nav = navManager;
+
+       InitializeFilters(); // Children override this method as necessary 
+    }
+
+    /// <summary>
+    /// Wires filters to automatically push and pull data from form fields
+    /// </summary>
+    protected virtual void InitializeFilters()
+    {
+        FilterBarcode.OnChanged = NotifyStateChanged;
+        FilterStartDate.OnChanged = NotifyStateChanged;
+        FilterEndDate.OnChanged = NotifyStateChanged;
+        FilterResult.OnChanged = NotifyStateChanged;
+        FilterGroup.OnChanged = NotifyStateChanged;
+    }
 
     /// <summary>
     /// Renders the table representing this query and its results
@@ -64,6 +95,14 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     /// <returns>A RenderFragment that can be used elsewhere</returns>
     public virtual RenderFragment RenderTable() => builder =>
     {
+        if (DataView.Count == 0 && !IsLoading)
+        {
+            builder.OpenElement(0, "h4");
+            builder.AddAttribute(1, "style", "text-align: center;");
+            builder.AddContent(2, $"No {TableName} records found matching these criteria.");
+            builder.CloseElement();
+            return;
+        }
         builder.OpenComponent<Components.Pages.MasterTable<T>>(0);
 
         // Pass all necessary parameters from this Logic instance to the MasterTable
@@ -83,7 +122,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         builder.AddAttribute(10, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
         builder.AddAttribute(11, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
 
-        // State for table display
+        // Display modifiers for non-interactable states
         builder.AddAttribute(12, "IsStale", IsStale);
         builder.AddAttribute(13, "IsLoading", IsLoading);
 
@@ -201,6 +240,12 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         }
     }
 
+    public bool Wire<U>(ref Filter<U> target, Filter<U> source) {
+            target = source;
+            target.OnChanged = NotifyStateChanged;
+            return true;
+        }
+
     /// <summary>
     /// Assigns responsibility to the children to identify their table-specific tags
     /// The generic table has no table-specific tags, so returns false by default
@@ -281,6 +326,11 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
             Nav.NavigateTo($"/?q={Uri.EscapeDataString(query)}");
         }
     }
+
+    /// <summary>
+    /// Call to tell the UI to re-render
+    /// </summary>
+    public void NotifyStateChanged() => OnNotifyUI?.Invoke();
 
     /// <summary>
     /// Jumps to the specified new page

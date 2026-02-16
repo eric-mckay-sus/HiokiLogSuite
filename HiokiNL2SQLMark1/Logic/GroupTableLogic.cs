@@ -21,11 +21,39 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
     public Filter<string?> FilterFunction = new("function", null); // to filter functional test results
 
     /// <summary>
+    /// Wires filters to automatically push and pull data from fields
+    /// </summary>
+    protected override void InitializeFilters()
+    {
+        base.InitializeFilters();
+
+        FilterComp.OnChanged = NotifyStateChanged;
+        FilterShort.OnChanged = NotifyStateChanged;
+        FilterMacro.OnChanged = NotifyStateChanged;
+        FilterIC.OnChanged = NotifyStateChanged;
+        FilterFunction.OnChanged = NotifyStateChanged;
+    }
+
+    /// <summary>
     /// Hashes the filters for comparison with the last query
     /// </summary>
     /// <returns>The hash of all filters applicable to a group table</returns>
-    public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
-            FilterComp.Value?.Trim() ?? "", FilterShort.Value?.Trim() ?? "", FilterMacro.Value?.Trim() ?? "", FilterIC.Value?.Trim() ?? "", FilterFunction.Value?.Trim() ?? "");
+    public override int GetFilterStateHash()
+    {
+        var hash = new HashCode();
+        hash.Add(base.GetFilterStateHash());
+        hash.Add(FilterComp.IsNegated);
+        hash.Add(FilterComp.Value?.Trim() ?? "");
+        hash.Add(FilterShort.IsNegated);
+        hash.Add(FilterShort.Value?.Trim() ?? "");
+        hash.Add(FilterMacro.IsNegated);
+        hash.Add(FilterMacro.Value?.Trim() ?? "");
+        hash.Add(FilterIC.IsNegated);
+        hash.Add(FilterIC.Value?.Trim() ?? "");
+        hash.Add(FilterFunction.IsNegated);
+        hash.Add(FilterFunction.Value?.Trim() ?? "");
+        return hash.ToHashCode();
+    }
 
     /// <summary>
     /// Calls the base class to apply the generic filters, then applies the group-specific ones
@@ -73,19 +101,15 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
     /// <returns>Whether the input key was group-specific</returns>
     protected override bool AssignTableSpecific(IFilter filter)
     {
-        if (filter is Filter<string> strFilter)
+        return filter switch
         {
-            switch (strFilter.Key.ToLower())
-            {
-                case "comp": FilterComp = strFilter; return true;
-                case "short": FilterShort = strFilter; return true;
-                case "macro": FilterMacro = strFilter; return true;
-                case "ic": FilterIC = strFilter; return true;
-                case "function": FilterFunction = strFilter; return true;
-                default: return false;
-            }
-        }
-        return false;
+            Filter<string?> f when f.Key == "comp" => Wire(ref FilterComp, f),
+            Filter<string?> f when f.Key == "short" => Wire(ref FilterShort, f),
+            Filter<string?> f when f.Key == "macro" => Wire(ref FilterMacro, f),
+            Filter<string?> f when f.Key == "ic" => Wire(ref FilterIC, f),
+            Filter<string?> f when f.Key == "function" => Wire(ref FilterFunction, f),
+            _ => false
+        };
     }
 
     /// <summary>

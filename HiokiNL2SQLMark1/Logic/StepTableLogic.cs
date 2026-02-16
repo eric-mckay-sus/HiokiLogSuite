@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using JS = Microsoft.JSInterop.IJSRuntime;
 using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
@@ -19,11 +20,32 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
     public Filter<string?> FilterMode = new("mode", null); // to filter test mode
 
     /// <summary>
+    /// Wires filters to automatically push and pull data from fields
+    /// </summary>
+    protected override void InitializeFilters()
+    {
+        base.InitializeFilters();
+
+        FilterPartName.OnChanged = NotifyStateChanged;
+        FilterStep.OnChanged = NotifyStateChanged;
+        FilterMode.OnChanged = NotifyStateChanged;
+    }
+
+    /// <summary>
     /// Hashes the filters for comparison with the last query
     /// </summary>
     /// <returns>The hash of all filters applicable to a step table</returns>
-    public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
-            FilterPartName.Value?.Trim() ?? "", FilterStep.Value, FilterMode.Value?.Trim() ?? "");
+    public override int GetFilterStateHash() {
+        var hash = new HashCode();
+        hash.Add(base.GetFilterStateHash()); 
+        hash.Add(FilterPartName.IsNegated);
+        hash.Add(FilterPartName.Value?.Trim() ?? "");
+        hash.Add(FilterStep.IsNegated);
+        hash.Add(FilterStep.Value);
+        hash.Add(FilterMode.IsNegated);
+        hash.Add(FilterMode.Value?.Trim() ?? "");
+        return hash.ToHashCode();
+    }
 
     /// <summary>
     /// Calls the base class to apply the generic filters, then applies the step-specific ones
@@ -61,22 +83,13 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
     /// <returns>Whether the input key was step-specific</returns>
     protected override bool AssignTableSpecific(IFilter filter)
     {
-        if (filter is Filter<string?> strFilter)
+        return filter switch
         {
-            switch (strFilter.Key.ToLower())
-            {
-                case "part": FilterPartName = strFilter; return true;
-                case "mode": FilterMode = strFilter; return true;
-                default: return false;
-            }
-        } else if (filter is Filter<int?> intFilter)
-        {
-            if (string.Equals(intFilter.Key.ToLower(), "step", StringComparison.OrdinalIgnoreCase)) { 
-                FilterStep = intFilter;
-                return true;
-            }
-        }
-        return false;
+            Filter<string?> f when f.Key == "part" => Wire(ref FilterPartName, f),
+            Filter<int?> f when f.Key == "step" => Wire(ref FilterStep, f),
+            Filter<string?> f when f.Key == "mode" => Wire(ref FilterMode, f),
+            _ => false
+        };
     }
 
     /// <summary>
