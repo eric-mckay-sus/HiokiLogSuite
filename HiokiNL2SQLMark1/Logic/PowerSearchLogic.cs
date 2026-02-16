@@ -18,6 +18,7 @@ public class PowerSearchLogic()
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
+    public bool IsOld => commandInput != LastExecutedQuery.Replace("Search: ", ""); // Whether the search bar contents match the table(s) shown
     public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
     public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 
@@ -190,13 +191,11 @@ public class PowerSearchLogic()
         commandInput = e.Value?.ToString() ?? "";
 
         // Stop the old (if there is one)
-        if (DebounceTimer != null) {
-            DebounceTimer.Stop();
-            DebounceTimer.Dispose();
-        }
+        DebounceTimer?.Stop();
+        DebounceTimer?.Dispose();
 
         // Start the new
-        DebounceTimer = new System.Timers.Timer(300);
+        DebounceTimer = new System.Timers.Timer(400);
         DebounceTimer.Elapsed += OnUserStoppedTyping;
         DebounceTimer.AutoReset = false;
         DebounceTimer.Start();

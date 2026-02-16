@@ -25,7 +25,7 @@
 </div>
 
 <div class="table-responsive-wrapper">
-    <div class="table-container">
+    <div class="table-container @(IsLoading ? "loading" : IsOld ? "stale" : "")">
         <div class="res-table-wrapper">
             <table class="table res-table table-striped text-nowrap">
                 <thead class="table-dark">
@@ -100,6 +100,12 @@
 
     // For following a barcode
     [Parameter] public EventCallback<string> OnBarcodeClick { get; set; }
+
+    // Whether this table applies to the query primed in the search bar/query builder
+    [Parameter] public bool IsOld { get; set; }
+
+    // Whether this table is currently loading
+    [Parameter] public bool IsLoading { get; set; }
 
     protected override void OnInitialized()
     {

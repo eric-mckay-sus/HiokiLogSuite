@@ -46,8 +46,16 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
     public List<string> resultCache = []; // The list of test result types to choose from
 
     // Provided to the UI
-    public Action? OnNotifyUI { get; set; } 
-    public Action<string>? TriggerPowerSearch { get; set; } 
+    public Action? OnNotifyUI { get; set; } // Trigger so this method can tell the view to update (this is not architecturally correct for MVVM)
+    public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string
+    private int? LastQueryHash;
+    public bool IsOld => LastQueryHash != GetFilterStateHash();
+    public virtual int GetFilterStateHash() => HashCode.Combine(FilterBarcode.Value, FilterStartDate.Value, FilterEndDate.Value, FilterResult.Value, FilterGroup.Value);
+
+    /// <summary>
+    /// Renders the table representing this query and its results
+    /// </summary>
+    /// <returns>A RenderFragment that can be used elsewhere</returns>
     public virtual RenderFragment RenderTable() => builder =>
     {
         builder.OpenComponent<Components.Pages.MasterTable<T>>(0);
@@ -67,6 +75,10 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
         // Wire up Actions
         builder.AddAttribute(9, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
         builder.AddAttribute(10, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
+
+        // State for table display
+        builder.AddAttribute(11, "IsOld", IsOld);
+        builder.AddAttribute(12, "IsLoading", IsLoading);
 
         builder.CloseComponent();
     };
@@ -94,7 +106,9 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
             .Skip((CurrentPage - 1) * PageSize)
             .Take(PageSize)
             .ToListAsync();
+
         IsLoading = false;
+        LastQueryHash = GetFilterStateHash();
         OnNotifyUI?.Invoke();
     }
 

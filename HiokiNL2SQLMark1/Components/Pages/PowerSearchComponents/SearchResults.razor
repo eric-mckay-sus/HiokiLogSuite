@@ -30,7 +30,7 @@
 
         var totalTargetedResults = targetedTables.Sum(t => t.TotalCount);
 
-        @if (totalTargetedResults == 0) {
+        @if (totalTargetedResults == 0 && State.LastExecutedQuery != "Hioki ICT Power Search") {
             <div class="text-center my-5 py-5 text-muted">
                 <i class="bi bi-clipboard-x" style="font-size: 3.75rem;"></i>
                 <h3 class="mt-2">

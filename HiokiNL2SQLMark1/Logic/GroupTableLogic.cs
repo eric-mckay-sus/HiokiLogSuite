@@ -21,6 +21,13 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
     public Filter<string?> FilterFunction = new("function", null); // to filter functional test results
 
     /// <summary>
+    /// Hashes the filters for comparison with the last query
+    /// </summary>
+    /// <returns>The hash of all filters applicable to a group table</returns>
+    public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
+            FilterComp.Value, FilterShort.Value, FilterMacro.Value, FilterIC.Value, FilterFunction.Value);
+
+    /// <summary>
     /// Calls the base class to apply the generic filters, then applies the group-specific ones
     /// </summary>
     /// <param name="query">The query to which the filters will be applied</param>

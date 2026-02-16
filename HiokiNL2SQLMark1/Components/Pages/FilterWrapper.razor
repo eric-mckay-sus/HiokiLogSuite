@@ -32,7 +32,10 @@
     [Parameter] 
     public RenderFragment? ChildContent { get; set; }
 
-    
+    [Parameter] public EventCallback OnChanged { get; set; }
 
-    private void ToggleNegation() => Filter.IsNegated = !Filter.IsNegated;
+    private async Task ToggleNegation() {
+        Filter.IsNegated = !Filter.IsNegated;
+        await OnChanged.InvokeAsync();
+    }
 }

@@ -19,6 +19,13 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
     public Filter<string?> FilterMode = new("mode", null); // to filter test mode
 
     /// <summary>
+    /// Hashes the filters for comparison with the last query
+    /// </summary>
+    /// <returns>The hash of all filters applicable to a step table</returns>
+    public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
+            FilterPartName.Value, FilterStep.Value, FilterMode.Value);
+
+    /// <summary>
     /// Calls the base class to apply the generic filters, then applies the step-specific ones
     /// </summary>
     /// <param name="query">The query to which the filters will be applied</param>

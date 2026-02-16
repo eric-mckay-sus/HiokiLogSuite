@@ -18,6 +18,13 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
     public Filter<string?> FilterMode = new("mode", null); // to filter test modes
 
     /// <summary>
+    /// Hashes the filters for comparison with the last query
+    /// </summary>
+    /// <returns>The hash of all filters applicable to a FCT table</returns>
+    public override int GetFilterStateHash() => HashCode.Combine(base.GetFilterStateHash(), 
+            FilterStep.Value, FilterMode.Value);
+
+    /// <summary>
     /// Calls the base class to apply the generic filters, then applies the FCT-specific ones
     /// </summary>
     /// <param name="query">The query to which the filters will be applied</param>
