@@ -1,11 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Identity.Client;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
-using System.Runtime.CompilerServices;
-using Microsoft.Net.Http.Headers;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -34,7 +30,7 @@ public class LogTableLogic<T>(IDbContextFactory<LogDbContext> dbFactory, Func<Lo
 
     // Pagination variables
     public int CurrentPage { get; set; } = 1;
-    public int PageSize = 100;
+    public int PageSize = 50;
     public int TotalCount { get; set; }
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
 

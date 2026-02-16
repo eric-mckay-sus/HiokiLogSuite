@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 
 namespace HiokiNL2SQL.Tests.Logic;
+[ExcludeFromCodeCoverage]
 public class TestLogRecord : IHiokiLog
 {
     public int Id { get; set; } // To help EF Core bc we don't necessarily have the info to uniquely identify
@@ -11,6 +13,7 @@ public class TestLogRecord : IHiokiLog
     public string? Result { get; set; }
 }
 
+[ExcludeFromCodeCoverage]
 public class TestStepFct : TestLogRecord, IStepFCT
 {
     public int? Step { get; set; }
@@ -26,6 +29,7 @@ public class TestStepFct : TestLogRecord, IStepFCT
 /// <summary>
 /// Covers all code in LogTableLogic except JSInterop & NavigationManager features of SaveToCSV and HandleBarcodeClick (and simple helpers)
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class LogTableLogicTests
 {
     /// <summary>
@@ -301,6 +305,52 @@ public class LogTableLogicTests
         // Assert
         Assert.Equal(3, logic.DataView[0].Group);
         Assert.Equal(1, logic.DataView[2].Group);
+    }
+
+    [Fact]
+    public async Task ChangePage_ValidPage_UpdatesCurrentPageAndReloadsData()
+    {
+        // Arrange
+        // Create 15 records. Assuming PageSize is 5, this creates 3 pages.
+        var data = Enumerable.Range(1, 15)
+            .Select(i => new TestLogRecord { Id = i, Barcode = $"Item{i}", Time = new DateTime(2026, 1, 16-i) }) // day as 16-i to put item numbers in ascending order
+            .ToList();
+        
+        var logic = TestLogicFactory.CreateLogic(data);
+        logic.PageSize = 5;
+
+        // Initial load to establish TotalPages/TotalCount
+        await logic.RefreshData(); 
+        Assert.Equal(1, logic.CurrentPage);
+        Assert.Equal("Item1", logic.DataView[0].Barcode);
+
+        // Act
+        await logic.ChangePage(2);
+
+        // Assert
+        Assert.Equal(2, logic.CurrentPage);
+        // Verify we are seeing the second "slice" of data (Items 6-10)
+        Assert.Equal(5, logic.DataView.Count);
+        Assert.Equal("Item6", logic.DataView[0].Barcode);
+    }
+
+    [Fact]
+    public async Task ChangePage_InvalidPage_DoesNothing()
+    {
+        // Arrange
+        var data = new List<TestLogRecord> { new() { Id = 1 } };
+        var logic = TestLogicFactory.CreateLogic(data);
+        logic.PageSize = 5;
+        
+        await logic.RefreshData(); // TotalPages will be 1
+        logic.CurrentPage = 1;
+
+        // Act
+        // Attempt to go to page 2 when only 1 page exists
+        await logic.ChangePage(2);
+
+        // Assert
+        Assert.Equal(1, logic.CurrentPage);
     }
 
     [Fact]

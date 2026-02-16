@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 
 namespace HiokiNL2SQL.Tests.Logic;
+[ExcludeFromCodeCoverage]
 public class FctTableLogicTests
 {
     public static readonly TheoryData<string, IFilter, string, object?> FctFilterData = 

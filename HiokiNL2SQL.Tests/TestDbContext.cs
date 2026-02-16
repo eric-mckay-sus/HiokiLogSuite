@@ -1,8 +1,10 @@
 using HiokiNL2SQLMark1;
 using HiokiNL2SQL.Tests.Logic;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests;
+[ExcludeFromCodeCoverage]
 
 // This context "tricks" EF into accepting TestLogRecord and other test record classes
 public class TestDbContext(DbContextOptions<LogDbContext> options) : LogDbContext(options)

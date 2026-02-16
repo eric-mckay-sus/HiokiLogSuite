@@ -4,8 +4,10 @@ using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1;
+using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
+[ExcludeFromCodeCoverage]
 public static class TestLogicFactory
 {
     public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSRuntime? js = null, NavigationManager? nav = null) 

@@ -24,35 +24,30 @@
             </div>
         </div>
     }
-    else if (State.TableLogics != null)
-    {
-        @* If we have a search with no results at all, say so *@
-        @if (State.AllCount == 0 && State.filters?.Count != 0){
-            <div class="text-center my-5 py- text-muted">
-                <i class="bi bi-clipboard-x" style="font-size: 3rem;"></i>
-                <h4 class="mt-3">No results matched these criteria.</h4>
-                <p>Try adjusting your filters or checking for typos.</p>
+    var targetedTables = State.TableLogics
+            .Where(t => State.CurrentType == "all" || State.CurrentType.Equals(t.TableName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var totalTargetedResults = targetedTables.Sum(t => t.TotalCount);
+
+        @if (totalTargetedResults == 0) {
+            <div class="text-center my-5 py-5 text-muted">
+                <i class="bi bi-clipboard-x" style="font-size: 3.75rem;"></i>
+                <h3 class="mt-2">
+                    No @(State.CurrentType == "all" ? "" : State.CurrentType) results matched these criteria.
+                </h3>
+                <p style="font-size: 1.1rem">Try adjusting your filters or checking for typos.</p>
             </div>
-        } else { @* Otherwise, go on a by-table basis *@
-            @foreach (var logic in State.TableLogics)
-            {
-                if (logic == null) continue;
-                bool isTargeted = State.CurrentType == "all" || State.CurrentType == logic.TableName;
-                @* Only show tables that are relevant to the search and have results *@
-                if (isTargeted && logic.TotalCount > 0 && State.LastExecutedQuery != "Hioki ICT Power Search")
-                {
-                    <div @key="logic.TableName + State.LastExecutedQuery" class="table-section mb-5">
-                        <h2 class="mb-3">@logic.DisplayName</h2>
-                        @logic.RenderTable()
-                    </div>
-                } else if (State.CurrentType != "all" && State.AllCount == 0 && !State.IsSearching && State.LastExecutedQuery != "Hioki ICT Power Search")
-                {
-                    <h4 style="text-align: center;">No @logic.TableName results matched these criteria.</h4>
-                }
+        }
+        else {
+            @foreach (var logic in targetedTables.Where(t => t.TotalCount > 0)) {
+                <div @key="logic.TableName + State.LastExecutedQuery" class="table-section mb-5">
+                    <h2 class="mb-3">@logic.DisplayName</h2>
+                    @logic.RenderTable()
+                </div>
             }
         }
     }
-}
 
 @code {
     protected override void OnInitialized()

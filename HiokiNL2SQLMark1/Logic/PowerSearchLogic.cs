@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Timers;
 using Microsoft.AspNetCore.Components;
@@ -282,9 +281,7 @@ public class PowerSearchLogic()
         // If the input is now empty, clear the results entirely
         if (string.IsNullOrEmpty(commandInput))
         {
-            var targets = TableLogics
-                .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
-            foreach (var table in TableLogics.Except(targets)) table.ClearData();
+            foreach (var table in TableLogics) table.ClearData();
         }
         NotifyStateChanged();
     }

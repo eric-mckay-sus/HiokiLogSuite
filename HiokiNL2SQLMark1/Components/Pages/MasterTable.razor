@@ -42,9 +42,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <Virtualize TItem="TItem" Items="@(Items?.ToList())" Context="item">
+                    <Virtualize TItem="TItem" Items="@(Items?.ToList())" Context="item" OverscanCount="10" ItemSize="41">
                         <tr>
-                            @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
+                            @foreach (PropertyInfo prop in _cachedProps)
                             {
                                 string? value = prop.GetValue(item)?.ToString();
                                 if (prop.Name.Equals("Barcode", StringComparison.OrdinalIgnoreCase))
@@ -73,6 +73,7 @@
 
 @code {
     [Parameter] public IEnumerable<TItem>? Items { get; set; }
+    private PropertyInfo[] _cachedProps = typeof(TItem).GetProperties();
     
     // Pagination Params
     [Parameter] public int CurrentPage { get; set; }
