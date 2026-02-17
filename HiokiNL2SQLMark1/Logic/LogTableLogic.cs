@@ -35,9 +35,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
 
     // For sorting
-    public string CurrentSortColumn = ""; // The name of the column that results are currently being sorted by
-    private enum SortDirection { None, Asc, Desc } // Enumerates the sorting states of a column
-    private SortDirection SortDir = SortDirection.None; // The sort direction of the currently sorted column
+    public string CurrentSortColumn { get; set; } = ""; // The name of the column that results are currently being sorted by
+    public string SortDir { get; set; } = "none"; // The sort direction of the currently sorted column
     
     // Data storage
     public bool IsLoading { get; set; } // Whether the query is currently loading the table display
@@ -47,7 +46,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 
     // Provided to the UI
     public Action? OnNotifyUI { get; set; } // Trigger so this method can tell the view to update (this is not architecturally correct for MVVM)
-    public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string
+    public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string, jumping to the power search page
+    public Action? UpdatePSUrl { get; set; }
     private int? LastQueryHash;
     public Func<bool>? IsStaleOverride { get; set; }
     public virtual bool IsStale => IsStaleOverride != null 
@@ -202,23 +202,9 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// </summary>
     /// <param name="filterDict">The dictionary of search tags mapped to values</param>
     /// <returns></returns>
-    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict)
+    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
     {
-        DictionaryToFiltersNoRefresh(filterDict);
-        await RefreshData();
-    }
-
-    /// <summary>
-    /// Maps a dictionary of filter key-value pairs to the individual filter properties, then calls for a refresh
-    /// First checks if the filter is table-specific (inferred from LogTableLogic instantiation)
-    /// </summary>
-    /// <param name="filterDict">The dictionary of search tags mapped to values</param>
-    /// <returns></returns>
-    public void DictionaryToFiltersNoRefresh(Dictionary<string, IFilter> filterDict)
-    {
-        // Ensure no old filters persist
-        ResetFilterState();
-        
+        ResetFilterState(keepPage);
         foreach (var filter in filterDict.Values)
         {
             // If the tag is applicable to the child, ignore it here
@@ -238,8 +224,17 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                     FilterEndDate = f; break;
             }
         }
+        await RefreshData(keepPage);
     }
 
+    /// <summary>
+    /// Wires a filter to the NotifyStateChanged action
+    /// Uses the ref keyword, so the wired filter occupies the same place in memory
+    /// </summary>
+    /// <typeparam name="U">The type of the filter (string, int, or DateTime)</typeparam>
+    /// <param name="target">The unlinked filter</param>
+    /// <param name="source">The wired filter</param>
+    /// <returns></returns>
     public bool Wire<U>(ref Filter<U> target, Filter<U> source) {
             target = source;
             target.OnChanged = NotifyStateChanged;
@@ -261,13 +256,12 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns>An IQueryable object with sorts applied</returns>
     public IQueryable<T> ApplySorting(IQueryable<T> query)
     {
-        if (SortDir == SortDirection.None || string.IsNullOrWhiteSpace(CurrentSortColumn))
+        if (SortDir == "none" || string.IsNullOrWhiteSpace(CurrentSortColumn))
         {
             return query.OrderBy("Time descending"); // Default
         }
 
-        string direction = SortDir == SortDirection.Asc ? "ascending" : "descending";
-        return query.OrderBy($"{CurrentSortColumn} {direction}"); // Dynamic LINQ is cool
+        return query.OrderBy($"{CurrentSortColumn} {SortDir}"); // Dynamic LINQ is cool
     }
 
     /// <summary>
@@ -343,6 +337,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         {
             CurrentPage = newPage;
             await RefreshData(keepPage: true);
+            UpdatePSUrl?.Invoke();
         }
     }
 
@@ -359,6 +354,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
             // Reset to page 1 because the number of pages has changed
             CurrentPage = 1; 
             await RefreshData();
+            UpdatePSUrl?.Invoke();
         }
     }
 
@@ -372,14 +368,15 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     {
         if (CurrentSortColumn != columnName) { // If coming from none, save the column name (it's changed) and switch to asc
             CurrentSortColumn = columnName;
-            SortDir = SortDirection.Asc;
-        } else if(SortDir == SortDirection.Asc) { // If coming from asc, only need to switch to desc
-            SortDir = SortDirection.Desc;
+            SortDir = "ascending";
+        } else if(SortDir == "ascending") { // If coming from asc, only need to switch to desc
+            SortDir = "descending";
         } else { // If coming from desc, switch to none and inform model no column is specified to sort
-            SortDir = SortDirection.None;
+            SortDir = "none";
             CurrentSortColumn = "";
         }
         await RefreshData(); // because the parameters change, we wish to reset to page 1
+        UpdatePSUrl?.Invoke();
     }
 
     /// <summary>
@@ -389,8 +386,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns>The Unicode arrow representing the sort direction</returns>
     public string GetSortIcon(string columnName)
     {
-        if (CurrentSortColumn != columnName || SortDir == SortDirection.None) return "↕";
-        return SortDir == SortDirection.Asc ? "▲" : "▼";
+        if (CurrentSortColumn != columnName || SortDir == "none") return "↕";
+        return SortDir == "ascending" ? "▲" : "▼";
     }
 
     /// <summary>
@@ -424,14 +421,14 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// Resets the common filters
     /// Override to reset table-specific filters
     /// </summary>
-    public virtual void ResetFilterState()
+    public virtual void ResetFilterState(bool keepPage=false)
     {
         FilterBarcode.Value = null;
         FilterStartDate.Value = null;
         FilterEndDate.Value = null;
         FilterResult.Value = null;
         FilterGroup.Value = null;
-        CurrentPage = 1;
+        if (!keepPage) CurrentPage = 1;
     }
 
     /// <summary>

@@ -84,10 +84,10 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Nav
     /// <summary>
     /// Reset the FCT-specific filters, then pass to the base class to reset the generic ones
     /// </summary>
-    public override void ResetFilterState()
+    public override void ResetFilterState(bool keepPage=false)
     {
         FilterStep.Value = null;
         FilterMode.Value = null;
-        base.ResetFilterState();
+        base.ResetFilterState(keepPage);
     }
 }

@@ -3,6 +3,7 @@ using System.Timers;
 using BlazorBootstrap;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using Microsoft.VisualBasic;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
@@ -49,6 +50,7 @@ public class PowerSearchLogic()
         foreach (var table in TableLogics)
         {
             table.OnNotifyUI = NotifyStateChanged;
+            table.UpdatePSUrl = SyncUrl;
             table.IsStaleOverride = () => IsStale;
             table.TriggerPowerSearch = (query) => _ = UpdateSearchState(query);
         }
@@ -57,8 +59,9 @@ public class PowerSearchLogic()
     /// <summary>
     /// Parse search bar input, update the model, then tell the view  
     /// </summary>
+    /// <param name="SkipUrlUpdate"></param>
     /// <returns></returns>
-    public async Task ExecutePowerSearch(bool isNavigatingInternal=false, bool skipUrlUpdate=false)
+    public async Task ExecutePowerSearch(bool skipUrlUpdate=false, bool keepPage=false)
     {
         // Identify tables targeted by this query based on CurrentType
         var targets = TableLogics
@@ -84,21 +87,7 @@ public class PowerSearchLogic()
             return;
         }
 
-        if(!skipUrlUpdate){
-            IsProcessingNavigation = true;
-            try{
-                if(!isNavigatingInternal){
-                    // Update the URL query string
-                    string? newUri = NavManager.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput);
-
-                    // 'false' means to not overwrite the current URL in browser history
-                    NavManager.NavigateTo(newUri, replace: false);
-                } 
-            } finally{
-                await Task.Yield(); // if something goes wrong, give the browser a second, then unlock navigation
-                IsProcessingNavigation=false;
-            }
-        }
+        if(!skipUrlUpdate) SyncUrl();
 
         // Inform the UI that we're loading
         IsSearching = true;
@@ -106,7 +95,7 @@ public class PowerSearchLogic()
 
         try{
             // Parallelize search
-            await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(filters)));
+            await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(filters, keepPage)));
         } catch (Exception ex){
             errorMessages.Add($"Search failed: {ex.Message}");
         } finally{
@@ -116,14 +105,77 @@ public class PowerSearchLogic()
     }
 
     /// <summary>
+    /// Updates the URL query string based on the current state of the active table 
+    /// without triggering a database refresh.
+    /// </summary>
+    public void SyncUrl()
+    {
+        IsProcessingNavigation = true;
+        try
+        {
+            var parameters = new Dictionary<string, object?>
+            {
+                { "q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput }
+            };
+
+            var activeTable = TableLogics.FirstOrDefault(t => 
+                t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
+
+            if (activeTable != null && CurrentType != "all")
+            {
+                parameters.Add("ps", activeTable.PageSize != 50 ? activeTable.PageSize : null);
+                parameters.Add("p", activeTable.CurrentPage > 1 ? activeTable.CurrentPage : null);
+                parameters.Add("s", string.IsNullOrWhiteSpace(activeTable.CurrentSortColumn) ? null : activeTable.CurrentSortColumn);
+                parameters.Add("d", activeTable.SortDir == "none" ? null : activeTable.SortDir);
+            }
+            else
+            {
+                // If we are in "all" mode, null out these keys to demonstrate to the user that they are ignored.
+                // NavManager.GetUriWithQueryParameters will strip them from the existing URL.
+                parameters.Add("ps", null);
+                parameters.Add("p", null);
+                parameters.Add("s", null);
+                parameters.Add("d", null);
+            }
+
+            string? newUri = NavManager.GetUriWithQueryParameters(parameters);
+            
+            // Use true if you want to replace history, false to create a "Back" button entry
+            NavManager.NavigateTo(newUri, replace: false);
+        }
+        finally
+        {
+            _ = Task.Delay(50).ContinueWith(_ => IsProcessingNavigation = false);
+        }
+    }
+
+    /// <summary>
     /// Fills search bar with input string, then executes a search (used for URL navigation)
     /// </summary>
-    /// <param name="newValue">The content to put in the search bar</param>
-    public async Task UpdateSearchState(string newValue)
+    /// <param name="filters">The contents for the search bar</param>
+    /// <param name="page">The page number to set</param>
+    /// <param name="sortCol">The column to sort by</param>
+    /// <param name="sortDir">The direction to sort in</param>
+    /// <returns></returns>
+    public async Task UpdateSearchState(string filters, int? pageSize=null, int? page=null, string? sortCol=null, string? sortDir=null)
     {
-        commandInput = newValue;
+        commandInput = filters;
         SyncLivePreview();
-        await ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true); // This ends with a NotifyStateChanged()
+
+        var activeTable = TableLogics.FirstOrDefault(t => 
+        t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
+
+        if (activeTable != null)
+        {
+            if(pageSize.HasValue) activeTable.PageSize = pageSize.Value;
+            if(page.HasValue) activeTable.CurrentPage = page.Value;
+            if (!string.IsNullOrEmpty(sortCol))
+            {
+                activeTable.CurrentSortColumn = sortCol;
+                activeTable.SortDir = sortDir ?? "none";
+            }
+        }
+        await ExecutePowerSearch(skipUrlUpdate: true, keepPage: page.HasValue); // This ends with a NotifyStateChanged()
     }
 
     /// <summary>

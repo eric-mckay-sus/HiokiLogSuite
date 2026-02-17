@@ -20,7 +20,7 @@
 @code{
 
     /// <summary>
-    /// When the page opens, check the URL for filters.
+    /// When the page opens, check the URL for filters, sorts, and pagination.
     /// If there are filters, immediately run a query with them.
     /// </summary>
     /// <returns></returns>
@@ -28,12 +28,21 @@
     {
         // Try to get the "q" parameter from the current URI
         Uri? uri = State.NavManager.ToAbsoluteUri(State.NavManager.Uri);
+        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
 
-        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var queryVal))
+        if (queryParams.TryGetValue("q", out var queryVal))
         {
             State.commandInput = queryVal;
             State.SyncLivePreview();
-            await State.ExecutePowerSearch(isNavigatingInternal: true, skipUrlUpdate: true);
+
+            // Extract Paging/Sorting from URL
+            int pageSize = queryParams.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : 50;
+            int page = queryParams.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : 1;
+            string? sortCol = queryParams.TryGetValue("s", out var s) ? s.ToString() : null;
+            string? sortDir = queryParams.TryGetValue("d", out var d) ? d.ToString() : null;
+
+            // Apply these to the targeted table before executing
+            await State.UpdateSearchState(queryVal, pageSize, page, sortCol, sortDir);
         }
     }
 
@@ -68,26 +77,26 @@
     /// <param name="e">The information about the event to handle</param>
     public void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        _ = Task.Run(async () =>
+        if (State.IsProcessingNavigation) return;
+        _ = InvokeAsync(async () =>
         {
-            if(State.IsProcessingNavigation) return;
             Uri? uri = State.NavManager.ToAbsoluteUri(e.Location);
             var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
             // If there are query parameters, get them
-            if (queryParams.TryGetValue("q", out var queryVal))
-            {
-                // If the filter state doesn't match the URL, update the search bar
-                if (State.commandInput != queryVal)
-                {
-                    await State.UpdateSearchState(queryVal);
-                }
-            } else {
-                // If there aren't query parameters, ensure the search bar is empty
-                if(!string.IsNullOrEmpty(State.commandInput)){
-                    await State.UpdateSearchState(string.Empty);
-                }
+            string queryVal = queryParams.TryGetValue("q", out var q) ? q.ToString() : "";
+            int? pageSize, page;
+            string? sortCol, sortDir;
+            pageSize = page = null;
+            sortCol = sortDir = null;
+            if (State.CurrentType != "all"){
+                if (queryParams.TryGetValue("ps", out var ps) && int.TryParse(ps, out int psi)) pageSize = psi;
+                if (queryParams.TryGetValue("p", out var p) && int.TryParse(p, out int pi)) page = pi;
+                if (queryParams.TryGetValue("s", out var s)) sortCol = s.ToString();
+                if (queryParams.TryGetValue("d", out var d)) sortDir = d.ToString();
             }
-            await InvokeAsync(StateHasChanged);
+
+            await State.UpdateSearchState(queryVal, pageSize, page, sortCol, sortDir);
+            StateHasChanged();
         });
     }
 }

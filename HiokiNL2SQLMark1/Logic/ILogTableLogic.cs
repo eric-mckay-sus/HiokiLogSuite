@@ -8,20 +8,25 @@ public interface ILogTableLogic
 {
     string TableName { get; } // This table's internal "type" as it would appear in currentType (e.g., "group", "step", "fct")
     string DisplayName { get; } // The label to apply to this table in the view (e.g., "Group Results")
-    bool IsLoading { get; } // Whether the query results are loading
     int TotalCount { get; } // The result count for this query on this page
+
+    // Sorting parameters for URL control
+    string CurrentSortColumn { get; set; } // The column currently being sorted
+    string SortDir { get; set; } // The direction of the current sort
     
     // The core methods we need to trigger from the UI
-    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict);
-    void DictionaryToFiltersNoRefresh(Dictionary<string, IFilter> filterDict);
+    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage);
     void ClearData();
     RenderFragment RenderTable();
     
     // Shared UI state for the MasterTable
-    int CurrentPage { get; }
+    int CurrentPage { get; set; }
+    int PageSize { get; set; }
     int TotalPages { get; }
     Action? OnNotifyUI { get; set; } // the trigger for which the view must watch
-    Action<string>? TriggerPowerSearch { get; set; } // the trigger for which the viewmodel must watch
-    public Func<bool>? IsStaleOverride { get; set; }
-    bool IsStale { get; }
+    Action<string>? TriggerPowerSearch { get; set; } // the trigger to jump to the power search page for a barcode "drill-down"
+    Action? UpdatePSUrl { get; set; } // update the URL from the power search page
+    public Func<bool>? IsStaleOverride { get; set; } // to allow PowerSearch to provide its own definition of IsStale
+    bool IsStale { get; } // Whether the query contents are the ones that generated the shown results
+    bool IsLoading { get; } // Whether the query results are loading
 }

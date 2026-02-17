@@ -115,7 +115,7 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
     /// <summary>
     /// Reset the group-specific filters, then pass to the base class to reset the generic ones
     /// </summary>
-    public override void ResetFilterState()
+    public override void ResetFilterState(bool keepPage=false)
     {
         FilterComp.Value = null;
         FilterShort.Value = null;
@@ -123,6 +123,6 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, N
         FilterIC.Value = null;
         FilterFunction.Value = null;
 
-        base.ResetFilterState();
+        base.ResetFilterState(keepPage);
     }
 }

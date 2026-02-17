@@ -95,11 +95,11 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, Na
     /// <summary>
     /// Reset the step-specific filters, then pass to the base class to reset the generic ones
     /// </summary>
-    public override void ResetFilterState()
+    public override void ResetFilterState(bool keepPage=false)
     {
         FilterPartName.Value = null;
         FilterStep.Value = null;
         FilterMode.Value = null;
-        base.ResetFilterState();
+        base.ResetFilterState(keepPage);
     }
 }
