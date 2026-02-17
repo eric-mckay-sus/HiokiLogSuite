@@ -10,7 +10,7 @@ namespace HiokiNL2SQLMark1.Logic;
 public class Filter<T> : IFilter
 {
     public string Key { get; set; } // The name of this filter (for self-identification)
-    public Action? OnChanged { get; set; }
+    public Action? OnChanged { get; set; } // The action to perform when this filter is updated
     public bool IsActive { get; set; } // Whether this filter is being used in the current query (thus its value should be used). Automatically updated on value change
     private bool _isNegated; // Whether to filter by (or filter out). Internal property
     public bool IsNegated { // Whether to filter by (or filter out). Methods for access & modification
@@ -46,8 +46,30 @@ public class Filter<T> : IFilter
         Value = value;
     }
 
-    // Return an object representing the generic type used by the value
+    /// <summary>
+    /// Gets the value of this filter as a nullable object
+    /// </summary>
+    /// <returns>An object representing the generic type used by the value</returns>
     public object? GetValue() => Value;
+
+    /// <summary>
+    /// Copies the state of another filter to this one
+    /// </summary>
+    /// <param name="other">The IFilter instance to copy from</param>
+    public void CopyFrom(IFilter other)
+    {
+        IsNegated = other.IsNegated;
+        Value = (T?)other.GetValue(); // Use GetValue to trigger OnChanged/IsActive logic
+    }
+
+    /// <summary>
+    /// Sets this filter's value and negation
+    /// </summary>
+    public void Reset()
+    {
+        Value = default!;
+        IsNegated = false;
+    }
 
     /// <summary>
     /// Determine if the user wishes to use this filter
@@ -70,4 +92,6 @@ public interface IFilter
     string Key { get; set; } // The filter's name
     bool IsNegated { get; set; } // The filter's negation status
     object? GetValue(); // A method to get the value associated with this filter, as a nullable object
+    void CopyFrom(IFilter other); // Copy the contents of this filter to the input IFilter instance
+    void Reset(); // Deactivate this IFilter instance (value=null, isNegated=false)
 }

@@ -219,12 +219,32 @@ public class PowerSearchLogic()
             await AppendKey("in", true);
             commandInput += toType;
         }
-        CurrentType = toType;
-        SyncLivePreview();
-        // If the user is currently viewing a search result or has something in the search bar, they probably want to search now
-        if (AllCount > 0){
-            await ExecutePowerSearch();
+        var parseResult = ParserService.ParseQuery(commandInput, toType);
+        var targetTable = TableLogics.FirstOrDefault(t => t.TableName.Equals(toType, StringComparison.OrdinalIgnoreCase));
+
+        if (targetTable != null && toType != "all")
+        {
+            // Pre-flight check: Hash the PARSED results
+            int prospectiveHash = targetTable.GetFilterStateHash(parseResult.Filters);
+
+            // Compare to target table's LAST SUCCESSFUL execution hash
+            if (targetTable.LastQueryHash == prospectiveHash && targetTable.TotalCount > 0)
+            {
+                // BYPASS: The table already has this data; just switch views.
+                CurrentType = toType;
+                filters = parseResult.Filters;
+                Preview = parseResult.Preview;
+                LastExecutedQuery = $"Search: {commandInput}"; 
+                
+                SyncUrl();
+                NotifyStateChanged();
+                return;
+            }
         }
+
+        // Default: Run the full search
+        CurrentType = toType;
+        await ExecutePowerSearch();
     } 
 
     /// <summary>

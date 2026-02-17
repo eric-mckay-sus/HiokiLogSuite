@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
+using System.Reflection.Metadata.Ecma335;
+using Microsoft.VisualBasic.FileIO;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -22,11 +24,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     protected readonly NavigationManager Nav; // for navigating to the power search page in a barcode "drill-down"
 
     // Shared filters
-    public Filter<string?> FilterBarcode = new("barcode", null); // to filter barcodes (substring containment)
-    public Filter<DateTime?> FilterStartDate = new("after", null); // to filter start date (inclusive)
-    public Filter<DateTime?> FilterEndDate = new("before", null); // to filter end date (inclusive of whole day unless time given)
-    public Filter<string?> FilterResult = new("result", null); // to filter entire entry's result
-    public Filter<int?> FilterGroup = new("group", null); // to filter group number
+    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     // Pagination variables
     public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
@@ -48,22 +46,29 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public Action? OnNotifyUI { get; set; } // Trigger so this method can tell the view to update (this is not architecturally correct for MVVM)
     public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string, jumping to the power search page
     public Action? UpdatePSUrl { get; set; }
-    private int? LastQueryHash;
+    public int? LastQueryHash { get; private set; }
     public Func<bool>? IsStaleOverride { get; set; }
     public virtual bool IsStale => IsStaleOverride != null 
         ? IsStaleOverride() 
-        : LastQueryHash != GetFilterStateHash();
+        : LastQueryHash != GetFilterStateHash(Filters);
     
-    public virtual int GetFilterStateHash() {
+    public int GetFilterStateHash(Dictionary<string, IFilter> filterDict) {
         var hash = new HashCode();
-        hash.Add(FilterBarcode.IsNegated);
-        hash.Add(FilterBarcode.Value?.Trim() ?? "");  // Treat null, " ", and "" as the same
-        hash.Add(FilterStartDate.Value);              // DateTime is a value type, usually safe
-        hash.Add(FilterEndDate.Value);
-        hash.Add(FilterResult.IsNegated);
-        hash.Add(FilterResult.Value ?? "");           // Normalize null to empty string
-        hash.Add(FilterGroup.IsNegated);
-        hash.Add(FilterGroup.Value);                  // Integer is also a value type
+        // Order by key to ensure dictionary order doesn't change the hash
+        foreach (var key in filterDict.Keys.OrderBy(k => k))
+        {
+            if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var filter = filterDict[key];
+            hash.Add(key.ToLower());
+            hash.Add(filter.IsNegated);
+            
+            var val = filter.GetValue();
+            if (val is string s) 
+                hash.Add(s.Trim().ToLower()); // Normalize strings
+            else 
+                hash.Add(val);
+        }
         return hash.ToHashCode();
     }
 
@@ -82,11 +87,11 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// </summary>
     protected virtual void InitializeFilters()
     {
-        FilterBarcode.OnChanged = NotifyStateChanged;
-        FilterStartDate.OnChanged = NotifyStateChanged;
-        FilterEndDate.OnChanged = NotifyStateChanged;
-        FilterResult.OnChanged = NotifyStateChanged;
-        FilterGroup.OnChanged = NotifyStateChanged;
+        Filters["barcode"] = new Filter<string?>("barcode", null) { OnChanged = NotifyStateChanged };
+        Filters["after"] = new Filter<DateTime?>("after", null) { OnChanged = NotifyStateChanged };
+        Filters["before"] = new Filter<DateTime?>("before", null) { OnChanged = NotifyStateChanged };
+        Filters["result"] = new Filter<string?>("result", null) { OnChanged = NotifyStateChanged };
+        Filters["group"] = new Filter<int?>("group", null) { OnChanged = NotifyStateChanged };
     }
 
     /// <summary>
@@ -154,9 +159,15 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
             .ToListAsync();
 
         IsLoading = false;
-        LastQueryHash = GetFilterStateHash();
+        LastQueryHash = GetFilterStateHash(Filters);
         OnNotifyUI?.Invoke();
     }
+
+    // Helper to access filters with their original types
+    public Filter<TField> GetFilter<TField>(string key) => 
+        Filters.TryGetValue(key, out var f) && f is Filter<TField> typed 
+        ? typed 
+        : new Filter<TField>(key, default!);
 
     /// <summary>
     /// Applies the five filters common between all three pages
@@ -165,33 +176,39 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns>An IQueryable object with filters applied</returns>
     public virtual IQueryable<T> ApplyFilters(IQueryable<T> query)
     {
-        if (FilterBarcode.IsActive)
-            query = FilterBarcode.IsNegated
-                ? query.Where(x => !x.Barcode.Contains(FilterBarcode.Value))
-                : query.Where(x => x.Barcode.Contains(FilterBarcode.Value));
+        var barcode = GetFilter<string?>("barcode");
+        var startDate = GetFilter<DateTime?>("after");
+        var endDate = GetFilter<DateTime?>("before");
+        var groupNum = GetFilter<int?>("group");
+        var result = GetFilter<string?>("result");
 
-        if (FilterStartDate.IsActive)
-            query = query.Where(x => x.Time >= FilterStartDate.Value);
+        if (barcode.IsActive)
+            query = barcode.IsNegated
+                ? query.Where(x => !x.Barcode.Contains(barcode.Value))
+                : query.Where(x => x.Barcode.Contains(barcode.Value));
 
-        if (FilterEndDate.IsActive) // The semantics of the word "before" are tricky and depend on whether a time was specified
-            if (FilterEndDate.Value!.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
+        if (startDate.IsActive)
+            query = query.Where(x => x.Time >= startDate.Value);
+
+        if (endDate.IsActive) // The semantics of the word "before" are tricky and depend on whether a time was specified
+            if (endDate.Value!.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
             {
-                query = query.Where(x => x.Time < FilterEndDate.Value!.Value.AddDays(1)); // this is inclusive of all times on the end date
+                query = query.Where(x => x.Time < endDate.Value!.Value.AddDays(1)); // this is inclusive of all times on the end date
             }
             else // Otherwise, use the time provided by the user as a hard stop
             {
-                query = query.Where(x => x.Time <= FilterEndDate.Value); // this stops exactly at the time specified
+                query = query.Where(x => x.Time <= endDate.Value); // this stops exactly at the time specified
             }
 
-        if (FilterGroup.IsActive)
-            query = FilterGroup.IsNegated
-                ? query.Where(x => x.Group != FilterGroup.Value)
-                : query.Where(x => x.Group == FilterGroup.Value);
+        if (groupNum.IsActive)
+            query = groupNum.IsNegated
+                ? query.Where(x => x.Group != groupNum.Value)
+                : query.Where(x => x.Group == groupNum.Value);
 
-        if (FilterResult.IsActive)
-            query = FilterResult.IsNegated
-                ? query.Where(x => x.Result != FilterResult.Value)
-                : query.Where(x => x.Result == FilterResult.Value);
+        if (result.IsActive)
+            query = result.IsNegated
+                ? query.Where(x => x.Result != result.Value)
+                : query.Where(x => x.Result == result.Value);
 
         return query;
     }
@@ -205,49 +222,17 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
     {
         ResetFilterState(keepPage);
-        foreach (var filter in filterDict.Values)
+        foreach (var incoming in filterDict.Values)
         {
-            // If the tag is applicable to the child, ignore it here
-            if (AssignTableSpecific(filter)) continue; // yes, this is a side-effect
+            if (incoming.Key == "in") continue;
 
-            switch (filter)
+            if (Filters.TryGetValue(incoming.Key, out var existing))
             {
-                case Filter<string?> f when f.Key == "barcode": 
-                    FilterBarcode = f; break;
-                case Filter<string?> f when f.Key == "result": 
-                    FilterResult = f; break;
-                case Filter<int?> f when f.Key == "group": 
-                    FilterGroup = f; break;
-                case Filter<DateTime?> f when f.Key == "after": 
-                    FilterStartDate = f; break;
-                case Filter<DateTime?> f when f.Key == "before": 
-                    FilterEndDate = f; break;
+                existing.CopyFrom(incoming);
             }
         }
         await RefreshData(keepPage);
     }
-
-    /// <summary>
-    /// Wires a filter to the NotifyStateChanged action
-    /// Uses the ref keyword, so the wired filter occupies the same place in memory
-    /// </summary>
-    /// <typeparam name="U">The type of the filter (string, int, or DateTime)</typeparam>
-    /// <param name="target">The unlinked filter</param>
-    /// <param name="source">The wired filter</param>
-    /// <returns></returns>
-    public bool Wire<U>(ref Filter<U> target, Filter<U> source) {
-            target = source;
-            target.OnChanged = NotifyStateChanged;
-            return true;
-        }
-
-    /// <summary>
-    /// Assigns responsibility to the children to identify their table-specific tags
-    /// The generic table has no table-specific tags, so returns false by default
-    /// </summary>
-    /// <param name="filter">The filter to check for</param>
-    /// <returns>Whether the table accepted this tag</returns>
-    protected virtual bool AssignTableSpecific(IFilter filter) => false;
 
     /// <summary>
     /// Uses dynamic LINQ to draft a SQL ORDER BY based on the current sort
@@ -421,13 +406,9 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// Resets the common filters
     /// Override to reset table-specific filters
     /// </summary>
-    public virtual void ResetFilterState(bool keepPage=false)
+    public void ResetFilterState(bool keepPage=false)
     {
-        FilterBarcode.Value = null;
-        FilterStartDate.Value = null;
-        FilterEndDate.Value = null;
-        FilterResult.Value = null;
-        FilterGroup.Value = null;
+        foreach(var f in Filters.Values) f.Reset();
         if (!keepPage) CurrentPage = 1;
     }
 

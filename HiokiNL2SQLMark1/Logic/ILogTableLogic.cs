@@ -29,4 +29,7 @@ public interface ILogTableLogic
     public Func<bool>? IsStaleOverride { get; set; } // to allow PowerSearch to provide its own definition of IsStale
     bool IsStale { get; } // Whether the query contents are the ones that generated the shown results
     bool IsLoading { get; } // Whether the query results are loading
+
+    int GetFilterStateHash(Dictionary<string, IFilter> filterDict);
+    int? LastQueryHash { get; }
 }
