@@ -83,7 +83,7 @@
     </div>
 </div>
 
-@Logic.RenderTable()
+<LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
 
 @code {
     private Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");

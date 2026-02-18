@@ -24,11 +24,11 @@
             </div>
         </div>
     }
-    var targetedTables = State.TableLogics
+    List<ILogTableLogic>? targetedTables = State.TableLogics
             .Where(t => State.CurrentType == "all" || State.CurrentType.Equals(t.TableName, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        var totalTargetedResults = targetedTables.Sum(t => t.TotalCount);
+        int totalTargetedResults = targetedTables.Sum(t => t.TotalCount);
 
         @if (totalTargetedResults == 0 && State.LastExecutedQuery != "Hioki ICT Power Search") {
             <div class="text-center my-5 py-5 text-muted">
@@ -40,11 +40,21 @@
             </div>
         }
         else {
-            @foreach (var logic in targetedTables.Where(t => t.TotalCount > 0)) {
-                <div @key="logic.TableName + State.LastExecutedQuery" class="table-section mb-5">
-                    <h2 class="mb-3">@logic.DisplayName</h2>
-                    @logic.RenderTable()
-                </div>
+            @foreach (ILogTableLogic logic in targetedTables) {
+                @if(logic.TotalCount > 0){
+                    <div @key="logic.TableName + State.LastExecutedQuery" class="table-section mb-5">
+                        <h2 class="mb-3">@logic.DisplayName</h2>
+                        @if (logic is LogTableLogic<GroupResult> groupLogic) {
+                        <LogTablePresenter T="GroupResult" TableLogic="groupLogic" />
+                        }
+                        else if (logic is LogTableLogic<StepResult> stepLogic) {
+                            <LogTablePresenter T="StepResult" TableLogic="stepLogic" />
+                        }
+                        else if (logic is LogTableLogic<FctResult> fctLogic) {
+                            <LogTablePresenter T="FctResult" TableLogic="fctLogic" />
+                        }
+                    </div>
+                }
             }
         }
     }

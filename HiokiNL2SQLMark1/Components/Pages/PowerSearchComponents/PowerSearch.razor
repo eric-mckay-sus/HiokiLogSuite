@@ -1,6 +1,7 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @inject PowerSearchLogic State
+@inject INavService NavService
 @implements IDisposable // for the automatic Dispose method
 
 <PageTitle>@State.LastExecutedQuery</PageTitle>
@@ -26,23 +27,12 @@
     /// <returns></returns>
     protected override async Task OnInitializedAsync()
     {
-        // Try to get the "q" parameter from the current URI
-        Uri? uri = State.NavManager.ToAbsoluteUri(State.NavManager.Uri);
-        var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-
-        if (queryParams.TryGetValue("q", out var queryVal))
+        string? currentQuery = NavService.GetCurrentQuery();
+        
+        if (!string.IsNullOrEmpty(currentQuery))
         {
-            State.commandInput = queryVal;
-            State.SyncLivePreview();
-
-            // Extract Paging/Sorting from URL
-            int pageSize = queryParams.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : 50;
-            int page = queryParams.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : 1;
-            string? sortCol = queryParams.TryGetValue("s", out var s) ? s.ToString() : null;
-            string? sortDir = queryParams.TryGetValue("d", out var d) ? d.ToString() : null;
-
-            // Apply these to the targeted table before executing
-            await State.UpdateSearchState(queryVal, pageSize, page, sortCol, sortDir);
+            // Update logic state from URL (Initial Load)
+            await ApplyUrlState();
         }
     }
 
@@ -52,7 +42,7 @@
     protected override void OnInitialized()
     {
         State.OnRefreshRequested += HandleRefreshRequested;
-        State.NavManager.LocationChanged += HandleLocationChanged;
+        NavService.OnLocationChanged += HandleLocationChanged;
     }
 
     /// <summary>
@@ -61,7 +51,7 @@
     public void Dispose()
     {
         State.OnRefreshRequested -= HandleRefreshRequested;
-        State.NavManager.LocationChanged -= HandleLocationChanged;
+        NavService.OnLocationChanged -= HandleLocationChanged;
         State.DebounceTimer?.Dispose();
     }
 
@@ -75,28 +65,34 @@
     /// </summary>
     /// <param name="sender">The origin of this call</param>
     /// <param name="e">The information about the event to handle</param>
-    public void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    public async void HandleLocationChanged(string newLocation)
     {
         if (State.IsProcessingNavigation) return;
-        _ = InvokeAsync(async () =>
-        {
-            Uri? uri = State.NavManager.ToAbsoluteUri(e.Location);
-            var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-            // If there are query parameters, get them
-            string queryVal = queryParams.TryGetValue("q", out var q) ? q.ToString() : "";
-            int? pageSize, page;
-            string? sortCol, sortDir;
-            pageSize = page = null;
-            sortCol = sortDir = null;
-            if (State.CurrentType != "all"){
-                if (queryParams.TryGetValue("ps", out var ps) && int.TryParse(ps, out int psi)) pageSize = psi;
-                if (queryParams.TryGetValue("p", out var p) && int.TryParse(p, out int pi)) page = pi;
-                if (queryParams.TryGetValue("s", out var s)) sortCol = s.ToString();
-                if (queryParams.TryGetValue("d", out var d)) sortDir = d.ToString();
-            }
 
-            await State.UpdateSearchState(queryVal, pageSize, page, sortCol, sortDir);
+        await InvokeAsync(async () =>
+        {
+            await ApplyUrlState();
             StateHasChanged();
         });
+    }
+
+    private async Task ApplyUrlState()
+    {
+        UrlState? state = NavService.GetFullStateFromUrl();
+        State.commandInput = state.Query;
+        
+        var activeTable = State.TableLogics.FirstOrDefault(t => 
+        t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
+
+        if (activeTable != null)
+        {
+            activeTable.CurrentPage = state.Page ?? 1;
+            activeTable.PageSize = state.PageSize ?? 50;
+            activeTable.CurrentSortColumn = state.SortCol ?? "";
+            activeTable.SortDir = state.SortDir ?? "none";
+        }
+
+        // 3. Execute the search (passing true to keepPage ensures we use the URL's page number)
+        await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
     }
 }

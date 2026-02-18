@@ -4,9 +4,10 @@
 <div class="input-group mb-0">
     <span class="input-group-text bg-dark text-white font-monospace"><i class="bi bi-chevron-right" style="font-size: 1.5rem;"></i></span>
 
-    <input type="text" id="searchBar" class="form-control form-control-lg font-monospace" 
+    <input type="text" id="searchBar" autocomplete="off"
+        class="form-control form-control-lg font-monospace" 
         value="@State.commandInput"
-        @oninput="State.HandleInput"
+        @oninput="HandleInput"
         @onkeydown="HandleKeyDown"
         placeholder="Search in @(State.CurrentType.ToUpper())..." />
         @* placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" /> *@
@@ -36,16 +37,6 @@
 @code {
 
     /// <summary>
-    /// Helper to bind the enter key to submission when search bar is active
-    /// </summary>
-    /// <param name="e">the key to handle</param>
-    /// <returns></returns>
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await State.ExecutePowerSearch();
-    }
-
-    /// <summary>
     /// When this component loads, continuously watch the query for filter changes
     /// </summary>
     protected override void OnInitialized()
@@ -54,6 +45,28 @@
     }
 
     private void HandleRefreshRequested() => InvokeAsync(StateHasChanged);
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        string? newValue = e.Value?.ToString();
+        
+        // Update the string in the Logic class
+        State.commandInput = newValue ?? string.Empty;
+
+        // Trigger the debounce timer located in the Logic class
+        // Since the timer logic uses pure strings/ints, it stays in Logic
+        State.RestartDebounceTimer();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            // Stop the timer and execute immediately
+            State.DebounceTimer?.Stop();
+            await State.ExecutePowerSearch();
+        }
+    }
 
     /// <summary>
     /// When this component closes, inform the location manager

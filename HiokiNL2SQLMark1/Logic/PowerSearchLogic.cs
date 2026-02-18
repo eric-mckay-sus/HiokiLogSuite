@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using System.Timers;
-using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -24,7 +23,7 @@ public class PowerSearchLogic()
 
     public readonly IEnumerable<ILogTableLogic> TableLogics; // The list of logic engines to perform the searches
     private readonly SearchParserService ParserService; // The service to which command input will be passed to get a filter dictionary back
-    public readonly NavigationManager NavManager; // Controls the navigation between URLs constructed from modifying filters
+    public readonly INavService NavService; // Controls the navigation between URLs constructed from modifying filters
     private readonly IJSRuntime JSRuntime; // Controls cursor focus when applying quick select tags
 
     public event Action? OnRefreshRequested; // The trigger for the view (implemented in the view)
@@ -37,11 +36,11 @@ public class PowerSearchLogic()
     /// <param name="parserService">The service to parse command input</param>
     /// <param name="navManager">The navigation manager for URL use and manipulation</param>
     /// <param name="jsRuntime">The JS runtime to control cursor focus</param>
-    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, SearchParserService parserService, NavigationManager navManager, IJSRuntime jsRuntime) : this()
+    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, SearchParserService parserService, INavService navService, IJSRuntime jsRuntime) : this()
     {
         TableLogics = tableLogics;
         ParserService = parserService;
-        NavManager = navManager;
+        NavService = navService;
         JSRuntime = jsRuntime;
 
         // Wire each table's notification to this class
@@ -50,7 +49,7 @@ public class PowerSearchLogic()
             table.OnNotifyUI = NotifyStateChanged;
             table.UpdatePSUrl = SyncUrl;
             table.IsStaleOverride = () => IsStale;
-            table.TriggerPowerSearch = (query) => _ = UpdateSearchState(query);
+            table.TriggerPowerSearch = (query) => NavService.UpdateSearchState(query);
         }
     }
 
@@ -120,72 +119,26 @@ public class PowerSearchLogic()
     /// </summary>
     public void SyncUrl()
     {
-        IsProcessingNavigation = true;
-        try
-        {
-            var parameters = new Dictionary<string, object?>
-            {
-                { "q", string.IsNullOrWhiteSpace(commandInput) ? null : commandInput }
-            };
-
-            var activeTable = TableLogics.FirstOrDefault(t => 
-                t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
-
-            if (activeTable != null && CurrentType != "all")
-            {
-                parameters.Add("ps", activeTable.PageSize != 50 ? activeTable.PageSize : null);
-                parameters.Add("p", activeTable.CurrentPage > 1 ? activeTable.CurrentPage : null);
-                parameters.Add("s", string.IsNullOrWhiteSpace(activeTable.CurrentSortColumn) ? null : activeTable.CurrentSortColumn);
-                parameters.Add("d", activeTable.SortDir == "none" ? null : activeTable.SortDir);
-            }
-            else
-            {
-                // If we are in "all" mode, null out these keys to demonstrate to the user that they are ignored.
-                // NavManager.GetUriWithQueryParameters will strip them from the existing URL.
-                parameters.Add("ps", null);
-                parameters.Add("p", null);
-                parameters.Add("s", null);
-                parameters.Add("d", null);
-            }
-
-            string? newUri = NavManager.GetUriWithQueryParameters(parameters);
-            
-            // Use true if you want to replace history, false to create a "Back" button entry
-            NavManager.NavigateTo(newUri, replace: false);
-        }
-        finally
-        {
-            _ = Task.Delay(50).ContinueWith(_ => IsProcessingNavigation = false);
-        }
-    }
-
-    /// <summary>
-    /// Fills search bar with input string, then executes a search (used for URL navigation)
-    /// </summary>
-    /// <param name="filters">The contents for the search bar</param>
-    /// <param name="page">The page number to set</param>
-    /// <param name="sortCol">The column to sort by</param>
-    /// <param name="sortDir">The direction to sort in</param>
-    /// <returns></returns>
-    public async Task UpdateSearchState(string filters, int? pageSize=null, int? page=null, string? sortCol=null, string? sortDir=null)
-    {
-        commandInput = filters;
-        SyncLivePreview();
-
         var activeTable = TableLogics.FirstOrDefault(t => 
-        t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
+            t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        if (activeTable != null)
+        if (activeTable != null && CurrentType != "all")
         {
-            if(pageSize.HasValue) activeTable.PageSize = pageSize.Value;
-            if(page.HasValue) activeTable.CurrentPage = page.Value;
-            if (!string.IsNullOrEmpty(sortCol))
-            {
-                activeTable.CurrentSortColumn = sortCol;
-                activeTable.SortDir = sortDir ?? "none";
-            }
+            NavService.UpdateSearchState(
+            commandInput, 
+            activeTable.CurrentPage, 
+            activeTable.PageSize, 
+            activeTable.CurrentSortColumn, 
+            activeTable.SortDir, 
+            replaceHistory: true
+            );
         }
-        await ExecutePowerSearch(skipUrlUpdate: true, keepPage: page.HasValue); // This ends with a NotifyStateChanged()
+        else
+        {
+            // If we are in "all" mode, null out these keys to demonstrate to the user that they are ignored.
+            // NavManager.GetUriWithQueryParameters will strip them from the existing URL.
+            NavService.UpdateSearchState(commandInput);
+        }
     }
 
     /// <summary>
@@ -243,31 +196,15 @@ public class PowerSearchLogic()
         SyncLivePreview(); // calls NotifyStateChanged internally
     }
 
-    /// <summary>
-    /// Manage the debounce timer and notify the preview
-    /// </summary>
-    /// <param name="e">Detects a change in input</param>
-    public void HandleInput(ChangeEventArgs e){
-        commandInput = e.Value?.ToString() ?? "";
+    public void RestartDebounceTimer()
+    {
+        // Ensure the preview updates immediately as they type
+        SyncLivePreview();
 
-        // Stop the old (if there is one)
+        // Reset the timer
         DebounceTimer?.Stop();
-        DebounceTimer?.Dispose();
-
-        // Start the new
-        DebounceTimer = new System.Timers.Timer(400);
-        DebounceTimer.Elapsed += OnUserStoppedTyping;
-        DebounceTimer.AutoReset = false;
-        DebounceTimer.Start();
-        NotifyStateChanged();
+        DebounceTimer?.Start(); 
     }
-
-    /// <summary>
-    /// Overload for SyncLivePreview to be triggered by HandleInput
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void OnUserStoppedTyping(object? sender, ElapsedEventArgs e) => SyncLivePreview();
 
     /// <summary>
     /// Updates the live preview based on current search bar contents

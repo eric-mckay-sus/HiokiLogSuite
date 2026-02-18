@@ -1,34 +1,16 @@
 using Moq;
 using HiokiNL2SQLMark1.Logic;
 using Microsoft.JSInterop;
-using Microsoft.AspNetCore.Components;
 using HiokiNL2SQLMark1;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
-public class FakeNavigationManager : NavigationManager
-{
-    public FakeNavigationManager()
-    {
-        // This initializes the base class with the required URIs
-        // so the Proxy doesn't explode.
-        Initialize("http://localhost/", "http://localhost/");
-    }
-
-    protected override void NavigateToCore(string uri, bool forceLoad)
-    {
-        // Track navigation for assertions if needed
-        Uri = uri; 
-    }
-}
-
-[ExcludeFromCodeCoverage]
 public class PowerSearchLogicTests
 {
     private readonly Mock<ILogTableLogic> _mockTable;
     private readonly SearchParserService _realParser;
-    private readonly FakeNavigationManager _fakeNav;
+    private readonly Mock<INavService> _mockNav;
     private readonly Mock<IJSRuntime> _mockJs;
     private readonly PowerSearchLogic _logic;
 
@@ -39,16 +21,11 @@ public class PowerSearchLogicTests
         _mockTable.Setup(t => t.TableName).Returns("group");
 
         _realParser = new SearchParserService(); // Concrete instance
-        _fakeNav = new FakeNavigationManager();
+        _mockNav = new Mock<INavService>();
         // Initialize the internal state of the NavigationManager
         _mockJs = new Mock<IJSRuntime>();
 
-        _logic = new PowerSearchLogic(
-            [_mockTable.Object],
-            _realParser,
-            _fakeNav,
-            _mockJs.Object
-        );
+        _logic = new PowerSearchLogic(new[] { _mockTable.Object }, _realParser, _mockNav.Object, _mockJs.Object);
     }
 
     [Fact]
@@ -144,74 +121,6 @@ public class PowerSearchLogicTests
             Times.Never);
     }
 
-    [Fact]
-    public async Task UpdateSearchState_TableMatched_SetsAllParameters()
-    {
-        // Arrange
-        _logic.CurrentType = "group"; // Matches _mockTable setup in constructor
-        string testFilters = "barcode:123 in:group";
-        
-        // Act
-        await _logic.UpdateSearchState(testFilters, pageSize: 50, page: 3, sortCol: "Time", sortDir: "desc");
-
-        // Assert
-        Assert.Equal(testFilters, _logic.commandInput);
-        Assert.Equal(50, _mockTable.Object.PageSize);
-        Assert.Equal(3, _mockTable.Object.CurrentPage);
-        Assert.Equal("Time", _mockTable.Object.CurrentSortColumn);
-        Assert.Equal("desc", _mockTable.Object.SortDir);
-        
-        // Verify ExecutePowerSearch was called (via DictionaryToFilters)
-        // keepPage should be true because page.HasValue was true
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), true), Times.Once);
-    }
-
-    [Fact]
-    public async Task UpdateSearchState_TableMatched_IgnoresNullParameters()
-    {
-        // Arrange
-        _logic.CurrentType = "group";
-        _mockTable.Object.PageSize = 20; // Original value
-        
-        // Act
-        await _logic.UpdateSearchState("in:group", pageSize: null, page: null, sortCol: null);
-
-        // Assert
-        Assert.Equal(20, _mockTable.Object.PageSize); // Should not have changed
-        
-        // keepPage should be false because page.HasValue was false
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Once);
-    }
-
-    [Fact]
-    public async Task UpdateSearchState_NoTableMatched_UpdatesInputOnly()
-    {
-        // Arrange
-        _logic.CurrentType = "none_matching";
-        
-        // Act
-        await _logic.UpdateSearchState("barcode:xyz", page: 5);
-
-        // Assert
-        Assert.Equal("barcode:xyz", _logic.commandInput);
-        // Ensure no calls were made to the mock table because it wasn't the active one
-        _mockTable.VerifySet(t => t.CurrentPage = It.IsAny<int>(), Times.Never);
-    }
-
-    [Fact]
-    public async Task UpdateSearchState_SortProvidedWithoutDirection_DefaultsToNone()
-    {
-        // Arrange
-        _logic.CurrentType = "group";
-
-        // Act
-        await _logic.UpdateSearchState("in:group", sortCol: "Barcode", sortDir: null);
-
-        // Assert
-        Assert.Equal("Barcode", _mockTable.Object.CurrentSortColumn);
-        Assert.Equal("none", _mockTable.Object.SortDir);
-    }
-
     [Theory]
     [InlineData("", "today", "after:today ")] // Empty input
     [InlineData("barcode:123", "yesterday", "barcode:123 after:yesterday ")] // Appending with space
@@ -271,28 +180,6 @@ public class PowerSearchLogicTests
         // Verify it didn't just append a second 'in' tag
         Assert.Contains("in:newtype", _logic.commandInput.ToLower());
         Assert.DoesNotContain("in:oldtype", _logic.commandInput.ToLower());
-    }
-
-    [Fact]
-    public async Task HandleInput_DebouncesCorrectlyAndReplacesOldTimer()
-    {
-        // Arrange
-        var inputEvent = new ChangeEventArgs { Value = "searching..." };
-        _logic.DebounceTimer = new System.Timers.Timer(300);
-
-        // Act
-        _logic.HandleInput(inputEvent);
-        
-        // Immediate check: Preview shouldn't be updated yet because of 300ms debounce
-        Assert.NotEqual("searching...", _logic.Preview);
-
-        // Wait for timer (300ms + buffer)
-        await Task.Delay(400);
-
-        // Assert
-        Assert.Equal("searching...", _logic.commandInput);
-        // The Preview property is updated inside OnUserStoppedTyping
-        Assert.NotEmpty(_logic.Preview);
     }
 
     [Theory]

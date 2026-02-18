@@ -315,7 +315,7 @@ public class LogTableLogicTests
     }
 
     [Fact]
-    public async Task HandleBarcodeClick_UsesTrigger_WhenUIBound()
+    public void HandleBarcodeClick_UsesTrigger_WhenUIBound()
     {
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
         string? triggeredQuery = null;

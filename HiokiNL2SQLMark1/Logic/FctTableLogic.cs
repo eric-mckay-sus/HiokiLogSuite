@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using JS = Microsoft.JSInterop.IJSRuntime;
-using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
@@ -8,9 +7,9 @@ namespace HiokiNL2SQLMark1.Logic;
 /// </summary>
 /// <param name="dbFactory">Generates a new DB context per thread</param>
 /// <param name="js">To handle saving to CSV</param>
-/// <param name="navManager">To navigate away for barcode "drill-down"</param>
-public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
-    LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navManager)
+/// <param name="navService">To navigate away for barcode "drill-down"</param>
+public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, INavService navService) :
+    LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navService)
 {
     public override string TableName => "fct"; // This table's internal "type" as it would appear in currentType
     public override string DisplayName => "FCT Results"; // The label to apply to this table in the view

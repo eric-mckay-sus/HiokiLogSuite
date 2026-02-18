@@ -58,7 +58,7 @@
     </div>
 </div>
 
-@Logic.RenderTable()
+<LogTablePresenter T="FctResult" TableLogic="FctLogic" />
 
 @code {
     private Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");

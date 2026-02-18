@@ -1,7 +1,5 @@
-using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using JS = Microsoft.JSInterop.IJSRuntime;
-using NavigationManager = Microsoft.AspNetCore.Components.NavigationManager;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
@@ -9,9 +7,9 @@ namespace HiokiNL2SQLMark1.Logic;
 /// </summary>
 /// <param name="dbFactory">Generates a new DB context per thread</param>
 /// <param name="js">To handle saving to CSV</param>
-/// <param name="navManager">To navigate away for barcode "drill-down"</param>
-public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, NavigationManager navManager) :
-    LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navManager)
+/// <param name="navService">To navigate away for barcode "drill-down"</param>
+public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, INavService navService) :
+    LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navService)
 {
     public override string TableName => "step"; // This table's internal "type" as it would appear in currentType
     public override string DisplayName => "Step Results"; // The label to apply to this table in the view

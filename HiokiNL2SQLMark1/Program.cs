@@ -21,6 +21,7 @@ builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupT
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
 
+builder.Services.AddScoped<INavService, NavService>();
 builder.Services.AddScoped<SearchParserService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
-using Microsoft.AspNetCore.Components;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -19,7 +18,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     private readonly IDbContextFactory<LogDbContext> _dbFactory; // generates a new DbContext on demand (thread-safe)
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector; // denotes the connection and query information
     protected readonly IJSRuntime JS; // for handling CSV download
-    protected readonly NavigationManager Nav; // for navigating to the power search page in a barcode "drill-down"
+    protected readonly INavService Nav; // for navigating to the power search page in a barcode "drill-down"
 
     // Shared filters
     public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -82,12 +81,12 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         }
     }
 
-    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager)
+    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, INavService nav)
     {
         _dbFactory = dbFactory;
         _querySelector = querySelector;
         JS = js;
-        Nav = navManager;
+        Nav = nav;
 
        InitializeFilters(); // Children override this method as necessary 
     }
@@ -103,46 +102,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         Filters["result"] = new Filter<string?>("result", null) { OnChanged = NotifyStateChanged };
         Filters["group"] = new Filter<int?>("group", null) { OnChanged = NotifyStateChanged };
     }
-
-    /// <summary>
-    /// Renders the table representing this query and its results
-    /// </summary>
-    /// <returns>A RenderFragment that can be used elsewhere to display this table</returns>
-    public virtual RenderFragment RenderTable() => builder =>
-    {
-        if (DataView.Count == 0 && !IsLoading)
-        {
-            builder.OpenElement(0, "h4");
-            builder.AddAttribute(1, "style", "text-align: center;");
-            builder.AddContent(2, $"No {TableName} records found matching these criteria.");
-            builder.CloseElement();
-            return;
-        }
-        builder.OpenComponent<Components.Pages.MasterTable<T>>(0);
-
-        // Pass all necessary parameters from this Logic instance to the MasterTable
-        builder.AddAttribute(1, "Items", DataView);
-        builder.AddAttribute(2, "CurrentPage", CurrentPage);
-        builder.AddAttribute(3, "TotalPages", TotalPages);
-        builder.AddAttribute(4, "TotalCount", TotalCount);
-        builder.AddAttribute(5, "PageSize", PageSize);
-        
-        // Wire up pagination and sorting
-        builder.AddAttribute(6, "OnPageChange", EventCallback.Factory.Create<int>(this, ChangePage));
-        builder.AddAttribute(7, "OnSort", EventCallback.Factory.Create<string>(this, ToggleSort));
-        builder.AddAttribute(8, "GetSortIcon", GetSortIcon);
-        builder.AddAttribute(9, "OnPageSizeChange", EventCallback.Factory.Create<int>(this, AlterPageSize));
-        
-        // Wire up Actions
-        builder.AddAttribute(10, "OnSaveToCsv", EventCallback.Factory.Create(this, SaveToCSV));
-        builder.AddAttribute(11, "OnBarcodeClick", EventCallback.Factory.Create<string>(this, HandleBarcodeClick));
-
-        // Display modifiers for non-interactable states
-        builder.AddAttribute(12, "IsStale", IsStale);
-        builder.AddAttribute(13, "IsLoading", IsLoading);
-
-        builder.CloseComponent();
-    };
 
     /// <summary>
     /// Applies filters and sorts, then reloads the table based on the query and page number
@@ -318,7 +277,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         }
         else
         {
-            Nav.NavigateTo($"/?q={Uri.EscapeDataString(query)}");
+            Nav.NavigateToBarcodeTrace(barcode);
         }
     }
 

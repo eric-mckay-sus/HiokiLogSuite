@@ -62,7 +62,7 @@
     </div>
 </div>
 
-@Logic.RenderTable()
+<LogTablePresenter T="StepResult" TableLogic="StepLogic" />
 
 @code {
     private Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");

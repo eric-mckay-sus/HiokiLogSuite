@@ -18,7 +18,6 @@ public interface ILogTableLogic
     Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false);
     int GetFilterStateHash(Dictionary<string, IFilter> filterDict);
     void ClearData();
-    RenderFragment RenderTable();
     
     // Shared UI state for the MasterTable
     int CurrentPage { get; set; }
