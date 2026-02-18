@@ -7,11 +7,28 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
+public class FakeNavigationManager : NavigationManager
+{
+    public FakeNavigationManager()
+    {
+        // This initializes the base class with the required URIs
+        // so the Proxy doesn't explode.
+        Initialize("http://localhost/", "http://localhost/");
+    }
+
+    protected override void NavigateToCore(string uri, bool forceLoad)
+    {
+        // Track navigation for assertions if needed
+        Uri = uri; 
+    }
+}
+
+[ExcludeFromCodeCoverage]
 public class PowerSearchLogicTests
 {
     private readonly Mock<ILogTableLogic> _mockTable;
     private readonly SearchParserService _realParser;
-    private readonly Mock<NavigationManager> _mockNav;
+    private readonly FakeNavigationManager _fakeNav;
     private readonly Mock<IJSRuntime> _mockJs;
     private readonly PowerSearchLogic _logic;
 
@@ -22,13 +39,14 @@ public class PowerSearchLogicTests
         _mockTable.Setup(t => t.TableName).Returns("group");
 
         _realParser = new SearchParserService(); // Concrete instance
-        _mockNav = new Mock<NavigationManager>();
+        _fakeNav = new FakeNavigationManager();
+        // Initialize the internal state of the NavigationManager
         _mockJs = new Mock<IJSRuntime>();
 
         _logic = new PowerSearchLogic(
-            new List<ILogTableLogic> { _mockTable.Object },
+            [_mockTable.Object],
             _realParser,
-            _mockNav.Object,
+            _fakeNav,
             _mockJs.Object
         );
     }
@@ -53,7 +71,7 @@ public class PowerSearchLogicTests
         Assert.Contains("A123", _logic.Preview);
 
         // 3. Verify the targeted table was actually called
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>()), Times.Once);
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Once);
     }
 
     [Fact]
@@ -69,7 +87,7 @@ public class PowerSearchLogicTests
 
         // Assert
         // Verify that even with a warning, the search was NOT aborted
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>()), Times.Once);
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Once);
     }
 
     [Fact]
@@ -97,10 +115,78 @@ public class PowerSearchLogicTests
         _mockTable.Verify(t => t.ClearData(), Times.AtLeastOnce);
 
         // 4. DictionaryToFilters should NEVER be called on a fatal error
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>()), Times.Never);
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Never);
 
         // 5. The UI should have been notified of the error state
         Assert.True(refreshCalled);
+    }
+
+    [Fact]
+    public async Task UpdateSearchState_TableMatched_SetsAllParameters()
+    {
+        // Arrange
+        _logic.CurrentType = "group"; // Matches _mockTable setup in constructor
+        string testFilters = "barcode:123 in:group";
+        
+        // Act
+        await _logic.UpdateSearchState(testFilters, pageSize: 50, page: 3, sortCol: "Time", sortDir: "desc");
+
+        // Assert
+        Assert.Equal(testFilters, _logic.commandInput);
+        Assert.Equal(50, _mockTable.Object.PageSize);
+        Assert.Equal(3, _mockTable.Object.CurrentPage);
+        Assert.Equal("Time", _mockTable.Object.CurrentSortColumn);
+        Assert.Equal("desc", _mockTable.Object.SortDir);
+        
+        // Verify ExecutePowerSearch was called (via DictionaryToFilters)
+        // keepPage should be true because page.HasValue was true
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), true), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateSearchState_TableMatched_IgnoresNullParameters()
+    {
+        // Arrange
+        _logic.CurrentType = "group";
+        _mockTable.Object.PageSize = 20; // Original value
+        
+        // Act
+        await _logic.UpdateSearchState("in:group", pageSize: null, page: null, sortCol: null);
+
+        // Assert
+        Assert.Equal(20, _mockTable.Object.PageSize); // Should not have changed
+        
+        // keepPage should be false because page.HasValue was false
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateSearchState_NoTableMatched_UpdatesInputOnly()
+    {
+        // Arrange
+        _logic.CurrentType = "none_matching";
+        
+        // Act
+        await _logic.UpdateSearchState("barcode:xyz", page: 5);
+
+        // Assert
+        Assert.Equal("barcode:xyz", _logic.commandInput);
+        // Ensure no calls were made to the mock table because it wasn't the active one
+        _mockTable.VerifySet(t => t.CurrentPage = It.IsAny<int>(), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateSearchState_SortProvidedWithoutDirection_DefaultsToNone()
+    {
+        // Arrange
+        _logic.CurrentType = "group";
+
+        // Act
+        await _logic.UpdateSearchState("in:group", sortCol: "Barcode", sortDir: null);
+
+        // Assert
+        Assert.Equal("Barcode", _mockTable.Object.CurrentSortColumn);
+        Assert.Equal("none", _mockTable.Object.SortDir);
     }
 
     [Theory]
@@ -147,6 +233,39 @@ public class PowerSearchLogicTests
         // It should replace "in:group" with "in:step" and NOT duplicate it
         Assert.Equal("barcode:123 in:step result:fail", _logic.commandInput);
         Assert.Equal("step", _logic.CurrentType);
+    }
+
+    [Fact]
+    public async Task SetType_ReplacesInTag_CaseInsensitive()
+    {
+        // Arrange
+        _logic.commandInput = "barcode:123 IN:OLDTYPE";
+
+        // Act
+        await _logic.SetType("newtype");
+
+        // Assert
+        // Verify it didn't just append a second 'in' tag
+        Assert.Contains("in:newtype", _logic.commandInput.ToLower());
+        Assert.DoesNotContain("in:oldtype", _logic.commandInput.ToLower());
+    }
+
+    [Fact]
+    public async Task SetType_BypassesSearch_IfHashMatches()
+    {
+        // Arrange
+        _logic.commandInput = "barcode:123 in:group";
+        // Force the table to act like it already has this data
+        _mockTable.Setup(t => t.LastQueryHash).Returns(12345); 
+        _mockTable.Setup(t => t.GetFilterStateHash(It.IsAny<Dictionary<string, IFilter>>())).Returns(12345); 
+        _mockTable.Setup(t => t.TotalCount).Returns(10);
+
+        // Act
+        await _logic.SetType("group"); // Setting to the same type
+
+        // Assert
+        // Verify DictionaryToFilters was NEVER called because of the bypass
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]

@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq.Dynamic.Core;
 using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
-using System.Reflection.Metadata.Ecma335;
-using Microsoft.VisualBasic.FileIO;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -52,24 +50,36 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         ? IsStaleOverride() 
         : LastQueryHash != GetFilterStateHash(Filters);
     
+    /// <summary>
+    /// Generate a state ID, for checking equality between two filter states
+    /// 17 and 31 are primes one off of powers of two, so we get few collisions and the compiler can take shortcuts
+    /// </summary>
+    /// <param name="filterDict">A dictionary of keys mapped to filters</param>
+    /// <returns>A value representing the state of the filters for the input dictionary</returns>
     public int GetFilterStateHash(Dictionary<string, IFilter> filterDict) {
-        var hash = new HashCode();
-        // Order by key to ensure dictionary order doesn't change the hash
-        foreach (var key in filterDict.Keys.OrderBy(k => k))
+        unchecked
         {
-            if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
+            int hash = 17;
+            // Order by key to ensure dictionary order doesn't change the hash
+            foreach (var key in filterDict.Keys.OrderBy(k => k))
+            {
+                // Ignore 'in' key, it does not affect the search contents within a table
+                if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
 
-            var filter = filterDict[key];
-            hash.Add(key.ToLower());
-            hash.Add(filter.IsNegated);
-            
-            var val = filter.GetValue();
-            if (val is string s) 
-                hash.Add(s.Trim().ToLower()); // Normalize strings
-            else 
-                hash.Add(val);
+                // Factor in each aspect of the filter
+                var filter = filterDict[key];
+                
+                var val = filter.GetValue();
+                if (val != null)
+                {
+                    hash *= 31 + key.ToLower().GetHashCode();
+                    hash += 31 + filter.IsNegated.GetHashCode();
+                    string valStr = val.ToString()?.Trim().ToLower() ?? "";
+                    hash *= 31 + valStr.GetHashCode();
+                }
+            }
+            return hash;
         }
-        return hash.ToHashCode();
     }
 
     public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, NavigationManager navManager)
@@ -83,7 +93,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Wires filters to automatically push and pull data from form fields
+    /// Creates an entry for each filter in the registry, wiring them to automatically push and pull data from form fields
     /// </summary>
     protected virtual void InitializeFilters()
     {
@@ -97,7 +107,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <summary>
     /// Renders the table representing this query and its results
     /// </summary>
-    /// <returns>A RenderFragment that can be used elsewhere</returns>
+    /// <returns>A RenderFragment that can be used elsewhere to display this table</returns>
     public virtual RenderFragment RenderTable() => builder =>
     {
         if (DataView.Count == 0 && !IsLoading)
@@ -163,11 +173,16 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         OnNotifyUI?.Invoke();
     }
 
-    // Helper to access filters with their original types
-    public Filter<TField> GetFilter<TField>(string key) => 
-        Filters.TryGetValue(key, out var f) && f is Filter<TField> typed 
+    /// <summary>
+    /// Helper to get the strongly-typed version of a generic-typed filter
+    /// </summary>
+    /// <typeparam name="U">The generic type of a Filter, one of string, int, or DateTime</typeparam>
+    /// <param name="key">The key for which to get the filter</param>
+    /// <returns>The Filter with its appropriate type</returns>
+    public Filter<U> GetFilter<U>(string key) => 
+        Filters.TryGetValue(key, out var f) && f is Filter<U> typed 
         ? typed 
-        : new Filter<TField>(key, default!);
+        : new Filter<U>(key, default!);
 
     /// <summary>
     /// Applies the five filters common between all three pages
@@ -214,21 +229,22 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Maps a dictionary of filter key-value pairs to the individual filter properties, then calls for a refresh
-    /// First checks if the filter is table-specific (inferred from LogTableLogic instantiation)
+    /// Saves a dictionary of filter key-value pairs to the registry, then calls for a refresh
+    /// Table-specific filters are handled because their child class has added their key to the registry
     /// </summary>
-    /// <param name="filterDict">The dictionary of search tags mapped to values</param>
+    /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
     /// <returns></returns>
     public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
     {
-        ResetFilterState(keepPage);
-        foreach (var incoming in filterDict.Values)
+        foreach (var existing in Filters.Values)
         {
-            if (incoming.Key == "in") continue;
-
-            if (Filters.TryGetValue(incoming.Key, out var existing))
-            {
+            // Check to see if there's a new filter
+            if (filterDict.TryGetValue(existing.Key, out var incoming)) {
                 existing.CopyFrom(incoming);
+            }
+            // Otherwise, reset it, as it's not part of this query 
+            else {
+                existing.Reset();
             }
         }
         await RefreshData(keepPage);
@@ -404,7 +420,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 
     /// <summary>
     /// Resets the common filters
-    /// Override to reset table-specific filters
     /// </summary>
     public void ResetFilterState(bool keepPage=false)
     {

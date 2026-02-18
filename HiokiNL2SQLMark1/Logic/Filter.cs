@@ -53,13 +53,19 @@ public class Filter<T> : IFilter
     public object? GetValue() => Value;
 
     /// <summary>
+    /// Assigns a new value to this filter. Successfully triggers 
+    /// </summary>
+    /// <param name="val">The value to assign to this filter</param>
+    public void SetValue(object? val) => Value = (T?)val;
+
+    /// <summary>
     /// Copies the state of another filter to this one
     /// </summary>
     /// <param name="other">The IFilter instance to copy from</param>
     public void CopyFrom(IFilter other)
     {
         IsNegated = other.IsNegated;
-        Value = (T?)other.GetValue(); // Use GetValue to trigger OnChanged/IsActive logic
+        Value = (T?)other.GetValue(); // Have to use GetValue because we don't technically know the type of other.Value (working with an IFilter)
     }
 
     /// <summary>
@@ -91,7 +97,9 @@ public interface IFilter
 {
     string Key { get; set; } // The filter's name
     bool IsNegated { get; set; } // The filter's negation status
+    bool IsActive { get; } // The filter's activation state
     object? GetValue(); // A method to get the value associated with this filter, as a nullable object
+    void SetValue(object? val); // A method to assign a new value to this filter
     void CopyFrom(IFilter other); // Copy the contents of this filter to the input IFilter instance
     void Reset(); // Deactivate this IFilter instance (value=null, isNegated=false)
 }

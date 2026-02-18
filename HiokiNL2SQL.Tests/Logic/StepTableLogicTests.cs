@@ -76,19 +76,19 @@ public class StepTableLogicTests
     {
         // Arrange
         var logic = TestLogicFactory.CreateLogic<StepResult, StepTableLogic>([]);
-        logic.FilterPartName.Value = "R1";
-        logic.FilterStep.Value = 10;
-        logic.FilterMode.Value = "R-AC160";
-        logic.FilterBarcode.Value = "ABC"; 
+        logic.Filters["part"].SetValue("R1");
+        logic.Filters["step"].SetValue(10);
+        logic.Filters["mode"].SetValue("R-AC160");
+        logic.Filters["barcode"].SetValue("ABC"); 
 
         // Act
         logic.ResetFilterState();
 
         // Assert
-        Assert.Null(logic.FilterPartName.Value);
-        Assert.Null(logic.FilterStep.Value);
-        Assert.Null(logic.FilterMode.Value);
-        Assert.Null(logic.FilterBarcode.Value);
+        Assert.Null(logic.Filters["part"].GetValue());
+        Assert.Null(logic.Filters["step"].GetValue());
+        Assert.Null(logic.Filters["mode"].GetValue());
+        Assert.Null(logic.Filters["barcode"].GetValue());
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class StepTableLogicTests
         await logic.DictionaryToFilters(dict);
 
         // Assert
-        Assert.Equal(5, logic.FilterStep.Value);
-        Assert.True(logic.FilterStep.IsActive);
+        Assert.Equal(5, logic.Filters["step"].GetValue());
+        Assert.True(logic.Filters["step"].IsActive);
     }
 }

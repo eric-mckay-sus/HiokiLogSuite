@@ -1,9 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Timers;
-using BlazorBootstrap;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using Microsoft.VisualBasic;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
@@ -66,9 +64,6 @@ public class PowerSearchLogic()
         // Identify tables targeted by this query based on CurrentType
         var targets = TableLogics
             .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
-
-        // Clear untargeted tables, run targeted ones in parallel
-        foreach (var table in TableLogics.Except(targets)) table.ClearData();
 
         var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
 
@@ -222,6 +217,7 @@ public class PowerSearchLogic()
         var parseResult = ParserService.ParseQuery(commandInput, toType);
         var targetTable = TableLogics.FirstOrDefault(t => t.TableName.Equals(toType, StringComparison.OrdinalIgnoreCase));
 
+        // Verify that the target is exactly one table (only case we wish to check)
         if (targetTable != null && toType != "all")
         {
             // Pre-flight check: Hash the PARSED results

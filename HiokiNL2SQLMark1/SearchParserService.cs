@@ -69,19 +69,19 @@ public class SearchParserService
     private static readonly Dictionary<string, string> TagDescriptions = new(StringComparer.OrdinalIgnoreCase) // maps search tags to their tooltip
     {
         { "in", "Switch table scope (all, group, step, fct)" },
-        { "barcode", "Search by unique PCB identifier" },
-        { "group", "Filter by specific group name" },
+        { "barcode", "Search by unique PCB serial number" },
+        { "group", "Filter by group number in test sequence" },
         { "before", "Show results recorded before this date (exclusive)" },
         { "after", "Show results recorded after this date (inclusive)" },
         { "result", "Filter by PASS/FAIL status" },
-        { "comp", "Filter by component reference (e.g., R101)" },
+        { "comp", "Filter by component test results" },
         { "short", "Filter by short-circuit test results" },
-        { "macro", "Search by macro-test identifier" },
-        { "ic", "Filter by Integrated Circuit (IC) name" },
-        { "function", "Search by specific function test name" },
-        { "step", "Filter by test step name" },
+        { "macro", "Search by macro-test results" },
+        { "ic", "Filter by Integrated Circuit (IC) test results" },
+        { "function", "Search by functional test results" },
+        { "step", "Filter by test step number" },
         { "mode", "Filter by test mode" },
-        { "part", "Search by part number" }
+        { "part", "Search by part name" }
     };
 
     /// <summary>

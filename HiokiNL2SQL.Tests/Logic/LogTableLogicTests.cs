@@ -59,6 +59,33 @@ public class LogTableLogicTests
     public static readonly TheoryData<string, IFilter, object> TestFilters = GetTestFilters(true);
 
     [Fact]
+    public void GetFilterStateHash_IsCaseAndOrderInsensitive()
+    {
+        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
+        
+        var dict1 = new Dictionary<string, IFilter> { 
+            { "barcode", new Filter<string?>("barcode", "A123") },
+            { "result", new Filter<string?>("result", "PASS") }
+        };
+        var dict2 = new Dictionary<string, IFilter> { 
+            { "RESULT", new Filter<string?>("result", "pass") },
+            { "barcode", new Filter<string?>("barcode", "a123") }
+        };
+
+        Assert.Equal(logic.GetFilterStateHash(dict1), logic.GetFilterStateHash(dict2));
+    }
+
+    [Fact]
+    public void IsStale_RespectsOverride()
+    {
+        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
+        logic.IsStaleOverride = () => true; 
+        
+        // Even if hashes match, it should be stale because of the override
+        Assert.True(logic.IsStale);
+    }
+
+    [Fact]
     public async Task RefreshData_KeepPageFalse_ResetsToPageOne()
     {
         // Arrange
@@ -99,19 +126,8 @@ public class LogTableLogicTests
         };
         var logic = TestLogicFactory.CreateLogic(data);
 
-        // Act: Manually set the specific filter based on the key
-        switch (key)
-        {
-            case "barcode" when filter is Filter<string?> f:
-                logic.FilterBarcode = new Filter<string?>(f.Key, f.Value, isNegated: false);
-                break;
-            case "result" when filter is Filter<string?> f:
-                logic.FilterResult = new Filter<string?>(f.Key, f.Value, isNegated: false);
-                break;
-            case "group" when filter is Filter<int?> f:
-                logic.FilterGroup = new Filter<int?>(f.Key, f.Value, isNegated: false);
-                break;
-        }
+        // Act: Set the specific filter based on the key
+        logic.Filters[key].CopyFrom(filter);
         await logic.RefreshData();
 
         // Assert
@@ -133,19 +149,10 @@ public class LogTableLogicTests
         };
         var logic = TestLogicFactory.CreateLogic(data);
 
-        // Act: Manually set the specific filter based on the key
-        switch (key)
-        {
-            case "barcode" when filter is Filter<string?> f:
-                logic.FilterBarcode = new Filter<string?>(f.Key, f.Value, isNegated: true);
-                break;
-            case "result" when filter is Filter<string?> f:
-                logic.FilterResult = new Filter<string?>(f.Key, f.Value, isNegated: true);
-                break;
-            case "group" when filter is Filter<int?> f:
-                logic.FilterGroup = new Filter<int?>(f.Key, f.Value, isNegated: true);
-                break;
-        }
+        // Act: Set the specific filter based on the key
+        var target = logic.Filters[key];
+        target.CopyFrom(filter);
+        target.IsNegated = true; // Ensure it is negated for this test
         await logic.RefreshData();
 
         // Assert
@@ -167,7 +174,7 @@ public class LogTableLogicTests
             new() { Time = new DateTime(2024, 1, 2, 0, 0, 1), Barcode = "NextDay" }
         };
         var logic = TestLogicFactory.CreateLogic(data);
-        logic.FilterEndDate = new Filter<DateTime?>("before", targetDate);
+        logic.Filters["before"] = new Filter<DateTime?>("before", targetDate);
 
         // Act
         await logic.RefreshData();
@@ -188,7 +195,7 @@ public class LogTableLogicTests
             new() { Time = new DateTime(2024, 1, 1, 12, 0, 1), Barcode = "AfterNoon" }
         };
         var logic = TestLogicFactory.CreateLogic(data);
-        logic.FilterEndDate = new Filter<DateTime?>("before", targetDate);
+        logic.Filters["before"] = new Filter<DateTime?>("before", targetDate);
 
         // Act
         await logic.RefreshData();
@@ -209,7 +216,7 @@ public class LogTableLogicTests
             new() { Time = start, Barcode = "ExactlyOnTime" }
         };
         var logic = TestLogicFactory.CreateLogic(data);
-        logic.FilterStartDate = new Filter<DateTime?>("after", start);
+        logic.Filters["after"] = new Filter<DateTime?>("after", start);
 
         // Act
         await logic.RefreshData();
@@ -227,11 +234,11 @@ public class LogTableLogicTests
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
         
         // Fill all filters with "dirty" data to ensure ResetFilterState() is working
-        logic.FilterBarcode = new Filter<string?>("barcode", "DIRTY");
-        logic.FilterResult = new Filter<string?>("result", "DIRTY");
-        logic.FilterGroup = new Filter<int?>("group", -1);
-        logic.FilterStartDate = new Filter<DateTime?>("after", DateTime.MinValue);
-        logic.FilterEndDate = new Filter<DateTime?>("before", DateTime.MinValue);
+        logic.Filters["barcode"] = new Filter<string?>("barcode", "DIRTY");
+        logic.Filters["result"] = new Filter<string?>("result", "DIRTY");
+        logic.Filters["group"] = new Filter<int?>("group", -1);
+        logic.Filters["after"] = new Filter<DateTime?>("after", DateTime.MinValue);
+        logic.Filters["before"] = new Filter<DateTime?>("before", DateTime.MinValue);
 
         var filterDict = new Dictionary<string, IFilter> { { key, newFilter } };
 
@@ -241,11 +248,11 @@ public class LogTableLogicTests
         // Assert: Verify the target filter was mapped correctly
         object? actualValue = key switch
         {
-            "barcode" => logic.FilterBarcode.Value,
-            "result"  => logic.FilterResult.Value,
-            "group"   => logic.FilterGroup.Value,
-            "after"   => logic.FilterStartDate.Value,
-            "before"  => logic.FilterEndDate.Value,
+            "barcode" => logic.Filters["barcode"].GetValue(),
+            "result"  => logic.Filters["result"].GetValue(),
+            "group"   => logic.Filters["group"].GetValue(),
+            "after"   => logic.Filters["after"].GetValue(),
+            "before"  => logic.Filters["before"].GetValue(),
             _ => throw new ArgumentException("Unknown key")
         };
         Assert.Equal(expectedValue, actualValue);
@@ -253,13 +260,13 @@ public class LogTableLogicTests
         // Assert: Verify that a filter other than current was cleared
         if (key != "result")
         {
-            Assert.Null(logic.FilterResult.Value);
-            Assert.False(logic.FilterResult.IsActive);
+            Assert.Null(logic.Filters["result"].GetValue());
+            Assert.False(logic.Filters["result"].IsActive);
         }
         else
         {
-            Assert.Null(logic.FilterBarcode.Value);
-            Assert.False(logic.FilterBarcode.IsActive);
+            Assert.Null(logic.Filters["barcode"].GetValue());
+            Assert.False(logic.Filters["barcode"].IsActive);
         }
     }
 
@@ -305,6 +312,19 @@ public class LogTableLogicTests
         // Assert
         Assert.Equal(3, logic.DataView[0].Group);
         Assert.Equal(1, logic.DataView[2].Group);
+    }
+
+    [Fact]
+    public async Task HandleBarcodeClick_UsesTrigger_WhenUIBound()
+    {
+        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
+        string? triggeredQuery = null;
+        logic.OnNotifyUI = () => { }; // Simulate bound UI
+        logic.TriggerPowerSearch = (q) => triggeredQuery = q;
+
+        logic.HandleBarcodeClick("ABC");
+
+        Assert.Equal("in:all barcode:ABC", triggeredQuery);
     }
 
     [Fact]
@@ -406,14 +426,14 @@ public class LogTableLogicTests
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
         var record = new TestLogRecord { Id = 1 };
         logic.DataView = [record];
-        logic.FilterResult.Value = "PASS";
+        logic.Filters["result"].SetValue("PASS");
         logic.CurrentPage = 3;
 
         // Act
         logic.ResetFilterState();
 
         // Assert
-        Assert.Null(logic.FilterResult.Value);
+        Assert.Null(logic.Filters["result"].GetValue());
         Assert.Equal(1, logic.CurrentPage);
         // The DataView should remain until RefreshData is actually called
         Assert.Single(logic.DataView); 
@@ -431,7 +451,7 @@ public class LogTableLogicTests
         var logic = TestLogicFactory.CreateLogic(data);
         
         // Apply a filter that limits results
-        logic.FilterBarcode.Value = "A";
+        logic.Filters["barcode"].SetValue("A");
         await logic.RefreshData();
         Assert.Single(logic.DataView);
 
@@ -439,7 +459,7 @@ public class LogTableLogicTests
         await logic.ClearFilters();
 
         // Assert
-        Assert.Null(logic.FilterBarcode.Value);
+        Assert.Null(logic.Filters["barcode"].GetValue());
         // Should have re-queried and found both records
         Assert.Equal(2, logic.DataView.Count);
     }
@@ -452,7 +472,7 @@ public class LogTableLogicTests
         logic.DataView = [new() { Id = 1, Barcode = "Test" }];
         logic.TotalCount = 1;
         logic.CurrentPage = 5;
-        logic.FilterBarcode.Value = "SomeFilter";
+        logic.Filters["barcode"].SetValue("SomeFilter");
 
         // Act
         logic.ClearData();
@@ -461,6 +481,6 @@ public class LogTableLogicTests
         Assert.Empty(logic.DataView);
         Assert.Equal(0, logic.TotalCount);
         Assert.Equal(1, logic.CurrentPage);
-        Assert.Null(logic.FilterBarcode.Value);
+        Assert.Null(logic.Filters["barcode"].GetValue());
     }
 }

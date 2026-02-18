@@ -15,7 +15,8 @@ public interface ILogTableLogic
     string SortDir { get; set; } // The direction of the current sort
     
     // The core methods we need to trigger from the UI
-    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage);
+    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false);
+    int GetFilterStateHash(Dictionary<string, IFilter> filterDict);
     void ClearData();
     RenderFragment RenderTable();
     
@@ -30,6 +31,5 @@ public interface ILogTableLogic
     bool IsStale { get; } // Whether the query contents are the ones that generated the shown results
     bool IsLoading { get; } // Whether the query results are loading
 
-    int GetFilterStateHash(Dictionary<string, IFilter> filterDict);
     int? LastQueryHash { get; }
 }

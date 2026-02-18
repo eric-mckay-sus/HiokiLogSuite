@@ -75,17 +75,17 @@ public class FctTableLogicTests
     {
         // Arrange
         var logic = TestLogicFactory.CreateLogic<FctResult, FctTableLogic>([]);
-        logic.FilterStep.Value = 10;
-        logic.FilterMode.Value = "FLASH ROM";
-        logic.FilterBarcode.Value = "ABC"; 
+        logic.Filters["step"].SetValue(10);
+        logic.Filters["mode"].SetValue("FLASH ROM");
+        logic.Filters["barcode"].SetValue("ABC"); 
 
         // Act
         logic.ResetFilterState();
 
         // Assert
-        Assert.Null(logic.FilterStep.Value);
-        Assert.Null(logic.FilterMode.Value);
-        Assert.Null(logic.FilterBarcode.Value);
+        Assert.Null(logic.Filters["step"].GetValue());
+        Assert.Null(logic.Filters["mode"].GetValue());
+        Assert.Null(logic.Filters["barcode"].GetValue());
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class FctTableLogicTests
         await logic.DictionaryToFilters(dict);
 
         // Assert
-        Assert.Equal(5, logic.FilterStep.Value);
-        Assert.True(logic.FilterStep.IsActive);
+        Assert.Equal(5, logic.Filters["step"].GetValue());
+        Assert.True(logic.Filters["step"].IsActive);
     }
 }

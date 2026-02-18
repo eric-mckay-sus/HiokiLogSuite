@@ -71,18 +71,18 @@ public class GroupTableLogicTests
     public void ResetFilterState_ClearsGroupSpecificFilters()
     {
         // Arrange
-        var logic = TestLogicFactory.CreateLogic<GroupResult, GroupTableLogic>(new List<GroupResult>());
-        logic.FilterComp.Value = "Test";
-        logic.FilterShort.Value = "Test";
-        logic.FilterBarcode.Value = "BaseTest"; // Testing that base call also happens
+        var logic = TestLogicFactory.CreateLogic<GroupResult, GroupTableLogic>([]);
+        logic.Filters["comp"].SetValue("Test");
+        logic.Filters["short"].SetValue("Test");
+        logic.Filters["barcode"].SetValue("BaseTest"); // Testing that base call also happens
 
         // Act
         logic.ResetFilterState();
 
         // Assert
-        Assert.Null(logic.FilterComp.Value);
-        Assert.Null(logic.FilterShort.Value);
-        Assert.Null(logic.FilterBarcode.Value);
+        Assert.Null(logic.Filters["comp"].GetValue());
+        Assert.Null(logic.Filters["short"].GetValue());
+        Assert.Null(logic.Filters["barcode"].GetValue());
     }
 
     [Fact]
