@@ -14,7 +14,7 @@ public class PowerSearchLogic()
     public string Preview = ""; // the human-readable preview of the query to be executed
     public List<string> errorMessages = []; // the text of the error message, if applicable
     public readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",]; // the list of available date aliases
-    public Dictionary<string, IFilter> filters = []; // the key-value pairs parsed from command input
+    public Dictionary<string, IFilter> Filters = []; // the key-value pairs parsed from command input
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
@@ -67,7 +67,7 @@ public class PowerSearchLogic()
 
         var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
 
-        filters = parseResult.Filters;
+        Filters = parseResult.Filters;
         errorMessages = parseResult.ErrorMessages;
         CurrentType = parseResult.CurrentType;
         Preview = parseResult.Preview;
@@ -82,19 +82,34 @@ public class PowerSearchLogic()
             return;
         }
 
-        if(!skipUrlUpdate) SyncUrl();
+        var targetTable = TableLogics.FirstOrDefault(t => t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        // Inform the UI that we're loading
+        // Verify that the target is exactly one table, otherwise we're forced to run the query
+        if (targetTable != null && CurrentType != "all")
+        {
+            // Pre-flight check: Hash the PARSED results
+            int prospectiveHash = targetTable.GetFilterStateHash(Filters);
+
+            // Compare to target table's LAST SUCCESSFUL execution hash
+            if (targetTable.LastQueryHash == prospectiveHash && targetTable.TotalCount > 0)
+            {
+                NotifyStateChanged();
+                return; // skip DB
+            }
+        }
+
+        // If we're at this point, we prepare to execute the query
         IsSearching = true;
         LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
 
         try{
             // Parallelize search
-            await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(filters, keepPage)));
+            await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(Filters, keepPage)));
         } catch (Exception ex){
             errorMessages.Add($"Search failed: {ex.Message}");
         } finally{
             IsSearching = false;
+            if(!skipUrlUpdate) SyncUrl();
             NotifyStateChanged();
         }
     }
@@ -204,7 +219,7 @@ public class PowerSearchLogic()
     }
 
     /// <summary>
-    /// Helper for quick select table tabs. Automatically runs a search for the target table if the last query had results or the command input has content
+    /// Helper for quick select table tabs. Automatically runs a search for the target table.
     /// </summary>
     /// <param name="toType">The target table</param>
     public async Task SetType(string toType){
@@ -214,31 +229,6 @@ public class PowerSearchLogic()
             await AppendKey("in", true);
             commandInput += toType;
         }
-        var parseResult = ParserService.ParseQuery(commandInput, toType);
-        var targetTable = TableLogics.FirstOrDefault(t => t.TableName.Equals(toType, StringComparison.OrdinalIgnoreCase));
-
-        // Verify that the target is exactly one table (only case we wish to check)
-        if (targetTable != null && toType != "all")
-        {
-            // Pre-flight check: Hash the PARSED results
-            int prospectiveHash = targetTable.GetFilterStateHash(parseResult.Filters);
-
-            // Compare to target table's LAST SUCCESSFUL execution hash
-            if (targetTable.LastQueryHash == prospectiveHash && targetTable.TotalCount > 0)
-            {
-                // BYPASS: The table already has this data; just switch views.
-                CurrentType = toType;
-                filters = parseResult.Filters;
-                Preview = parseResult.Preview;
-                LastExecutedQuery = $"Search: {commandInput}"; 
-                
-                SyncUrl();
-                NotifyStateChanged();
-                return;
-            }
-        }
-
-        // Default: Run the full search
         CurrentType = toType;
         await ExecutePowerSearch();
     } 
@@ -248,7 +238,7 @@ public class PowerSearchLogic()
     /// </summary>
     public void ClearSearchBar(){
         commandInput = "";
-        filters = [];
+        Filters = [];
         errorMessages = [];
         SyncLivePreview(); // calls NotifyStateChanged internally
     }

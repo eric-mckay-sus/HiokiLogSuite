@@ -65,7 +65,7 @@ public class PowerSearchLogicTests
         // Assert
         // 1. Verify the Logic class updated its internal state from the Real Parser
         Assert.Equal("group", _logic.CurrentType);
-        Assert.Contains("barcode", _logic.filters.Keys);
+        Assert.Contains("barcode", _logic.Filters.Keys);
         
         // 2. Verify the preview was generated correctly by the real service
         Assert.Contains("A123", _logic.Preview);
@@ -119,6 +119,29 @@ public class PowerSearchLogicTests
 
         // 5. The UI should have been notified of the error state
         Assert.True(refreshCalled);
+    }
+
+    [Fact]
+    public async Task ExecutePowerSearch_BypassesDB_WhenHashMatches()
+    {
+        // Arrange
+        _logic.commandInput = "barcode:123 in:group";
+        int expectedHash = 12345;
+
+        // Setup the mock table to look like it already has this data
+        _mockTable.Setup(t => t.TableName).Returns("group");
+        _mockTable.Setup(t => t.LastQueryHash).Returns(expectedHash);
+        _mockTable.Setup(t => t.TotalCount).Returns(10);
+        _mockTable.Setup(t => t.GetFilterStateHash(It.IsAny<Dictionary<string, IFilter>>()))
+                .Returns(expectedHash);
+
+        // Act
+        await _logic.ExecutePowerSearch();
+
+        // Assert
+        // Verify we never touched the database (via DictionaryToFilters)
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), 
+            Times.Never);
     }
 
     [Fact]
@@ -248,24 +271,6 @@ public class PowerSearchLogicTests
         // Verify it didn't just append a second 'in' tag
         Assert.Contains("in:newtype", _logic.commandInput.ToLower());
         Assert.DoesNotContain("in:oldtype", _logic.commandInput.ToLower());
-    }
-
-    [Fact]
-    public async Task SetType_BypassesSearch_IfHashMatches()
-    {
-        // Arrange
-        _logic.commandInput = "barcode:123 in:group";
-        // Force the table to act like it already has this data
-        _mockTable.Setup(t => t.LastQueryHash).Returns(12345); 
-        _mockTable.Setup(t => t.GetFilterStateHash(It.IsAny<Dictionary<string, IFilter>>())).Returns(12345); 
-        _mockTable.Setup(t => t.TotalCount).Returns(10);
-
-        // Act
-        await _logic.SetType("group"); // Setting to the same type
-
-        // Assert
-        // Verify DictionaryToFilters was NEVER called because of the bypass
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]
