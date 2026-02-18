@@ -1,6 +1,5 @@
 using Moq;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.JSInterop;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1;
 using System.Diagnostics.CodeAnalysis;
@@ -9,7 +8,7 @@ namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
 public static class TestLogicFactory
 {
-    public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSRuntime? js = null, INavService? nav = null) 
+    public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSService? js = null, INavService? nav = null) 
         where T : class, IHiokiLog
         where TLogic : LogTableLogic<T>
     {
@@ -41,7 +40,7 @@ public static class TestLogicFactory
                 return context;
             });
 
-        var finalJs = js ?? new Mock<IJSRuntime>().Object;
+        var finalJs = js ?? new Mock<IJSService>().Object;
         var finalNav = nav ?? new Mock<INavService>().Object;
 
         // Determine if we are creating GroupTableLogic or the base LogTableLogic
@@ -62,6 +61,6 @@ public static class TestLogicFactory
     }
 
     // Overload to keep existing single-generic calls working for TestLogRecord
-    public static LogTableLogic<T> CreateLogic<T>(List<T> initialData, IJSRuntime? js = null, INavService? nav = null) where T : class, IHiokiLog
+    public static LogTableLogic<T> CreateLogic<T>(List<T> initialData, IJSService? js = null, INavService? nav = null) where T : class, IHiokiLog
         => CreateLogic<T, LogTableLogic<T>>(initialData, js, nav);
 }

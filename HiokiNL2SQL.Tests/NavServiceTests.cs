@@ -1,7 +1,6 @@
 using Moq;
 using HiokiNL2SQLMark1.Logic;
-using Microsoft.JSInterop;
-using HiokiNL2SQLMark1;
+using HiokiNL2SQLMark1.Services;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests;
@@ -11,7 +10,7 @@ public class PowerSearchNavServiceTests
     private readonly Mock<ILogTableLogic> _mockTable;
     private readonly SearchParserService _realParser;
     private readonly Mock<INavService> _mockNav;
-    private readonly Mock<IJSRuntime> _mockJs;
+    private readonly Mock<IJSService> _mockJs;
     private readonly PowerSearchLogic _logic;
 
     public PowerSearchNavServiceTests()
@@ -22,7 +21,7 @@ public class PowerSearchNavServiceTests
 
         _realParser = new SearchParserService();
         _mockNav = new Mock<INavService>();
-        _mockJs = new Mock<IJSRuntime>();
+        _mockJs = new Mock<IJSService>();
 
         _logic = new PowerSearchLogic(new[] { _mockTable.Object }, _realParser, _mockNav.Object, _mockJs.Object);
     }

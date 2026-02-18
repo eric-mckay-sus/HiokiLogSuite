@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using HiokiNL2SQLMark1.Logic;
 
-namespace HiokiNL2SQLMark1;
+namespace HiokiNL2SQLMark1.Services;
 
 public class NavService : INavService, IDisposable
 {

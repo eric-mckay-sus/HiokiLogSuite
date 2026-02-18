@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Dynamic.Core;
-using Microsoft.JSInterop;
 
 namespace HiokiNL2SQLMark1.Logic;
 
@@ -17,7 +16,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     // Utilities
     private readonly IDbContextFactory<LogDbContext> _dbFactory; // generates a new DbContext on demand (thread-safe)
     private readonly Func<LogDbContext, IQueryable<T>> _querySelector; // denotes the connection and query information
-    protected readonly IJSRuntime JS; // for handling CSV download
+    protected readonly IJSService JS; // for handling CSV download
     protected readonly INavService Nav; // for navigating to the power search page in a barcode "drill-down"
 
     // Shared filters
@@ -81,7 +80,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         }
     }
 
-    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSRuntime js, INavService nav)
+    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSService js, INavService nav)
     {
         _dbFactory = dbFactory;
         _querySelector = querySelector;
@@ -260,7 +259,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 
         // Call JS Runtime to perform the download
         string fileName = $"{targetType.Name}s_{DateTime.Now:yyyyMMdd_HHmm}.csv";
-        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, csvBuilder.ToString());
+        await JS.DownloadCsv(fileName, csvBuilder.ToString());
     }
 
     /// <summary>

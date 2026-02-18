@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1;
+using HiokiNL2SQLMark1.Services;
 using HiokiNL2SQLMark1.Logic;
 
 namespace HiokiNL2SQL.Tests;

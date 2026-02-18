@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using JS = Microsoft.JSInterop.IJSRuntime;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
@@ -8,7 +7,7 @@ namespace HiokiNL2SQLMark1.Logic;
 /// <param name="dbFactory">Generates a new DB context per thread</param>
 /// <param name="js">To handle saving to CSV</param>
 /// <param name="navService">To navigate away for barcode "drill-down"</param>
-public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, JS js, INavService navService) : 
+public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService js, INavService navService) : 
     LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navService)
 {
     public override string TableName => "group"; // This table's internal "type" as it would appear in currentType

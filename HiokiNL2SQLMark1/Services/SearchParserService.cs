@@ -1,9 +1,7 @@
 using System.Text.RegularExpressions;
 using HiokiNL2SQLMark1.Logic;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
-namespace HiokiNL2SQLMark1;
+namespace HiokiNL2SQLMark1.Services;
 /// <summary>
 /// A service to contain state and methods relevant for parsing. Required to be injected into PowerSearch.razor
 /// </summary>

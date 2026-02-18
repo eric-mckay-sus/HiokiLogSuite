@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
-using System.Timers;
-using Microsoft.JSInterop;
+using HiokiNL2SQLMark1.Services;
 
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
@@ -24,7 +23,7 @@ public class PowerSearchLogic()
     public readonly IEnumerable<ILogTableLogic> TableLogics; // The list of logic engines to perform the searches
     private readonly SearchParserService ParserService; // The service to which command input will be passed to get a filter dictionary back
     public readonly INavService NavService; // Controls the navigation between URLs constructed from modifying filters
-    private readonly IJSRuntime JSRuntime; // Controls cursor focus when applying quick select tags
+    private readonly IJSService JSService; // Controls cursor focus when applying quick select tags
 
     public event Action? OnRefreshRequested; // The trigger for the view (implemented in the view)
     public void NotifyStateChanged() => OnRefreshRequested?.Invoke(); // The method to trigger a refresh in the view
@@ -36,12 +35,12 @@ public class PowerSearchLogic()
     /// <param name="parserService">The service to parse command input</param>
     /// <param name="navManager">The navigation manager for URL use and manipulation</param>
     /// <param name="jsRuntime">The JS runtime to control cursor focus</param>
-    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, SearchParserService parserService, INavService navService, IJSRuntime jsRuntime) : this()
+    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, SearchParserService parserService, INavService navService, IJSService jsService) : this()
     {
         TableLogics = tableLogics;
         ParserService = parserService;
         NavService = navService;
-        JSRuntime = jsRuntime;
+        JSService = jsService;
 
         // Wire each table's notification to this class
         foreach (var table in TableLogics)
@@ -153,7 +152,7 @@ public class PowerSearchLogic()
         // Short-circuit if search bar is empty
         if(string.IsNullOrEmpty(commandInput)){
             commandInput = toAppend;
-            await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+            await JSService.FocusElement("searchBar");
             NotifyStateChanged();
             return;
         }
@@ -168,7 +167,7 @@ public class PowerSearchLogic()
         // Append the shortcut
         commandInput = commandInput.TrimEnd() + toAppend;
         SyncLivePreview();
-        await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+        await JSService.FocusElement("searchBar");
     }
 
     /// <summary>
@@ -349,7 +348,7 @@ public class PowerSearchLogic()
 
         // Trigger the JS helper to put the cursor back in the box if using quick select options
         if(!fromTableTab){ 
-            await JSRuntime.InvokeVoidAsync("focusElement", "searchBar");
+            await JSService.FocusElement("searchBar");
         }
         SyncLivePreview(); // calls NotifyStateChanged internally
         return true;

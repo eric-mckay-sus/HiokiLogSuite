@@ -1,7 +1,6 @@
 using Moq;
 using HiokiNL2SQLMark1.Logic;
-using Microsoft.JSInterop;
-using HiokiNL2SQLMark1;
+using HiokiNL2SQLMark1.Services;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
@@ -11,7 +10,7 @@ public class PowerSearchLogicTests
     private readonly Mock<ILogTableLogic> _mockTable;
     private readonly SearchParserService _realParser;
     private readonly Mock<INavService> _mockNav;
-    private readonly Mock<IJSRuntime> _mockJs;
+    private readonly Mock<IJSService> _mockJs;
     private readonly PowerSearchLogic _logic;
 
     public PowerSearchLogicTests()
@@ -22,10 +21,9 @@ public class PowerSearchLogicTests
 
         _realParser = new SearchParserService(); // Concrete instance
         _mockNav = new Mock<INavService>();
-        // Initialize the internal state of the NavigationManager
-        _mockJs = new Mock<IJSRuntime>();
+        _mockJs = new Mock<IJSService>();
 
-        _logic = new PowerSearchLogic(new[] { _mockTable.Object }, _realParser, _mockNav.Object, _mockJs.Object);
+        _logic = new PowerSearchLogic([_mockTable.Object], _realParser, _mockNav.Object, _mockJs.Object);
     }
 
     [Fact]
@@ -251,8 +249,7 @@ public class PowerSearchLogicTests
         // Assert
         Assert.Equal("barcode:A123 result:", _logic.commandInput);
         // Verify JS focus was called because fromTableTab is false
-        _mockJs.Verify(js => js.InvokeAsync<object>("focusElement", 
-            It.Is<object[]>(args => args.Contains("searchBar"))), Times.Once);
+        _mockJs.Verify(js => js.FocusElement("searchBar"), Times.Once);
     }
 
     [Fact]

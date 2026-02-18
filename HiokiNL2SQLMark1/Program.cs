@@ -2,6 +2,7 @@ using HiokiNL2SQLMark1.Components;
 using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
+using HiokiNL2SQLMark1.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +23,7 @@ builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<StepTa
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
 
 builder.Services.AddScoped<INavService, NavService>();
+builder.Services.AddScoped<IJSService, JSService>();
 builder.Services.AddScoped<SearchParserService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
