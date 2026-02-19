@@ -16,7 +16,7 @@ public class PowerSearchLogic()
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
-    public bool IsStale => commandInput != LastExecutedQuery.Replace("Search: ", ""); // Whether the search bar contents match the table(s) shown
+    public bool IsStale => commandInput != LastExecutedQuery.Replace("Search: ", ""); // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
     public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
     public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 
@@ -80,6 +80,8 @@ public class PowerSearchLogic()
             return;
         }
 
+        // Now we know some change will be made, regardless of whether the DB is hit
+        LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
         var targetTable = TableLogics.FirstOrDefault(t => t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
 
         // Verify that the target is exactly one table, otherwise we're forced to run the query
@@ -98,7 +100,6 @@ public class PowerSearchLogic()
 
         // If we're at this point, we prepare to execute the query
         IsSearching = true;
-        LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
 
         try{
             // Parallelize search
@@ -175,13 +176,17 @@ public class PowerSearchLogic()
     /// </summary>
     /// <param name="toType">The target table</param>
     public async Task SetType(string toType){
-        if(Regex.IsMatch(commandInput, ParserService.inPattern, RegexOptions.IgnoreCase)){ // if the search already has an "in" tag, replace it
+        if (toType == CurrentType) return; // Don't waste time performing an action that does nothing
+
+        // If the search already has an "in" tag, replace it
+        if(Regex.IsMatch(commandInput, ParserService.inPattern, RegexOptions.IgnoreCase)){
             commandInput = Regex.Replace(commandInput, ParserService.inPattern, $"in:{toType}", RegexOptions.IgnoreCase);
         } else { // otherwise, just append it
             await AppendKey("in", true);
             commandInput += toType;
         }
         CurrentType = toType;
+        SyncUrl(); // technically called inside ExecutePowerSearch but we do it here to avoid the wait
         await ExecutePowerSearch();
     } 
 
