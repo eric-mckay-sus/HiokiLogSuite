@@ -17,6 +17,7 @@ HiokiNL2SQLMark1/
 │  │  ├──Group.razor
 │  │  ├──Step.razor
 │  │  ├──Fct.razor
+│  │  ├──LogTablePresenter.razor
 │  │  └──MasterTable.razor
 │  ├──_Imports.razor
 │  ├──App.razor
@@ -28,12 +29,17 @@ HiokiNL2SQLMark1/
 │  ├──GroupTableLogic.cs
 │  ├──StepTableLogic.cs
 │  ├──FctTableLogic.cs
-│  └──PowerSearchLogic.cs
+│  ├──PowerSearchLogic.cs
+│  ├──INavService.cs
+│  └──IJSService.cs
+├──Services/
+│  ├──SearchParserService.cs
+│  ├──NavService.cs
+│  └──JSService.cs
 ├──wwwroot/
 │  ├──app.css
 │  └──favicon.png
 ├──HiokiNL2SQLMark1.csproj
 ├──Program.cs
 ├──LogTableBase.cs
-├──SearchParserService.cs
 └──LogDbContext.cs

@@ -35,7 +35,7 @@
             <FilterWrapper Filter="FilterMode" Label="Test Mode" ColumnClass="col-2">
                 <select class="form-select" @bind="FilterMode.Value">
                     <option value="">All Modes</option>
-                    @foreach (string? m in Logic.modeCache)
+                    @foreach (string? m in Logic.ModeCache)
                     {
                         <option value="@m">@m</option>
                     }
@@ -44,7 +44,7 @@
             <FilterWrapper Filter="FilterResult" Label="Result" ColumnClass="col-2">
                 <select class="form-select" @bind="FilterResult.Value">
                     <option value="">All Results</option>
-                    @foreach (string? r in Logic.resultCache)
+                    @foreach (string? r in Logic.ResultCache)
                     {
                         <option value="@r">@r</option>
                     }

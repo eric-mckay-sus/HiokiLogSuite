@@ -29,10 +29,24 @@ public interface INavService
     void UpdateSearchState(string query, int? page = null, int? pageSize = null, 
                          string? sort = null, string? dir = null, bool replaceHistory = false);
     
-    // Gets the current query string from the URL
+    /// <summary>
+    /// Gets the q? parameter from the address (search bar contents)
+    /// </summary>
+    /// <returns>The query of the current page</returns>
     string GetCurrentQuery();
 
+    /// <summary>
+    /// Upon navigating away from this page, unsubscribe from the URL monitor
+    /// </summary>
     UrlState GetFullStateFromUrl();
 }
 
+/// <summary>
+/// A record representing the parameters from the URL of the power search page
+/// </summary>
+/// <param name="Query">Filters</param>
+/// <param name="Page">Page number</param>
+/// <param name="PageSize">Entries per page</param>
+/// <param name="SortCol">Column to apply sort to</param>
+/// <param name="SortDir">Direction to sort in</param>
 public record UrlState(string Query, int? Page, int? PageSize, string? SortCol, string? SortDir);

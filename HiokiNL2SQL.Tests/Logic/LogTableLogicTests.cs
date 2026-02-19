@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 
@@ -405,7 +406,7 @@ public class LogTableLogicTests
         await logicStandard.InitializeCaches();
 
         // Assert
-        Assert.Empty(logicStandard.modeCache);
+        Assert.Empty(logicStandard.ModeCache);
 
         // Arrange - Scenario 2: Step Log
         var stepData = new List<TestStepFct> { new() { Mode = "C-CV" }, new() { Mode = "R-AC160" } };
@@ -415,18 +416,16 @@ public class LogTableLogicTests
         await logicStep.InitializeCaches();
 
         // Assert
-        Assert.Contains("C-CV", logicStep.modeCache);
-        Assert.Equal(2, logicStep.modeCache.Count);
+        Assert.Contains("C-CV", logicStep.ModeCache);
+        Assert.Equal(2, logicStep.ModeCache.Count);
     }
 
     [Fact]
-    public void ResetFilterState_KeepsDataButClearsInputs()
+    public async Task ResetFilterState_KeepsDataButClearsInputs()
     {
         // Arrange
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        var record = new TestLogRecord { Id = 1 };
-        logic.DataView = [record];
-        logic.Filters["result"].SetValue("PASS");
+        logic.DataView.Add(new() {Result = "PASS"});
         logic.CurrentPage = 3;
 
         // Act
@@ -469,7 +468,7 @@ public class LogTableLogicTests
     {
         // Arrange
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        logic.DataView = [new() { Id = 1, Barcode = "Test" }];
+        logic.DataView.Add(new() { Id = 1, Barcode = "Test" });
         logic.TotalCount = 1;
         logic.CurrentPage = 5;
         logic.Filters["barcode"].SetValue("SomeFilter");

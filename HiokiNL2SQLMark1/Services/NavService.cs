@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using HiokiNL2SQLMark1.Logic;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace HiokiNL2SQLMark1.Services;
 
@@ -49,29 +50,33 @@ public class NavService : INavService, IDisposable
             { "d", (string.IsNullOrEmpty(dir) || dir == "none") ? null : dir }
         };
 
-        string newUri = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(uri, parameters);
+        string newUri = QueryHelpers.AddQueryString(uri, parameters);
 
         _nav.NavigateTo(newUri, replace: replaceHistory);
     }
 
     /// <summary>
-    /// Gets the 
+    /// Gets the q? parameter from the address (search bar contents)
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The query of the current page</returns>
     public string GetCurrentQuery()
     {
         var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
         {
             return value.ToString();
         }
         return string.Empty;
     }
 
+    /// <summary>
+    /// Gets all the parameters from the URL
+    /// </summary>
+    /// <returns>A record represesnting the query, page number & size, and sort column & direction</returns>
     public UrlState GetFullStateFromUrl()
     {
         var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        var q = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        var q = QueryHelpers.ParseQuery(uri.Query);
 
         return new UrlState(
             Query: q.TryGetValue("q", out var query) ? query.ToString() : "",
@@ -82,5 +87,8 @@ public class NavService : INavService, IDisposable
         );
     }
 
+    /// <summary>
+    /// Upon navigating away from this page, unsubscribe from the URL monitor
+    /// </summary>
     public void Dispose() => _nav.LocationChanged -= (s, e) => OnLocationChanged?.Invoke(e.Location);
 }

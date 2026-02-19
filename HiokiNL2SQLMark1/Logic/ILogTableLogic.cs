@@ -1,18 +1,16 @@
-using Microsoft.AspNetCore.Components;
-
 namespace HiokiNL2SQLMark1.Logic;
 /// <summary>
-/// 
+/// The data visible to the power search page from the true backend
 /// </summary>
 public interface ILogTableLogic
 {
     string TableName { get; } // This table's internal "type" as it would appear in currentType (e.g., "group", "step", "fct")
     string DisplayName { get; } // The label to apply to this table in the view (e.g., "Group Results")
-    int TotalCount { get; } // The result count for this query on this page
 
     // Sorting parameters for URL control
     string CurrentSortColumn { get; set; } // The column currently being sorted
     string SortDir { get; set; } // The direction of the current sort
+    int? LastQueryHash { get; } // A hash representing the state of the filters from the most recent query
     
     // The core methods we need to trigger from the UI
     Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false);
@@ -20,15 +18,14 @@ public interface ILogTableLogic
     void ClearData();
     
     // Shared UI state for the MasterTable
-    int CurrentPage { get; set; }
-    int PageSize { get; set; }
-    int TotalPages { get; }
-    Action? OnNotifyUI { get; set; } // the trigger for which the view must watch
+    int CurrentPage { get; set; } // The page number shown in the data view
+    int PageSize { get; set; } // The number of results per page
+    int TotalPages { get; } // The number of pages
+    int TotalCount { get; } // The result count for this query on this page
+    Action? OnNotifyUI { set; } // the trigger for which the view must watch
     Action<string>? TriggerPowerSearch { get; set; } // the trigger to jump to the power search page for a barcode "drill-down"
     Action? UpdatePSUrl { get; set; } // update the URL from the power search page
     public Func<bool>? IsStaleOverride { get; set; } // to allow PowerSearch to provide its own definition of IsStale
     bool IsStale { get; } // Whether the query contents are the ones that generated the shown results
     bool IsLoading { get; } // Whether the query results are loading
-
-    int? LastQueryHash { get; }
 }

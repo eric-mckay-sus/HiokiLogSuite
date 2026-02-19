@@ -134,7 +134,7 @@ public class PowerSearchLogic()
         }
         else
         {
-            // If we are in "all" mode, null out these keys to demonstrate to the user that they are ignored.
+            // If we are in "all" mode, null out optional keys (null by default) to demonstrate to the user that they are ignored.
             // NavManager.GetUriWithQueryParameters will strip them from the existing URL.
             NavService.UpdateSearchState(commandInput);
         }

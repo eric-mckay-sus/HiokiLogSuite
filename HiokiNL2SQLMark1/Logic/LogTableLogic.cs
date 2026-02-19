@@ -10,76 +10,51 @@ namespace HiokiNL2SQLMark1.Logic;
 public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 {
     // For compliance with ILogTable (these particular values should never be seen)
-    public virtual string TableName => "unknown";
-    public virtual string DisplayName => "Unknown Table";
+    public virtual string TableName => "unknown"; // The internal name of this table
+    public virtual string DisplayName => "Unknown Table"; // The external name of this table
 
-    // Utilities
-    private readonly IDbContextFactory<LogDbContext> _dbFactory; // generates a new DbContext on demand (thread-safe)
-    private readonly Func<LogDbContext, IQueryable<T>> _querySelector; // denotes the connection and query information
-    protected readonly IJSService JS; // for handling CSV download
-    protected readonly INavService Nav; // for navigating to the power search page in a barcode "drill-down"
+    // Dependencies
+    private readonly IDbContextFactory<LogDbContext> _dbFactory; // Generates a new DbContext on demand (thread-safe)
+    private readonly Func<LogDbContext, IQueryable<T>> _querySelector; // Encapsulates the connection and query information
+    protected readonly IJSService JS; // For handling CSV download
+    protected readonly INavService Nav; // For navigating to the power search page in a barcode "drill-down"
 
     // Shared filters
-    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase); // To store the filters and their state
 
     // Pagination variables
     public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
     public int PageSize { get; set; } = 50; // The number of results per page
-    public int TotalCount { get; set; } // the total number of results
-    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // dynamically computes page count whenever totalCount or pageSize update
+    public int TotalCount { get; set; } // The total number of results
+    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize); // Dynamically compute page count whenever totalCount or pageSize update
 
     // For sorting
     public string CurrentSortColumn { get; set; } = ""; // The name of the column that results are currently being sorted by
     public string SortDir { get; set; } = "none"; // The sort direction of the currently sorted column
     
     // Data storage
-    public bool IsLoading { get; set; } // Whether the query is currently loading the table display
-    public List<T> DataView = []; // Stores the query results, only of the current page
-    public List<string> modeCache = []; // The list of test modes to choose from
-    public List<string> resultCache = []; // The list of test result types to choose from
+    public bool IsLoading { get; private set; } // Whether the query is currently loading the table display
+    public List<T> DataView { get; private set; } = []; // Stores the query results, only of the current page
+    public List<string> ModeCache { get; private set; } = []; // The list of test modes to choose from
+    public List<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
 
     // Provided to the UI
-    public Action? OnNotifyUI { get; set; } // Trigger so this method can tell the view to update (this is not architecturally correct for MVVM)
+    public Action? OnNotifyUI { private get; set; } // Prompts the view to refresh (this is not architecturally correct for MVVM)
     public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string, jumping to the power search page
-    public Action? UpdatePSUrl { get; set; }
-    public int? LastQueryHash { get; private set; }
-    public Func<bool>? IsStaleOverride { get; set; }
-    public virtual bool IsStale => IsStaleOverride != null 
+    public Action? UpdatePSUrl { get; set; } // Prompts the power search engine to update its URL
+    public int? LastQueryHash { get; private set; } // The hash of the filter state of the most recent query on this table
+    public Func<bool>? IsStaleOverride { get; set; } // Allows the power search page to provide its own definition of IsStale
+    public virtual bool IsStale => IsStaleOverride != null // If there is an override, use it, otherwise just compare the hash of this filter state and the last one
         ? IsStaleOverride() 
         : LastQueryHash != GetFilterStateHash(Filters);
     
     /// <summary>
-    /// Generate a state ID, for checking equality between two filter states
-    /// 17 and 31 are primes one off of powers of two, so we get few collisions and the compiler can take shortcuts
+    /// Builds a new LogTableLogic using DB context and necessary services. Adds all relevant filters to the registry based on subtype
     /// </summary>
-    /// <param name="filterDict">A dictionary of keys mapped to filters</param>
-    /// <returns>A value representing the state of the filters for the input dictionary</returns>
-    public int GetFilterStateHash(Dictionary<string, IFilter> filterDict) {
-        unchecked
-        {
-            int hash = 17;
-            // Order by key to ensure dictionary order doesn't change the hash
-            foreach (var key in filterDict.Keys.OrderBy(k => k))
-            {
-                // Ignore 'in' key, it does not affect the search contents within a table
-                if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
-
-                // Factor in each aspect of the filter
-                var filter = filterDict[key];
-                
-                var val = filter.GetValue();
-                if (val != null)
-                {
-                    hash *= 31 + key.ToLower().GetHashCode();
-                    hash += 31 + filter.IsNegated.GetHashCode();
-                    string valStr = val.ToString()?.Trim().ToLower() ?? "";
-                    hash *= 31 + valStr.GetHashCode();
-                }
-            }
-            return hash;
-        }
-    }
-
+    /// <param name="dbFactory">Generates a new LogDbContext for each thread</param>
+    /// <param name="querySelector">Encapsulates the DB connection and query information</param>
+    /// <param name="js">An implementation of </param>
+    /// <param name="nav"></param>
     public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSService js, INavService nav)
     {
         _dbFactory = dbFactory;
@@ -88,6 +63,36 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         Nav = nav;
 
        InitializeFilters(); // Children override this method as necessary 
+    }
+
+    /// <summary>
+    /// Generate a state ID, for checking equality between two filter states
+    /// 17 and 31 are primes one off of powers of two, so we get few collisions and the compiler can take shortcuts
+    /// </summary>
+    /// <param name="filterDict">A dictionary of keys mapped to filters</param>
+    /// <returns>A value representing the state of the filters for the input dictionary</returns>
+    public int GetFilterStateHash(Dictionary<string, IFilter> filterDict) {
+        unchecked // Tells the compiler to simply truncate the calculation instead of throwing an exception for integer overflow
+        {
+            int hash = 17;
+            // Order by key to ensure dictionary order doesn't change the hash
+            foreach (var key in filterDict.Keys.OrderBy(k => k))
+            {
+                // Ignore 'in' key, it does not affect the search contents within a table
+                if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
+
+                // Factor in each aspect of the filter, but only if it is active
+                var filter = filterDict[key];
+                if (filter.IsActive)
+                {
+                    hash *= 31 + key.ToLower().GetHashCode();
+                    hash *= 31 + filter.IsNegated.GetHashCode();
+                    string value = filter.GetValue()?.ToString()?.Trim().ToLower() ?? "";
+                    hash *= 31 + value.GetHashCode();
+                }
+            }
+            return hash;
+        }
     }
 
     /// <summary>
@@ -132,7 +137,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Helper to get the strongly-typed version of a generic-typed filter
+    /// Helper to get the strongly-typed version of a generic-typed filter from the registry
     /// </summary>
     /// <typeparam name="U">The generic type of a Filter, one of string, int, or DateTime</typeparam>
     /// <param name="key">The key for which to get the filter</param>
@@ -160,17 +165,17 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 ? query.Where(x => !x.Barcode.Contains(barcode.Value))
                 : query.Where(x => x.Barcode.Contains(barcode.Value));
 
-        if (startDate.IsActive)
+        if (startDate.IsActive) // Can't negate date checks, so ignore negation status
             query = query.Where(x => x.Time >= startDate.Value);
 
         if (endDate.IsActive) // The semantics of the word "before" are tricky and depend on whether a time was specified
             if (endDate.Value!.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
             {
-                query = query.Where(x => x.Time < endDate.Value!.Value.AddDays(1)); // this is inclusive of all times on the end date
+                query = query.Where(x => x.Time < endDate.Value!.Value.AddDays(1)); // Inclusive of all times on the end date
             }
             else // Otherwise, use the time provided by the user as a hard stop
             {
-                query = query.Where(x => x.Time <= endDate.Value); // this stops exactly at the time specified
+                query = query.Where(x => x.Time <= endDate.Value); // Stop exactly at the time specified
             }
 
         if (groupNum.IsActive)
@@ -187,10 +192,11 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Saves a dictionary of filter key-value pairs to the registry, then calls for a refresh
-    /// Table-specific filters are handled because their child class has added their key to the registry
+    /// Saves a mapping of search keys to IFilters to the registry, then calls for a refresh
+    /// Table-specific filters are handled because their child class has added their key to the registry in InitializeFilters
     /// </summary>
     /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
+    /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
     /// <returns></returns>
     public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
     {
@@ -225,7 +231,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 
     /// <summary>
     /// Detects the table, then saves the results of the query on that table to a CSV
-    /// Uses JS Runtime to download directly to browser Downloads location
+    /// Uses JSService (indirectly uses JS Runtime) to download directly to browser Downloads location
     /// </summary>
     /// <returns></returns>
     public async Task SaveToCSV()
@@ -263,7 +269,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Navigates to the power search page upon selecting a barcode to pursue
+    /// Using the NavigationManager embedded in NavService, navigates to the power search page upon selecting a barcode to pursue
     /// </summary>
     /// <param name="barcode">The barcode to trace</param>
     public void HandleBarcodeClick(string barcode)
@@ -352,23 +358,22 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <summary>
     /// Initializes the test mode and result type caches (for step & FCT tables)
     /// </summary>
-    /// <param name="isStep">Whether to load caches for step table (versus FCT table)</param>
     /// <returns></returns>
     public async Task InitializeCaches()
     {
         if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
         {
             using var db = await _dbFactory.CreateDbContextAsync();
-            var query = _querySelector(db).AsNoTracking();
+            IQueryable<T> query = _querySelector(db).AsNoTracking();
 
             // Run sequentially to avoid context collisions
-            modeCache = await query
+            ModeCache = await query
                 .Select("Mode")
                 .Distinct()
                 .OrderBy("it")
                 .ToDynamicListAsync<string>();
 
-            resultCache = await query
+            ResultCache = await query
                 .Select("Result")
                 .Distinct()
                 .OrderBy("it")
@@ -377,7 +382,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     }
 
     /// <summary>
-    /// Resets the common filters
+    /// Resets the common filters, and optionally, the page
+    /// <param name="keepPage">Whether to keep the current page (or reset it)</param>
     /// </summary>
     public void ResetFilterState(bool keepPage=false)
     {

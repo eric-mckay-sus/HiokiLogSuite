@@ -1,7 +1,7 @@
 @typeparam T where T : class, IHiokiLog
 @using HiokiNL2SQLMark1.Logic
 
-@if (TableLogic.DataView.Count == 0 && !TableLogic.IsLoading)
+@if (TableLogic.TotalCount == 0 && !TableLogic.IsLoading)
 {
     <h4 style="text-align: center;">
         No @TableLogic.TableName records found matching these criteria.
@@ -9,7 +9,6 @@
 }
 else
 {
-    @* The compiler now checks these parameter names! *@
     <MasterTable
         Items="TableLogic.DataView"
         CurrentPage="TableLogic.CurrentPage"
