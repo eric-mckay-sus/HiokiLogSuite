@@ -16,7 +16,9 @@ public class PowerSearchLogic()
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
-    public bool IsStale => commandInput != LastExecutedQuery.Replace("Search: ", ""); // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
+
+    // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
+    public bool IsStale => (commandInput != LastExecutedQuery.Replace("Search: ", "")) && LastExecutedQuery != "Hioki ICT Power Search";
     public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
     public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 

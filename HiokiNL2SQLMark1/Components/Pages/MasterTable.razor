@@ -11,7 +11,7 @@
         @* Page Size Dropdown *@
         <div class="d-flex align-items-center me-3">
             <span class="text-muted me-2">Rows:</span>
-            <select class="form-select form-select-sm" style="width: auto;" 
+            <select class="form-select form-select-sm" style="width:auto" 
                     @onchange="async (e) => await OnPageSizeChange.InvokeAsync(int.Parse(e.Value.ToString()))">
                 <option value="10" selected="@(PageSize == 10)">10</option>
                 <option value="25" selected="@(PageSize == 25)">25</option>
@@ -25,6 +25,18 @@
     </div>
     <nav>
         <ul class="pagination mt-3">
+            <div class="d-flex align-items-center me-3 ms-auto">
+                <span class="text-muted me-2">Go to:</span>
+                <div class="input-group input-group-sm" style="width: 75px;">
+                    <input type="number" class="form-control"
+                        min="1" max="@TotalPages" 
+                        @bind="jumpPage" 
+                        @onkeyup="@(e => e.Key == "Enter" ? HandleJumpPage() : Task.CompletedTask)"
+                        placeholder="@CurrentPage" />
+                    <button class="btn btn-outline-info btn-sm" @onclick="HandleJumpPage">Go</button>
+                </div>
+                <span class="text-muted ms-2">of @TotalPages</span>
+            </div>
             <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
                 <button class="btn btn-outline-secondary" @onclick="() => OnPageChange.InvokeAsync(CurrentPage - 1)">&laquo; Previous</button>
             </li>
@@ -92,6 +104,17 @@
     [Parameter] public int TotalCount { get; set; }
     [Parameter] public int PageSize { get; set; }
     [Parameter] public EventCallback<int> OnPageChange { get; set; }
+    private string jumpPage = "";
+    private async Task HandleJumpPage()
+    {
+        if (int.TryParse(jumpPage, out int targetPage))
+        {
+            // Clamp the value between 1 and TotalPages
+            targetPage = Math.Max(1, Math.Min(targetPage, TotalPages));
+            jumpPage = targetPage.ToString(); // Update UI to show clamped value
+            await OnPageChange.InvokeAsync(targetPage);
+        }
+    }
 
     // Sorting Params
     [Parameter] public string CurrentSortColumn { get; set; } = "";
