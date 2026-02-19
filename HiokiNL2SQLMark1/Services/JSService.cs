@@ -10,10 +10,7 @@ public class JSService(IJSRuntime js) : IJSService
     /// </summary>
     /// <param name="elementId">The ID of the HTML to focus</param>
     /// <returns></returns>
-    public async Task FocusElement(string elementId)
-    {
-        await js.InvokeVoidAsync("focusElement", elementId);
-    }
+    public async Task FocusElement(string elementId) => await js.InvokeVoidAsync("focusElement", elementId);
 
     /// <summary>
     /// Trigger a download of the specified content in the browser
@@ -21,8 +18,5 @@ public class JSService(IJSRuntime js) : IJSService
     /// <param name="fileName">The name for the output file</param>
     /// <param name="csvContent">The data to download as CSV</param>
     /// <returns></returns>
-    public async Task DownloadCsv(string fileName, string csvContent)
-    {
-        await js.InvokeVoidAsync("downloadFileFromStream", fileName, csvContent);
-    }
+    public async Task DownloadCsv(string fileName, string csvContent) => await js.InvokeVoidAsync("downloadFileFromStream", fileName, csvContent);
 }

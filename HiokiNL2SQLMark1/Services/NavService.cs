@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using HiokiNL2SQLMark1.Logic;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.AspNetCore.Components.Routing;
 
 namespace HiokiNL2SQLMark1.Services;
 
@@ -17,7 +18,7 @@ public class NavService : INavService, IDisposable
     public NavService(NavigationManager nav)
     {
         _nav = nav;
-        _nav.LocationChanged += (s, e) => OnLocationChanged?.Invoke(e.Location);
+        _nav.LocationChanged += HandleLocationChanged;
     }
     
 
@@ -88,7 +89,15 @@ public class NavService : INavService, IDisposable
     }
 
     /// <summary>
+    /// Hook for OnLocationChanged with the necessary signature for subscription
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e) 
+        => OnLocationChanged?.Invoke(e.Location);
+
+    /// <summary>
     /// Upon navigating away from this page, unsubscribe from the URL monitor
     /// </summary>
-    public void Dispose() => _nav.LocationChanged -= (s, e) => OnLocationChanged?.Invoke(e.Location);
+    public void Dispose() => _nav.LocationChanged -= HandleLocationChanged;
 }

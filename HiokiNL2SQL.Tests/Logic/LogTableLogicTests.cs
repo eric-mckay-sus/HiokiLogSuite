@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Threading.Tasks;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 
@@ -421,7 +420,7 @@ public class LogTableLogicTests
     }
 
     [Fact]
-    public async Task ResetFilterState_KeepsDataButClearsInputs()
+    public void ResetFilterState_KeepsDataButClearsInputs()
     {
         // Arrange
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());

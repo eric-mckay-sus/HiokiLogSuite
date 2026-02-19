@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using HiokiNL2SQLMark1.Services;
 using HiokiNL2SQLMark1.Logic;
 
-namespace HiokiNL2SQL.Tests;
+namespace HiokiNL2SQL.Tests.Services;
 [ExcludeFromCodeCoverage]
 public class SearchParserTests
 {

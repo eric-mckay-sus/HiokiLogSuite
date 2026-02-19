@@ -67,13 +67,21 @@
     /// <param name="e">The information about the event to handle</param>
     public async void HandleLocationChanged(string newLocation)
     {
-        if (State.IsProcessingNavigation) return;
+        try{
+            if (State.IsProcessingNavigation) return;
 
-        await InvokeAsync(async () =>
+            await InvokeAsync(async () =>
+            {
+                await ApplyUrlState();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
         {
-            await ApplyUrlState();
-            StateHasChanged();
-        });
+            // Log error or update UI state - async void must handle its own errors!
+            Console.WriteLine($"Navigation error: {ex.Message}");
+        }
+        
     }
 
     private async Task ApplyUrlState()
@@ -92,7 +100,7 @@
             activeTable.SortDir = state.SortDir ?? "none";
         }
 
-        // 3. Execute the search (passing true to keepPage ensures we use the URL's page number)
+        // Execute the search (passing true to keepPage ensures we use the URL's page number)
         await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
     }
 }
