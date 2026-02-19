@@ -181,8 +181,8 @@ public class PowerSearchLogic()
         if (toType == CurrentType) return; // Don't waste time performing an action that does nothing
 
         // If the search already has an "in" tag, replace it
-        if(Regex.IsMatch(commandInput, ParserService.inPattern, RegexOptions.IgnoreCase)){
-            commandInput = Regex.Replace(commandInput, ParserService.inPattern, $"in:{toType}", RegexOptions.IgnoreCase);
+        if(Regex.IsMatch(commandInput, SearchParserService.inPattern, RegexOptions.IgnoreCase)){
+            commandInput = Regex.Replace(commandInput, SearchParserService.inPattern, $"in:{toType}", RegexOptions.IgnoreCase);
         } else { // otherwise, just append it
             await AppendKey("in", true);
             commandInput += toType;

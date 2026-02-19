@@ -4,6 +4,7 @@ using HiokiNL2SQLMark1.Logic;
 namespace HiokiNL2SQLMark1.Services;
 /// <summary>
 /// A service to contain state and methods relevant for parsing. Required to be injected into PowerSearch.razor
+/// This service does have state, but it is all static
 /// </summary>
 public class SearchParserService
 {
@@ -13,8 +14,8 @@ public class SearchParserService
     // Verbatim strings (those starting with @) switch out the usual escape character of backslash (\) for quote ("), which is why it appears twice
     // Parentheses and brackets are for grouping the regex itself (VS does a little better at demonstrating this than VS Code).
     // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH (quoted values are only parsed as grouping)
-    readonly string tagPattern = @"(-?\w+)\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
-    public string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag. Includes optional negation
+    protected const string tagPattern = @"(-?\w+)\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
+    public const string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag. Includes optional negation
     public static readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
 
     // Basic SQL injection countermeasure (these words are disallowed in a query)
@@ -25,16 +26,16 @@ public class SearchParserService
     };
 
     // Sets of which tags are available to which tables. StepFctTags inherits from StepTags and FctTags, and AllTags inherits from all other tag sets
-    readonly static HashSet<string> UniversalTags = new(StringComparer.OrdinalIgnoreCase) 
+    private static readonly HashSet<string> UniversalTags = new(StringComparer.OrdinalIgnoreCase) 
         { "in", "barcode", "group", "before", "after", "result" }; // tags available for use on any table
-    readonly static HashSet<string> GroupTags = new(StringComparer.OrdinalIgnoreCase) 
+    private static readonly HashSet<string> GroupTags = new(StringComparer.OrdinalIgnoreCase) 
         { "comp", "short", "macro", "ic", "function" }; // tags available to group table only
-    readonly static HashSet<string> StepFctTags = new(StringComparer.OrdinalIgnoreCase) 
+    private static readonly HashSet<string> StepFctTags = new(StringComparer.OrdinalIgnoreCase) 
         { "step", "mode" }; // tags available to both the step and FCT tables
-    readonly static HashSet<string> StepTags = CreateStepSet(); // tags available to step table only
-    static HashSet<string> CreateStepSet() => new(StepFctTags, StringComparer.OrdinalIgnoreCase){"part"};
-    readonly static HashSet<string> FctTags = StepFctTags; // tags available to FCT table only (alias for StepFctTags at the moment)
-    public readonly static HashSet<string> AllTags = CombineAllTags(); // all tags available to the system (union of all other tables)
+    private static readonly HashSet<string> StepTags = CreateStepSet(); // tags available to step table only
+    private static HashSet<string> CreateStepSet() => new(StepFctTags, StringComparer.OrdinalIgnoreCase){"part"};
+    private static readonly HashSet<string> FctTags = StepFctTags; // tags available to FCT table only (alias for StepFctTags at the moment)
+    public static readonly HashSet<string> AllTags = CombineAllTags(); // all tags available to the system (union of all other tables)
     private static HashSet<string> CombineAllTags()
     {
         HashSet<string> all = new(UniversalTags, StringComparer.OrdinalIgnoreCase);
