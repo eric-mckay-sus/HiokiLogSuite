@@ -168,15 +168,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         if (startDate.IsActive) // Can't negate date checks, so ignore negation status
             query = query.Where(x => x.Time >= startDate.Value);
 
-        if (endDate.IsActive) // The semantics of the word "before" are tricky and depend on whether a time was specified
-            if (endDate.Value!.Value.TimeOfDay == TimeSpan.Zero) // If the datetime has midnight as the time part, that means only the date part was provided by the user
-            {
-                query = query.Where(x => x.Time < endDate.Value!.Value.AddDays(1)); // Inclusive of all times on the end date
-            }
-            else // Otherwise, use the time provided by the user as a hard stop
-            {
-                query = query.Where(x => x.Time <= endDate.Value); // Stop exactly at the time specified
-            }
+        if (endDate.IsActive) // The semantics of the word "before" are tricky and depend on whether a time was specified, but that's handled in the parser now
+            query = query.Where(x => x.Time <= endDate.Value);
 
         if (groupNum.IsActive)
             query = groupNum.IsNegated

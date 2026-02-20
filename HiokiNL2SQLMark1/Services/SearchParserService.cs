@@ -134,8 +134,9 @@ public class SearchParserService
     /// </summary>
     /// <param name="rawInput">The string to parse</param>
     /// <param name="currentType">The current table to check</param>
+    /// <param name="isInclusive">Whether date filters include the specified value in their range</param>
     /// <returns>a SearchParseResult containing the dictionary of filters, list of errors, current table, and preview</returns>
-    public SearchParseResult ParseQuery(string rawInput, string currentType)
+    public SearchParseResult ParseQuery(string rawInput, string currentType, bool isInclusive=true)
     {
         // Initialize the return package with the current table
         var result = new SearchParseResult{CurrentType = currentType};
@@ -209,7 +210,7 @@ public class SearchParserService
             }
             // Validate if value matches the datatype required by the key
             if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
-                if (!IsValidValue(expectedType, value, out string errorMessage)) {
+                if (!IsValidValue(expectedType, cleanKey, value, out string errorMessage)) {
                     result.ErrorMessages.Add($"Invalid value for **{key}**: {errorMessage}");
                     lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                     continue;
@@ -232,7 +233,7 @@ public class SearchParserService
             }
             // we didn't actually remove "in", we just ignored it
             if (cleanKey != "in") { // if it's not a datetime, it doesn't get special treatment
-                result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated);
+                result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated, isInclusive);
             }
             lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
         }
@@ -290,34 +291,13 @@ public class SearchParserService
     }
 
     /// <summary>
-    /// Used by ParseQuery to separate and translate a datetime
-    /// Splits and rebuilds string to handle combined date and time aliases like "today shift1"
-    /// </summary>
-    /// <param name="value">The datetime to process</param>
-    /// <returns>The ISO date string representing the input datetime</returns>
-    private static string ProcessDateValue(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        // Translate parts separately and re-combine
-        if (parts.Length > 1) {
-            string datePart = TranslateDateAlias(parts[0], isTimePart: false);
-            string timePart = TranslateDateAlias(parts[1], isTimePart: true);
-            return $"{datePart} {timePart}".Trim();
-        }
-        // Otherwise treat it as a date only
-        return TranslateDateAlias(value, isTimePart: false);
-    }
-
-    /// <summary>
     /// Verifies that a value matches a certain type
     /// </summary>
     /// <param name="type">A ValType (enum) representing the required type</param>
     /// <param name="value">The value for which to check the type</param>
     /// <param name="error">The error message (in case of failure)</param>
-    /// <returns></returns>
-    private static bool IsValidValue(ValType type, string value, out string error)
+    /// <returns>Whether the value matches the type specified</returns>
+    private static bool IsValidValue(ValType type, string key, string value, out string error)
     {
         error = string.Empty;
         switch (type)
@@ -332,7 +312,7 @@ public class SearchParserService
                 break;
             // If we're checking a field required to be a datetime, use DateTime.TryParse
             case ValType.DateTime:
-                string normalized = ProcessDateValue(value);
+                string normalized = ProcessDateValue(key, value); // disregard inclusivity for this check
                 if (string.IsNullOrEmpty(normalized)) {
                     error = $"Date (read as **{normalized}**) cannot be empty.";
                     return false;
@@ -344,10 +324,19 @@ public class SearchParserService
                 }
                 break;
         }
+        // The input value is already a string, so there's no check when
         return true;
     }
 
-    private static IFilter CreateFilter(string key, string value, bool isNegated)
+    /// <summary>
+    /// Creates a filter for a key-value pair with its polarity
+    /// </summary>
+    /// <param name="key">The filter's name</param>
+    /// <param name="value">The filter's value</param>
+    /// <param name="isNegated">The filter's polarity</param>
+    /// <param name="isInclusive">Whether to treat date filters as inclusive of their value (or exclusive)</param>
+    /// <returns>The filter constructed from its components</returns>
+    private static IFilter CreateFilter(string key, string value, bool isNegated, bool isInclusive)
     {
         // Determine the expected type from TagTypeMap
         if (!TagTypeMap.TryGetValue(key, out var type)) type = ValType.String; // Default fallback
@@ -357,7 +346,7 @@ public class SearchParserService
         {
             ValType.Int => new Filter<int?>(key, int.TryParse(value, out int i) ? i : null, isNegated),
 
-            ValType.DateTime => new Filter<DateTime?>(key, DateTime.TryParse(ProcessDateValue(value), out var dt) ? dt : null, false), // Negation not allowed for dates
+            ValType.DateTime => new Filter<DateTime?>(key, DateTime.TryParse(ProcessDateValue(key, value, isInclusive:isInclusive), out var dt) ? dt : null, false), // Negation not allowed for dates
 
             // String already handles empty/null internally
             _ => new Filter<string?>(key, value, isNegated),
@@ -423,34 +412,102 @@ public class SearchParserService
             case "fct":   keys.UnionWith(FctTags); break;
         }
 
-        return keys.OrderBy(x => x); 
+        return keys.OrderBy(x => x); // Implicitly casts to an orderable implementation of IEnumerable (not a set)
     }
 
     /// <summary>
-    /// Translates aliases like "today", "last24h", and "shift2" to valid datetimes
+    /// Used by ParseQuery to separate and translate a datetime
+    /// Splits and rebuilds string to handle combined date and time aliases like "today shift1"
     /// </summary>
-    /// <param name="alias">the alias to translate to a datetime</param>
-    /// <returns>The datetime referred to by the alias</returns>
-    public static string TranslateDateAlias(string alias, bool isTimePart = false)
+    /// <param name="key">The key for which to get the datetime boundary (should be 'before' or 'after')</param>
+    /// <param name="value">The value for the key, with optional aliases</param>
+    /// <param name="isInclusive">Whether the boundary datetime should be inclusive of the value provided</param>
+    /// <returns>The full ISO date string representing the boundary for the date filter</returns>
+    private static string ProcessDateValue(string key, string value, bool isInclusive=true)
     {
-        DateTime now = DateTime.Today;
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool isBefore = key.Equals("before", StringComparison.OrdinalIgnoreCase);
+
+        // Translate parts separately and re-combine
+        if (parts.Length > 1) {
+            string datePart = TranslateDateAlias(parts[0], isTimePart:false, isBefore:isBefore, isInclusive:isInclusive);
+            string timePart = TranslateDateAlias(parts[1], isTimePart:true, isBefore:isBefore, isInclusive:isInclusive);
+
+            // If datePart returned a full ISO string (with time) extract only the date
+            if(DateTime.TryParse(datePart, out var dt)) datePart = dt.ToString("yyyy-MM-dd");
+            return $"{datePart} {timePart}".Trim();
+        }
+        // Otherwise treat it as a date only
+        return TranslateDateAlias(value, isTimePart:false, isBefore:isBefore, isInclusive:isInclusive);
+    }
+
+    /// <summary>
+    /// Generates a datetime boundary for aliases like "today", "last24h", and "shift2" to valid datetimes
+    /// Bounding datetime is sensitive to filter type (e.g. inclusive after:shift1 gets start time of shift 1)
+    /// </summary>
+    /// <param name="alias">The alias for which to get the bounding datetime</param>
+    /// <param name="isTimePart">Whether to get only the time for this alias (or to get the full datetime)</param>
+    /// <param name="isBefore">Whether the key to be used is 'before' (or 'after')</param>
+    /// <param name="isInclusive">Whether the bound</param>
+    /// <returns>The ISO date string representing the boundary for use of this alias with this key</returns>
+    public static string TranslateDateAlias(string alias, bool isTimePart, bool isBefore, bool isInclusive=true)
+    {
+        DateTime now = DateTime.Now;
+        DateTime today = DateTime.Today;
         string lowerAlias = alias.ToLower();
+        // We avoid excess branching/method definitions by using the knowledge that an exclusive filter will use the opposite endpoint as the inclusive filter
+        if(!isInclusive) isBefore = !isBefore;
 
         // adjust as needed, these are approximate
-        string s1 = "07:00:00";
-        string s2 = "15:00:00";
-        string s3 = "23:00:00";
+        TimeSpan s1Start = new(7,0,0);
+        TimeSpan s2Start = new(15,0,0);
+        TimeSpan s3Start = new(23,0,0);
+        TimeSpan shiftDuration = TimeSpan.FromHours(8);
 
-        return lowerAlias switch
+        string result = lowerAlias switch
         {
-            "today"     => now.ToString("yyyy-MM-dd"),
-            "yesterday" => now.AddDays(-1).ToString("yyyy-MM-dd"),
-            "lastweek"  => now.AddDays(-7).ToString("yyyy-MM-dd"),
-            "last24h"   => DateTime.Now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"), // ensure 24 hours since this moment, not just since this morning
-            "shift1"    => isTimePart ? s1 : $"{now:yyyy-MM-dd} {s1}",
-            "shift2"    => isTimePart ? s2 : $"{now:yyyy-MM-dd} {s2}",
-            "shift3"    => isTimePart ? s3 : $"{now:yyyy-MM-dd} {s3}",
+            // Today (inclusive) goes from the end of today if using 'before', but the start of today if using 'after'
+            "today"     => isBefore ? today.AddDays(1).AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss")
+                                    : today.ToString("yyyy-MM-dd HH:mm:ss"),
+            // Yesterday (inclusive) goes from the end of yesterday when using 'before', but the start of yesterday when using 'after'
+            "yesterday" => isBefore ? today.AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss")
+                                    : today.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"),
+            // Last week always gets 7 days ago, regardless of filter
+            "lastweek"  => today.AddDays(-7).ToString("yyyy-MM-dd"),
+            // Ensure 24 hours since this moment, not just since this morning. Same endpoint regardless of filter
+            "last24h"   => now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"),
+            // Shift aliases use the local helper to get the right end of the shift
+            "shift1" => ResolveShift(s1Start),
+            "shift2" => ResolveShift(s2Start),
+            "shift3" => ResolveShift(s3Start),
             _           => alias // If it's not an alias, hopefully it's already a datetime. Return the original string (e.g., 2024-01-01)
         };
+
+        // If it's a valid date but has no time (midnight), roll it to the end of that day to maintain inclusivity
+        if (isBefore && !isTimePart && isInclusive && DateTime.TryParse(result, out var parsedDate) && parsedDate.TimeOfDay == TimeSpan.Zero)
+        {
+            return parsedDate.AddDays(1).AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss");
+        }
+
+        return result;
+
+        // Local helper to get the datetime associated with a shift alias, sensitive to whether it is only to get the time part of the string
+        string ResolveShift(TimeSpan start)
+        {
+            // If instructed to only get the time part, discard the date part and return
+            if (isTimePart) return isBefore ? start.Add(shiftDuration).ToString(@"hh\:mm\:ss") : start.ToString(@"hh\:mm\:ss");
+
+            // At this point, we resolve the date part
+            // Calculate the occurrence of this shift today
+            DateTime shiftTodayStart = DateTime.Today.Add(start);
+
+            // If the shift hasn't started yet today, the user means the one from yesterday
+            if (now < shiftTodayStart) shiftTodayStart = shiftTodayStart.AddDays(-1);
+
+            // Otherwise return the full ISO date string 
+            DateTime result = isBefore ? shiftTodayStart.Add(shiftDuration) : shiftTodayStart;
+            return result.ToString("yyyy-MM-dd HH:mm:ss");
+        }
     }
 }

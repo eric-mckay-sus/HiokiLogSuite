@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using HiokiNL2SQLMark1.Services;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -16,6 +17,7 @@ public class PowerSearchLogic()
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
+    public bool IsInclusive = true; // Whether date filters are inclusive (or exclusive)
 
     // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
     public bool IsStale => (commandInput != LastExecutedQuery.Replace("Search: ", "")) && LastExecutedQuery != "Hioki ICT Power Search";
@@ -61,11 +63,13 @@ public class PowerSearchLogic()
     /// <returns></returns>
     public async Task ExecutePowerSearch(bool skipUrlUpdate=false, bool keepPage=false)
     {
+        errorMessages = []; // Clear errors, they shouldn't persist through searches
+
         // Identify tables targeted by this query based on CurrentType
         var targets = TableLogics
             .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
+        var parseResult = ParserService.ParseQuery(commandInput, CurrentType, IsInclusive);
 
         Filters = parseResult.Filters;
         errorMessages = parseResult.ErrorMessages;
@@ -192,6 +196,11 @@ public class PowerSearchLogic()
         await ExecutePowerSearch();
     } 
 
+    public async Task SetInclusivity(bool newVal) {
+        IsInclusive = newVal;
+        await ExecutePowerSearch();
+    }
+
     /// <summary>
     /// Helper for search bar X button
     /// </summary>
@@ -217,7 +226,7 @@ public class PowerSearchLogic()
     /// </summary>
     public void SyncLivePreview()
     {
-        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
+        var liveResult = ParserService.ParseQuery(commandInput, CurrentType, IsInclusive);
         Preview = liveResult.Preview;
 
         // Update the CurrentType if the user entered the "in" tag

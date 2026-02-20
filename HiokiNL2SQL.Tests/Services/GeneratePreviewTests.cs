@@ -112,12 +112,12 @@ public class GeneratePreviewTests
     {
         // Arrange
         string input = "before:today";
-        string expectedDate = DateTime.Today.ToString("yyyy-MM-dd");
+        string expectedDate = DateTime.Today.AddDays(1).AddTicks(-1).ToString("yyyy-MM-dd HH:mm");
 
         // Act
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
-        Assert.Contains($"DATE is **BEFORE** '{expectedDate} 00:00'", result.Preview);
+        Assert.Contains($"DATE is **BEFORE** '{expectedDate}'", result.Preview);
     }
 }
