@@ -147,9 +147,9 @@ public class SearchParserTests
     [Theory]
     [InlineData("group:NotANumber")]
     [InlineData("before:InvalidDate")]
-    [InlineData("before:\"01-01 InvalidTime\"")]
+    [InlineData("after:\"01-01 InvalidTime\"")]
     [InlineData("before:\"Invalid Date 01:01\"")]
-    [InlineData("before:\"Invalid Date InvalidTime\"")]
+    [InlineData("after:\"Invalid Date InvalidTime\"")]
     public void ParseQuery_ShouldCatchInvalidValueTypes(string input)
     {
         // Act

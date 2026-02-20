@@ -47,7 +47,7 @@ public class SearchParserService
 
     private enum ValType { String, Int, DateTime} // enumerates the types allowed by a tag
 
-    // Maps each tag type to 
+    // Maps each tag type to the ValType representing its accepted datatype
     private static readonly Dictionary<string, ValType> TagTypeMap = new(StringComparer.OrdinalIgnoreCase)
     {
         { "barcode", ValType.String },
@@ -116,7 +116,7 @@ public class SearchParserService
     }
 
     /// <summary>
-    /// A container for the return values from the parser
+    /// A DTO for the return values from the parser
     /// </summary>
     public class SearchParseResult
     {
@@ -152,11 +152,11 @@ public class SearchParserService
         if (matches.Count > 0)
         {
             Match contextMatch = matches[^1];
-            string polarity = contextMatch.Groups[1].Value; // only two options from regex: '-' or empty
+            string polarity = contextMatch.Groups[1].Value;
             string targetType = contextMatch.Groups[2].Value.ToLower();
             if (matches.Count > 1) result.ErrorMessages.Add($"Duplicate **in** tag. This search is now **in:{targetType}...**. All previous uses of this key are *ignored*.");
 
-            if (polarity == "-") result.ErrorMessages.Add($"The **in** tag cannot be negated. This search is now **in : {targetType}...**.");
+            if (polarity.Equals("-")) result.ErrorMessages.Add($"The **in** tag cannot be negated. This search is now **in : {targetType}...**.");
 
             if (availableTypes.Contains(targetType))
             {
@@ -211,7 +211,7 @@ public class SearchParserService
             // Validate if value matches the datatype required by the key
             if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
                 if (!IsValidValue(expectedType, cleanKey, value, out string errorMessage)) {
-                    result.ErrorMessages.Add($"Invalid value for **{key}**: {errorMessage}");
+                    result.ErrorMessages.Add($"Invalid value for **{key}**--{errorMessage}");
                     lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                     continue;
                 }
@@ -231,7 +231,7 @@ public class SearchParserService
                 result.ErrorMessages.Add($"The **{cleanKey}** tag cannot be negated. This search is now **{cleanKey} : {value}...**");
                 isNegated = false; // revoke negation for these keys
             }
-            // we didn't actually remove "in", we just ignored it
+            // We didn't actually remove "in", we just ignored it
             if (cleanKey != "in") { // if it's not a datetime, it doesn't get special treatment
                 result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated, isInclusive);
             }
@@ -274,7 +274,7 @@ public class SearchParserService
     /// </summary>
     /// <param name="toCheck">The string for which to generate the error</param>
     /// <returns>An error message describing the missing key/value</returns>
-    private static string MissingKeyOrValueMessage(string toCheck)
+    private static string? MissingKeyOrValueMessage(string toCheck)
     {
         if (!string.IsNullOrWhiteSpace(toCheck))
         {
@@ -314,7 +314,7 @@ public class SearchParserService
             case ValType.DateTime:
                 DateTime? normalized = ProcessDateValue(key, value); // disregard inclusivity for this check
                 if (!normalized.HasValue) {
-                    error = $"Date (read as **{normalized}**) cannot be empty.";
+                    error = $"Date (read as **{value}**) cannot be empty.";
                     return false;
                 }
                 if (normalized.Equals(DateTime.MinValue))
@@ -324,7 +324,7 @@ public class SearchParserService
                 }
                 break;
         }
-        // The input value is already a string, so there's no check when
+        // The input value is already a string, so there's no check that case (typos not a part of this check)
         return true;
     }
 
@@ -333,7 +333,7 @@ public class SearchParserService
     /// </summary>
     /// <param name="key">The filter's name</param>
     /// <param name="value">The filter's value</param>
-    /// <param name="isNegated">The filter's polarity</param>
+    /// <param name="isNegated">The filter's polarity (true when negated)</param>
     /// <param name="isInclusive">Whether to treat date filters as inclusive of their value (or exclusive)</param>
     /// <returns>The filter constructed from its components</returns>
     private static IFilter CreateFilter(string key, string value, bool isNegated, bool isInclusive)
@@ -375,8 +375,7 @@ public class SearchParserService
             // Branch based on datatype
             return filter switch
             {
-
-                // DateTime Filters (format as datetime)
+                // DateTime filters (format as datetime)
                 Filter<DateTime?> { Value: { } dtValue } => 
                     $"DATE is **{cleanKey}** '{dtValue:yyyy-MM-dd HH:mm}'",
 

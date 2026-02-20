@@ -1,7 +1,9 @@
 using HiokiNL2SQLMark1.Services;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace HiokiNL2SQL.Tests.Services;
+[ExcludeFromCodeCoverage]
 public class DateParserTests
 {
 	private readonly MethodInfo _processDateValueInfo;
