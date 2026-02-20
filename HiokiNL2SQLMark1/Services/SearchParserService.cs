@@ -454,10 +454,8 @@ public class SearchParserService
     public static string TranslateDateAlias(string alias, bool isTimePart, bool isBefore, bool isInclusive=true)
     {
         DateTime now = DateTime.Now;
-        DateTime today = DateTime.Today;
+        DateTime today = now.Date; // Could use DateTime.Today, but if this parser were set up to run automatically at midnight, that would become unstable
         string lowerAlias = alias.ToLower();
-        // We avoid excess branching/method definitions by using the knowledge that an exclusive filter will use the opposite endpoint as the inclusive filter
-        if(!isInclusive) isBefore = !isBefore;
 
         // adjust as needed, these are approximate
         TimeSpan s1Start = new(7,0,0);
@@ -465,49 +463,43 @@ public class SearchParserService
         TimeSpan s3Start = new(23,0,0);
         TimeSpan shiftDuration = TimeSpan.FromHours(8);
 
-        string result = lowerAlias switch
+        DateTime result = lowerAlias switch
         {
-            // Today (inclusive) goes from the end of today if using 'before', but the start of today if using 'after'
-            "today"     => isBefore ? today.AddDays(1).AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss")
-                                    : today.ToString("yyyy-MM-dd HH:mm:ss"),
-            // Yesterday (inclusive) goes from the end of yesterday when using 'before', but the start of yesterday when using 'after'
-            "yesterday" => isBefore ? today.AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss")
-                                    : today.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"),
-            // Last week always gets 7 days ago, regardless of filter
-            "lastweek"  => today.AddDays(-7).ToString("yyyy-MM-dd"),
-            // Ensure 24 hours since this moment, not just since this morning. Same endpoint regardless of filter
-            "last24h"   => now.AddHours(-24).ToString("yyyy-MM-dd HH:mm:ss"),
+            "today"     => today,
+            "yesterday" => today.AddDays(-1),
+            "lastweek"  => today.AddDays(-7),
+            // Ensure 24 hours since this moment, not just since this morning.
+            "last24h"   => now.AddHours(-24),
             // Shift aliases use the local helper to get the right end of the shift
             "shift1" => ResolveShift(s1Start),
             "shift2" => ResolveShift(s2Start),
             "shift3" => ResolveShift(s3Start),
-            _           => alias // If it's not an alias, hopefully it's already a datetime. Return the original string (e.g., 2024-01-01)
+            _           => DateTime.TryParse(alias, out var p) ? p : now // If it's not an alias, hopefully it's already a datetime, but default to now
         };
 
-        // If it's a valid date but has no time (midnight), roll it to the end of that day to maintain inclusivity
-        if (isBefore && !isTimePart && isInclusive && DateTime.TryParse(result, out var parsedDate) && parsedDate.TimeOfDay == TimeSpan.Zero)
+        // Regardless of inclusivity, always go one tick back for 'before' in order to encompass all of a day (whether that be all of this day or the one before)
+        if (isBefore) result = result.AddTicks(-1);
+
+        // This is a Boolean trick that essentially involves looking at a truth table. Adding a day includes when using 'before', but excludes when using 'after'
+        // Yes, I could technically enumerate all four states, but that's slower and this looks cool
+        if (isBefore == isInclusive && !isTimePart) // specifically don't add a day for time-only, that's handled in ResolveShift
+            result = result.AddDays(1);
+
+        // If instructed to get only the time, format the return such that it is excluded
+        return isTimePart ? result.ToString("HH:mm:ss") : result.ToString("yyyy-MM-dd HH:mm:ss");
+
+        // Local helper to get the datetime associated with a shift alias (importantly whether it means today's or yesterday's shift)
+        DateTime ResolveShift(TimeSpan start)
         {
-            return parsedDate.AddDays(1).AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss");
-        }
-
-        return result;
-
-        // Local helper to get the datetime associated with a shift alias, sensitive to whether it is only to get the time part of the string
-        string ResolveShift(TimeSpan start)
-        {
-            // If instructed to only get the time part, discard the date part and return
-            if (isTimePart) return isBefore ? start.Add(shiftDuration).ToString(@"hh\:mm\:ss") : start.ToString(@"hh\:mm\:ss");
-
-            // At this point, we resolve the date part
-            // Calculate the occurrence of this shift today
+            // Calculate when the shift occurs today
             DateTime shiftTodayStart = DateTime.Today.Add(start);
 
-            // If the shift hasn't started yet today, the user means the one from yesterday
+            // If the shift hasn't started yet today, the user means the one from yesterday (hopefully)
             if (now < shiftTodayStart) shiftTodayStart = shiftTodayStart.AddDays(-1);
 
-            // Otherwise return the full ISO date string 
+            // Otherwise return the full datetime
             DateTime result = isBefore ? shiftTodayStart.Add(shiftDuration) : shiftTodayStart;
-            return result.ToString("yyyy-MM-dd HH:mm:ss");
+            return result;
         }
     }
 }
