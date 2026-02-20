@@ -3,6 +3,8 @@ using HiokiNL2SQLMark1.Services;
 
 namespace HiokiNL2SQL.Tests.Services;
 [ExcludeFromCodeCoverage]
+
+// GeneratePreview is private, so we use the preview from ParseQuery
 public class GeneratePreviewTests
 {
     private readonly SearchParserService _parser = new();
