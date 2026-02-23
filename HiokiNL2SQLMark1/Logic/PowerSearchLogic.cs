@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using HiokiNL2SQLMark1.Services;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -85,6 +84,23 @@ public class PowerSearchLogic()
             NotifyStateChanged();
             return;
         }
+
+        // if (parseResult.HasDateFilter)
+        // {
+        //     // Replace date/shift aliases in the raw command input with their resolved datetimes
+        //     // The filters already have resolved DateTime values from ProcessDateValue, so use those directly
+        //     if (parseResult.Filters.TryGetValue("before", out var beforeFilter) && beforeFilter is Filter<DateTime?> bf && bf.Value.HasValue)
+        //     {;
+        //         string replacement = bf.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
+        //         commandInput = Regex.Replace(commandInput, SearchParserService.beforePattern, $"before:\"{replacement}\"", RegexOptions.IgnoreCase);
+        //     }
+
+        //     if (parseResult.Filters.TryGetValue("after", out var afterFilter) && afterFilter is Filter<DateTime?> af && af.Value.HasValue)
+        //     {
+        //         string replacement = af.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
+        //         commandInput = Regex.Replace(commandInput, SearchParserService.afterPattern, $"after:\"{replacement}\"", RegexOptions.IgnoreCase);
+        //     }
+        // }
 
         // Now we know some change will be made, regardless of whether the DB is hit
         LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";

@@ -1,4 +1,5 @@
 ﻿@page "/group"
+@using Parser = HiokiNL2SQLMark1.Services.SearchParserService
 @rendermode InteractiveServer
 @inherits LogTableBase<GroupResult> // Group table is the page type
 @inject Logic.GroupTableLogic GroupLogic // The page is controlled by group logic
@@ -10,20 +11,34 @@
 <div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
     <div class="query-builder-panel mb-4 p-3 border rounded bg-light style="max-width: 100%; overflow-x: hidden;">
         <div class="row g-3">
-                <FilterWrapper Filter='FilterBarcode' Label="Barcode" ColumnClass="col-3">
-                    <input type="text" class="form-control" placeholder="Scan or type..." @bind-value='FilterBarcode.Value' @bind-value:event='oninput' />
-                </FilterWrapper>
+            <FilterWrapper Filter='FilterBarcode' Label="Barcode" ColumnClass="col-3">
+                <input type="text" class="form-control" placeholder="Scan or type..." @bind-value='FilterBarcode.Value' @bind-value:event='oninput' />
+            </FilterWrapper>
             <div class="col-3">
                 <label class="form-label fw-bold">Start Date</label>
-                <div @key='FilterStartDate'>
-                    <input type="date" class="form-control" @bind='FilterStartDate.Value' />
+                <div class="input-group">
+                    <input type="date" class="form-control" @onchange="@(e => UpdateStart(e.Value?.ToString(), _startTimePart))" />
+                    <select class="form-select" @bind="StartTimePart">
+                        <option value="">All Shifts</option>
+                        @foreach (string shift in Parser.shiftDetails.Keys)
+                        {
+                            <option value="@shift">@shift</option>
+                        }
+                    </select>
                 </div>
             </div>
             <div class="col-3">
                 <label class="form-label fw-bold">End Date</label>
-                <div @key='FilterEndDate'>
-                    <input type="date" class="form-control" @bind='FilterEndDate.Value' />
-                </div> 
+                <div class="input-group">
+                    <input type="date" class="form-control" @onchange="@(e => UpdateEnd(e.Value?.ToString(), _endTimePart))" />
+                    <select class="form-select" @bind="EndTimePart">
+                        <option value="">All Shifts</option>
+                        @foreach (string shift in Parser.shiftDetails.Keys)
+                        {
+                            <option value="@shift">@shift</option>
+                        }
+                    </select>
+                </div>
             </div>
             <FilterWrapper Filter='FilterGroup' Label="Group #" ColumnClass="col-1">
                 <input type="number" class="form-control" @bind-value='FilterGroup.Value' @bind-value:event="oninput" />
@@ -96,7 +111,41 @@
     private Filter<string?> FilterMacro => Logic.GetFilter<string?>("macro");
     private Filter<string?> FilterIC => Logic.GetFilter<string?>("ic");
     private Filter<string?> FilterFunction => Logic.GetFilter<string?>("function");
+
+    private string? _startDatePart;
+    public string? StartDatePart {
+        get => _startDatePart;
+        set {
+            value = _startDatePart;
+            UpdateStart(_startDatePart, _startTimePart);
+        }
+    }
+    private string? _startTimePart;
+    public string? StartTimePart {
+        get => _startTimePart;
+        set {
+            value = _startTimePart;
+            UpdateStart(_startDatePart, _startTimePart);
+        }
+    }
     
+    private string? _endDatePart;
+    public string? EndDatePart {
+        get => _endDatePart;
+        set {
+            value = _endDatePart;
+            UpdateStart(_endDatePart, _endTimePart);
+        }
+    }
+    private string? _endTimePart;
+    public string? EndTimePart {
+        get => _endTimePart;
+        set {
+            value = _endTimePart;
+            UpdateStart(_endDatePart, _endTimePart);
+        }
+    }
+
     /// <summary>
     /// When the page loads, inform LogTableBase that it is a group page
     /// </summary>
@@ -104,5 +153,32 @@
     {
         base.Logic = GroupLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateStart(string? date, string? time)
+    {
+        _startDatePart = date;
+        _startTimePart = time;
+
+        // Combine parts: "2026-02-20 shift1" or just "2026-02-20"
+        string combined = $"{date} {time}".Trim();
+        
+        FilterStartDate.Value = Parser.ProcessDateValue("after", combined);
+    }
+
+    private void UpdateEnd(string? date, string? time)
+    {
+        _endDatePart = date;
+        _endTimePart = time;
+        string combined = $"{date} {time}".Trim();
+        
+        FilterEndDate.Value = Parser.ProcessDateValue("before", combined);
+    }
+
+    // Override ClearFilters to reset shadow properties
+    private new async Task ClearFilters()
+    {
+        _startDatePart = _startTimePart = _endDatePart = _endTimePart = null;
+        await base.ClearFilters();
     }
 }

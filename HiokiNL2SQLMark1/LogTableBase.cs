@@ -9,7 +9,6 @@ namespace HiokiNL2SQLMark1;
 public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
 {
     protected LogTableLogic<T> Logic { get; set; } = default!; // Where all the logic lives. The particular instance of LogTableLogic is determined by the page
-    protected List<T> DataView => Logic.DataView; // Pass through the table representation from LogTableLogic
 
     protected override async Task OnInitializedAsync()
     {
