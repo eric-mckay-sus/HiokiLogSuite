@@ -435,26 +435,44 @@ public class SearchParserService
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         bool isBefore = key.Equals("before", StringComparison.OrdinalIgnoreCase);
+        bool afterExclusive = !isBefore && !isInclusive;
 
         // Detect specific time to deactivate date-only inclusivity check (excluding time shouldn't skip entire day)
-        bool hasSpecificTime = Regex.IsMatch(value, @"\d{1,2}:\d{2}(:\d{2})?(\s?[AP]M)?", RegexOptions.IgnoreCase);
+        bool hasSpecificTime = Regex.IsMatch(value, @"\d{1,2}:\d{2}", RegexOptions.IgnoreCase);
         var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         DateTime baseDateTime;
+        double offsetHours = 24; // default to day offset, used when no time (alias or literal) is provided
+
         if (parts.Length > 1) { // If we have a date and time, translate parts separately and re-combine
             // Example: "today shift1" or "2026-02-20 08:30" (or any similar combination of date & time, alias or not)
-            DateTime datePart = BaseDateTimeFromAlias(parts[0]);
-            DateTime timePart = BaseDateTimeFromAlias(parts[1]);
+
+            // If there's a shift number offset in either part, prioritize it
+            foreach (var part in parts)
+            {
+                if (shiftDetails.TryGetValue(part.ToLower(), out var detail))
+                {
+                    offsetHours = detail.Hours;
+                    break; 
+                }
+            }
+
+            DateTime datePart = BaseDateTimeFromAlias(parts[0], afterExclusive);
+            DateTime timePart = BaseDateTimeFromAlias(parts[1], afterExclusive);
 
             // If either was unexpected, return immediately
             if (datePart.Equals(DateTime.MinValue) || timePart.Equals(DateTime.MinValue)) return DateTime.MinValue;
+
+            // Shift 3's negative offset was overwritten by the date part, so reapply it.
+            if (parts[1].Equals("shift3", StringComparison.OrdinalIgnoreCase)) datePart = datePart.AddDays(-1);
 
             // First part always provides the date, second part always provides the time
             baseDateTime = datePart.Date.Add(timePart.TimeOfDay);
         }
         else // Otherwise, just let BaseDateTime handle it
         {
-            baseDateTime = BaseDateTimeFromAlias(value);
+            if (shiftDetails.TryGetValue(value.ToLower(), out var detail)) offsetHours = detail.Hours;
+            baseDateTime = BaseDateTimeFromAlias(value, afterExclusive);
         }
 
         // Verify that there actually was a date
@@ -467,7 +485,7 @@ public class SearchParserService
                 // Rule 1: isBefore && isInclusive (inclusive end point) -> 1 tick before start of next unit
                 // Rule 2: isBefore && !isInclusive (exclusive end point) -> 1 tick before start of target unit
                 if (!hasSpecificTime){ // Don't steal a tick when no alias provided
-                    if (isInclusive) baseDateTime = baseDateTime.AddHours(GetUnitOffset(value));
+                    if (isInclusive) baseDateTime = baseDateTime.AddHours(offsetHours);
                     baseDateTime = baseDateTime.AddTicks(-1);
                 }
             }
@@ -475,16 +493,13 @@ public class SearchParserService
             {
                 // Rule 3: !isBefore && isInclusive (inclusive start point) -> Start of target unit (Default)
                 // Rule 4: !isBefore && !isInclusive (exclusive start point) -> Start of next unit
-                if (!isInclusive && !hasSpecificTime) baseDateTime = baseDateTime.AddHours(GetUnitOffset(value));
+                if (!isInclusive && !hasSpecificTime) baseDateTime = baseDateTime.AddHours(offsetHours);
             }
         }
-        return baseDateTime;
-    }
 
-    private static double GetUnitOffset(string value){
-        if (shiftDetails.TryGetValue(value.ToLower(), out var detail))
-            return detail.Hours; // Return 8.5 or 7.0
-        return 24; // Default to 24 hours for "today", "yesterday", etc.
+        // Catch-all in case something was unexpected
+        if (baseDateTime > DateTime.Now) baseDateTime = baseDateTime.AddDays(-1);
+        return baseDateTime;
     }
 
     /// <summary>
@@ -492,7 +507,7 @@ public class SearchParserService
     /// </summary>
     /// <param name="alias">The alias for which to get the bounding datetime</param>
     /// <returns>A datetime representing the starting boundary for this alias</returns>
-    private static DateTime BaseDateTimeFromAlias(string alias)
+    private static DateTime BaseDateTimeFromAlias(string alias, bool afterExclusive=false)
     {
         DateTime now = DateTime.Now;
         DateTime today = now.Date; // Could use DateTime.Today, but if this parser were set up to run automatically at midnight, that would become unstable
@@ -513,6 +528,7 @@ public class SearchParserService
         };
 
         // If the shift hasn't started yet today, it refers to yesterday's instance
+        // This is safe to do here because when the user provides a date and shift, the date part from the shift is discarded, so this date has no effect (just the time)
         DateTime GetShiftStartOnDay(TimeSpan start)
         {
             DateTime shiftTodayStart = DateTime.Today.Add(start);
