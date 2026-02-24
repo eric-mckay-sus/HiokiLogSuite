@@ -11,17 +11,18 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Services for the visual query builders.
-builder.Services.AddTransient<GroupTableLogic>();
-builder.Services.AddTransient<StepTableLogic>();
-builder.Services.AddTransient<FctTableLogic>();
+// Logic for the visual query builders.
+builder.Services.AddScoped<GroupTableLogic>();
+builder.Services.AddScoped<StepTableLogic>();
+builder.Services.AddScoped<FctTableLogic>();
 builder.Services.AddScoped<PowerSearchLogic>();
 
-// Services for the power search page
-builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
-builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
-builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
+// Logic for the power search page
+builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
+builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
+builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
 
+// Services for the entire app
 builder.Services.AddScoped<INavService, NavService>();
 builder.Services.AddScoped<IJSService, JSService>();
 builder.Services.AddScoped<SearchParserService>();

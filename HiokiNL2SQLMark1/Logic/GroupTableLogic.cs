@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -12,6 +13,12 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
 {
     public override string TableName => "group"; // This table's internal "type" as it would appear in currentType
     public override string DisplayName => "Group Results"; // The label to apply to this table in the view
+    public List<string> CompCache { get; set; } = []; // The list of component test results to choose from
+    public List<string> ShortCache { get; set; } = []; // The list of short-circuit test results to choose from
+    public List<string> OpenCache { get; set; } = []; // The list of open-circuit test results to choose from
+    public List<string> MacroCache { get; set; } = []; // The list of macro test results to choose from
+    public List<string> IcCache { get; set; } = []; // The list of IC test results to choose from
+    public List<string> FunctionCache { get; set; } = []; // The list of functional test results to choose from
 
     /// <summary>
     /// Populates group-specific filters in parent's filter registry
@@ -22,9 +29,38 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
 
         Filters["comp"] = new Filter<string?>("comp", null) { OnChanged = NotifyStateChanged };
         Filters["short"] = new Filter<string?>("short", null) { OnChanged = NotifyStateChanged };
+        Filters["open"] = new Filter<string?>("open", null) { OnChanged = NotifyStateChanged };
         Filters["macro"] = new Filter<string?>("macro", null) { OnChanged = NotifyStateChanged };
         Filters["ic"] = new Filter<string?>("ic", null) { OnChanged = NotifyStateChanged };
         Filters["function"] = new Filter<string?>("function", null) { OnChanged = NotifyStateChanged };
+    }
+
+    /// <summary>
+    /// Initialize the caches that hold group sub-test result types
+    /// </summary>
+    /// <returns></returns>
+    public override async Task InitializeCaches()
+    {
+        // Run parent's initializer for the result type cache
+        var baseTask = base.InitializeCaches();
+
+        var compTask = GetDistinctList("ComponentTest");
+        var shortTask = GetDistinctList("ShortTest");
+        var openTask = GetDistinctList("OpenTest");
+        var macroTask = GetDistinctList("MacroTest");
+        var icTask = GetDistinctList("IcTest");
+        var functionTask = GetDistinctList("FunctionTest");
+
+        // Wait for everything to finish at once
+        await Task.WhenAll(baseTask, compTask, shortTask, openTask, macroTask, icTask, functionTask);
+
+        // Assign the results
+        CompCache = await compTask;
+        ShortCache = await shortTask;
+        OpenCache = await openTask;
+        MacroCache = await macroTask;
+        IcCache = await icTask;
+        FunctionCache = await functionTask;
     }
 
     /// <summary>
@@ -40,6 +76,7 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
 
         var filterComp = GetFilter<string?>("comp");
         var filterShort = GetFilter<string?>("short");
+        var filterOpen = GetFilter<string?>("open");
         var filterMacro = GetFilter<string?>("macro");
         var filterIC = GetFilter<string?>("ic");
         var filterFunction = GetFilter<string?>("function");
@@ -54,6 +91,11 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
             query = filterShort.IsNegated
                 ? query.Where(g => !g.ShortTest.Contains(filterShort.Value))
                 : query.Where(g => g.ShortTest.Contains(filterShort.Value));
+
+        if (filterOpen.IsActive)
+            query = filterOpen.IsNegated
+                ? query.Where(g => !g.OpenTest.Contains(filterOpen.Value))
+                : query.Where(g => g.OpenTest.Contains(filterOpen.Value));
 
         if (filterMacro.IsActive)
             query = filterMacro.IsNegated

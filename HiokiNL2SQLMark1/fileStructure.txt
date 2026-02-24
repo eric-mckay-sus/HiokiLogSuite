@@ -13,12 +13,15 @@ HiokiNL2SQLMark1/
 │  │  │  ├──Preview.razor
 │  │  │  ├──SearchTags.razor
 │  │  │  └──SearchResults.razor
-│  │  ├──FilterWrapper.razor
+│  │  ├──CommonComponents/
+│  │  │  ├──DateFields.razor
+│  │  │  ├──FilterWrapper.razor
+│  │  │  ├──InclusivityControls.razor
+│  │  │  ├──LogTablePresenter.razor
+│  │  │  └──MasterTable.razor
 │  │  ├──Group.razor
 │  │  ├──Step.razor
-│  │  ├──Fct.razor
-│  │  ├──LogTablePresenter.razor
-│  │  └──MasterTable.razor
+│  │  └──Fct.razor
 │  ├──_Imports.razor
 │  ├──App.razor
 │  └──Routes.razor

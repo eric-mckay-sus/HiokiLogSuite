@@ -1,16 +1,19 @@
 @typeparam T where T : class, IHiokiLog
 
 @if (Parent != null){
-    <div class="ms-auto btn-group btn-group-sm" role="group">
-        <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
-            checked="@Parent.IsInclusive" 
-            @onchange="() => Parent.SetInclusivity(true)">
-        <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
+    <div class="ms-auto d-flex flex-column align-items-center" style="line-height: 1;">
+        <div class="ms-auto btn-group" role="group" title="Select how date boundaries are calculated">
+            <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
+                checked="@Parent.IsInclusive" 
+                @onchange="() => Parent.SetInclusivity(true)">
+            <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
 
-        <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
-            checked="@(!Parent.IsInclusive)" 
-            @onchange="() => Parent.SetInclusivity(false)">
-        <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+            <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
+                checked="@(!Parent.IsInclusive)" 
+                @onchange="() => Parent.SetInclusivity(false)">
+            <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+        </div>
+        <span class="text-muted small mt-1 mb-0" style="font-size:0.8rem; letter-spacing:0.05rem; display:block;">Date filter mode</span>
     </div>
 }
 

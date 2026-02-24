@@ -14,8 +14,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public virtual string DisplayName => "Unknown Table"; // The external name of this table
 
     // Dependencies
-    private readonly IDbContextFactory<LogDbContext> _dbFactory; // Generates a new DbContext on demand (thread-safe)
-    private readonly Func<LogDbContext, IQueryable<T>> _querySelector; // Encapsulates the connection and query information
+    protected readonly IDbContextFactory<LogDbContext> _dbFactory; // Generates a new DbContext on demand (thread-safe)
+    protected readonly Func<LogDbContext, IQueryable<T>> _querySelector; // Encapsulates the connection and query information
     protected readonly IJSService JS; // For handling CSV download
     protected readonly INavService Nav; // For navigating to the power search page in a barcode "drill-down"
 
@@ -35,7 +35,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     // Data storage
     public bool IsLoading { get; private set; } // Whether the query is currently loading the table display
     public List<T> DataView { get; private set; } = []; // Stores the query results, only of the current page
-    public List<string> ModeCache { get; private set; } = []; // The list of test modes to choose from
+    public List<string> ModeCache { get; private set; } = []; // The list of test modes to choose from (technically this should be in the children)
     public List<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
 
     // Provided to the UI
@@ -352,26 +352,30 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// Initializes the test mode and result type caches (for step & FCT tables)
     /// </summary>
     /// <returns></returns>
-    public async Task InitializeCaches()
+    public virtual async Task InitializeCaches()
     {
+        // Fill the final result cache for all tables
+        ResultCache = await GetDistinctList("Result");
+
         if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
         {
-            using var db = await _dbFactory.CreateDbContextAsync();
-            IQueryable<T> query = _querySelector(db).AsNoTracking();
-
-            // Run sequentially to avoid context collisions
-            ModeCache = await query
-                .Select("Mode")
-                .Distinct()
-                .OrderBy("it")
-                .ToDynamicListAsync<string>();
-
-            ResultCache = await query
-                .Select("Result")
-                .Distinct()
-                .OrderBy("it")
-                .ToDynamicListAsync<string>();
+            ModeCache = await GetDistinctList("Mode");
         }
+    }
+
+    /// <summary>
+    /// Gets a list of distinct values across a property
+    /// </summary>
+    /// <param name="property">The property for which to get unique values</param>
+    /// <returns>A list of uniquer property values</returns>
+    protected async Task<List<string>> GetDistinctList(string property)
+    {
+        using var db = await _dbFactory.CreateDbContextAsync();
+        return await _querySelector(db).AsNoTracking()
+            .Select(property)
+            .Distinct()
+            .OrderBy("it")
+            .ToDynamicListAsync<string>();
     }
 
     /// <summary>

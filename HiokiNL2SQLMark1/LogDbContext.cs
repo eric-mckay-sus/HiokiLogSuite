@@ -40,6 +40,16 @@ public interface IStepFCT : IHiokiLog
     public double? MeasVal { get; set; }
 }
 
+public interface IGroupSubResults : IHiokiLog
+{
+    public string? ComponentTest { get; set; }
+    public string? ShortTest { get; set; }
+    public string? OpenTest { get; set; }
+    public string? IcTest { get; set; }
+    public string? MacroTest { get; set; }
+    public string? FunctionTest { get; set; }
+}
+
 /// <summary>
 /// Represents one row of GroupResults in the DB
 /// NOTE: VERY SENSITIVE TO COL NAME CHANGES
