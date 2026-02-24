@@ -147,13 +147,17 @@ public class SearchParserTests
     [Theory]
     [InlineData("group:NotANumber")]
     [InlineData("before:InvalidDate")]
+    [InlineData("after:\"01-01 InvalidTime\"")]
+    [InlineData("before:\"Invalid Date 01:01\"")]
+    [InlineData("after:\"Invalid Date InvalidTime\"")]
     public void ParseQuery_ShouldCatchInvalidValueTypes(string input)
     {
         // Act
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
-        Assert.Contains(result.ErrorMessages, e => e.Contains("Invalid value for"));
+        var error = Assert.Single(result.ErrorMessages);
+        Assert.Contains("Invalid value for", error);
     }
 
     [Fact]

@@ -16,6 +16,7 @@ public class PowerSearchLogic()
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
     public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
     public bool IsSearching; // Whether the system is currently getting query results
+    public bool IsInclusive = true; // Whether date filters are inclusive (or exclusive)
 
     // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
     public bool IsStale => (commandInput != LastExecutedQuery.Replace("Search: ", "")) && LastExecutedQuery != "Hioki ICT Power Search";
@@ -61,11 +62,13 @@ public class PowerSearchLogic()
     /// <returns></returns>
     public async Task ExecutePowerSearch(bool skipUrlUpdate=false, bool keepPage=false)
     {
+        errorMessages = []; // Clear errors, they shouldn't persist through searches
+
         // Identify tables targeted by this query based on CurrentType
         var targets = TableLogics
             .Where(t => CurrentType == "all" || t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        var parseResult = ParserService.ParseQuery(commandInput, CurrentType);
+        var parseResult = ParserService.ParseQuery(commandInput, CurrentType, IsInclusive);
 
         Filters = parseResult.Filters;
         errorMessages = parseResult.ErrorMessages;
@@ -80,6 +83,23 @@ public class PowerSearchLogic()
             IsSearching = false;
             NotifyStateChanged();
             return;
+        }
+
+        if (parseResult.HasDateFilter)
+        {
+            // Replace date/shift aliases in the raw command input with their resolved datetimes
+            // The filters already have resolved DateTime values from ProcessDateValue, so use those directly
+            if (parseResult.Filters.TryGetValue("before", out var beforeFilter) && beforeFilter is Filter<DateTime?> bf && bf.Value.HasValue)
+            {;
+                string replacement = bf.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
+                commandInput = Regex.Replace(commandInput, SearchParserService.beforePattern, $"before:\"{replacement}\"", RegexOptions.IgnoreCase);
+            }
+
+            if (parseResult.Filters.TryGetValue("after", out var afterFilter) && afterFilter is Filter<DateTime?> af && af.Value.HasValue)
+            {
+                string replacement = af.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
+                commandInput = Regex.Replace(commandInput, SearchParserService.afterPattern, $"after:\"{replacement}\"", RegexOptions.IgnoreCase);
+            }
         }
 
         // Now we know some change will be made, regardless of whether the DB is hit
@@ -192,6 +212,11 @@ public class PowerSearchLogic()
         await ExecutePowerSearch();
     } 
 
+    public async Task SetInclusivity(bool newVal) {
+        IsInclusive = newVal;
+        await ExecutePowerSearch();
+    }
+
     /// <summary>
     /// Helper for search bar X button
     /// </summary>
@@ -217,7 +242,7 @@ public class PowerSearchLogic()
     /// </summary>
     public void SyncLivePreview()
     {
-        var liveResult = ParserService.ParseQuery(commandInput, CurrentType);
+        var liveResult = ParserService.ParseQuery(commandInput, CurrentType, IsInclusive);
         Preview = liveResult.Preview;
 
         // Update the CurrentType if the user entered the "in" tag

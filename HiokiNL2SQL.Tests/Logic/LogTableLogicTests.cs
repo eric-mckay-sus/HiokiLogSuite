@@ -164,28 +164,6 @@ public class LogTableLogicTests
     }
 
     [Fact]
-    public async Task ApplyFilters_BeforeDate_AtMidnight_IsInclusiveOfThatDay()
-    {
-        // Arrange: User enters "before:2024-01-01" which parses to midnight
-        var targetDate = new DateTime(2024, 1, 1, 0, 0, 0); 
-        var data = new List<TestLogRecord> {
-            new() { Time = new DateTime(2024, 1, 1, 10, 0, 0), Barcode = "Morning" },
-            new() { Time = new DateTime(2024, 1, 1, 23, 59, 59), Barcode = "Night" },
-            new() { Time = new DateTime(2024, 1, 2, 0, 0, 1), Barcode = "NextDay" }
-        };
-        var logic = TestLogicFactory.CreateLogic(data);
-        logic.Filters["before"] = new Filter<DateTime?>("before", targetDate);
-
-        // Act
-        await logic.RefreshData();
-
-        // Assert
-        // Logic should add 1 day and use < (less than), capturing all of Jan 1st
-        Assert.Equal(2, logic.DataView.Count);
-        Assert.DoesNotContain(logic.DataView, x => x.Barcode == "NextDay");
-    }
-
-    [Fact]
     public async Task ApplyFilters_BeforeDate_WithSpecificTime_IsHardStop()
     {
         // Arrange: User enters "before:2024-01-01 12:00"

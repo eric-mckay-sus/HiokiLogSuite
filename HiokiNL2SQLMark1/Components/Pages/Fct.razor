@@ -7,65 +7,51 @@
 
 <h1>Hioki 1220 ICT Functional Test Results</h1>
 
-@* Query Builder Panel *@
-<div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
-    <div class="query-builder-panel mb-4 p-3 border rounded bg-light">
-        <div class="row g-3">
-            <FilterWrapper Filter="FilterBarcode" Label="Barcode" ColumnClass="col-2">
-                <input type="text" class="form-control" @bind-value="FilterBarcode.Value" @bind-value:event="oninput" placeholder="Scan or type..." />
-            </FilterWrapper>
-            <div class="col-2">
-                <label class="form-label fw-bold">Start Date</label>
-                <div @key="FilterStartDate">
-                    <input type="date" class="form-control" @bind="FilterStartDate.Value" />
+<CascadingValue Value="this">
+    <div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
+        <div class="query-builder-panel mb-4 p-3 border rounded bg-light">
+            <div class="row g-3">
+                <FilterWrapper Filter="FilterBarcode" Label="Barcode" ColumnClass="col-2">
+                    <input type="text" class="form-control" @bind-value="FilterBarcode.Value" @bind-value:event="oninput" placeholder="Scan or type..." />
+                </FilterWrapper>
+                <DateFields T="FctResult" />
+                <FilterWrapper Filter="FilterGroup" Label="Group #" ColumnClass="col-1">
+                    <input type="number" class="form-control" step="1"  @bind-value="FilterGroup.Value" @bind-value:event="oninput" />
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterStep" Label="Step #" ColumnClass="col-1">
+                    <input type="number" class="form-control" step="1"  @bind-value="FilterStep.Value" @bind-value:event="oninput" />
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterMode" Label="Test Mode" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterMode.Value">
+                        <option value="">All Modes</option>
+                        @foreach (string? m in Logic.ModeCache)
+                        {
+                            <option value="@m">@m</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterResult" Label="Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterResult.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in Logic.ResultCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <InclusivityControls T="FctResult" />
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>
                 </div>
-            </div>
-            <div class="col-2">
-                <label class="form-label fw-bold">End Date</label>
-                <div @key="FilterEndDate">
-                    <input type="date" class="form-control" @bind="FilterEndDate.Value" />
-                </div>
-            </div>
-            <FilterWrapper Filter="FilterGroup" Label="Group #" ColumnClass="col-1">
-                <input type="number" class="form-control" step="1"  @bind-value="FilterGroup.Value" @bind-value:event="oninput" />
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterStep" Label="Step #" ColumnClass="col-1">
-                <input type="number" class="form-control" step="1"  @bind-value="FilterStep.Value" @bind-value:event="oninput" />
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterMode" Label="Test Mode" ColumnClass="col-2">
-                <select class="form-select" @bind="FilterMode.Value">
-                    <option value="">All Modes</option>
-                    @foreach (string? m in Logic.ModeCache)
-                    {
-                        <option value="@m">@m</option>
-                    }
-                </select>
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterResult" Label="Result" ColumnClass="col-2">
-                <select class="form-select" @bind="FilterResult.Value">
-                    <option value="">All Results</option>
-                    @foreach (string? r in Logic.ResultCache)
-                    {
-                        <option value="@r">@r</option>
-                    }
-                </select>
-            </FilterWrapper>
-            <div class="col-12 d-flex justify-content-end gap-2">
-                <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
-                <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>
             </div>
         </div>
     </div>
-</div>
 
-<LogTablePresenter T="FctResult" TableLogic="FctLogic" />
+    <LogTablePresenter T="FctResult" TableLogic="FctLogic" />
+</CascadingValue>
 
 @code {
-    private Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");
-    private Filter<DateTime?> FilterStartDate => Logic.GetFilter<DateTime?>("after");
-    private Filter<DateTime?> FilterEndDate => Logic.GetFilter<DateTime?>("before");
-    private Filter<string?> FilterResult => Logic.GetFilter<string?>("result");
-    private Filter<int?> FilterGroup => Logic.GetFilter<int?>("group");
     private Filter<int?> FilterStep => Logic.GetFilter<int?>("step");
     private Filter<string?> FilterMode => Logic.GetFilter<string?>("mode");
 

@@ -156,6 +156,7 @@ public class NavServiceTests
 /// <summary>
 /// A minimal implementation of NavigationManager for testing purposes
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class FakeNavigationManager : NavigationManager
 {
     public FakeNavigationManager()

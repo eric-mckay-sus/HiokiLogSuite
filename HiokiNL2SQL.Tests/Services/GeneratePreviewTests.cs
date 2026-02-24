@@ -3,6 +3,8 @@ using HiokiNL2SQLMark1.Services;
 
 namespace HiokiNL2SQL.Tests.Services;
 [ExcludeFromCodeCoverage]
+
+// GeneratePreview is private, so we use the preview from ParseQuery
 public class GeneratePreviewTests
 {
     private readonly SearchParserService _parser = new();
@@ -72,7 +74,7 @@ public class GeneratePreviewTests
 
         // Assert
         // The service uses yyyy-MM-dd HH:mm format in GeneratePreview
-        Assert.Contains("DATE is **AFTER** '2026-02-11 00:00'", result.Preview);
+        Assert.Contains("DATE is **AFTER** '2026-02-11 00:00:00'", result.Preview);
     }
 
     [Fact]
@@ -87,7 +89,7 @@ public class GeneratePreviewTests
 
         // Assert
         // The service uses yyyy-MM-dd HH:mm format in GeneratePreview
-        Assert.Contains("DATE is **AFTER** '2026-02-11 05:00'", result.Preview);
+        Assert.Contains("DATE is **AFTER** '2026-02-11 05:00:00'", result.Preview);
     }
 
     [Fact]
@@ -112,12 +114,12 @@ public class GeneratePreviewTests
     {
         // Arrange
         string input = "before:today";
-        string expectedDate = DateTime.Today.ToString("yyyy-MM-dd");
+        string expectedDate = DateTime.Today.AddDays(1).AddTicks(-1).ToString("yyyy-MM-dd HH:mm:ss");
 
         // Act
         var result = _parser.ParseQuery(input, "all");
 
         // Assert
-        Assert.Contains($"DATE is **BEFORE** '{expectedDate} 00:00'", result.Preview);
+        Assert.Contains($"DATE is **BEFORE** '{expectedDate}'", result.Preview);
     }
 }

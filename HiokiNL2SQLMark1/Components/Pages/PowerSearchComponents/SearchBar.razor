@@ -33,6 +33,15 @@
             @onclick='() => State.SetType(type)'>@(char.ToUpper(type[0]) + type[1..])
         </button>
     }
+    <div class="ms-auto btn-group btn-group-sm inclusive-exclusive" role="group">
+        <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
+               checked="@State.IsInclusive" @onchange="() => State.SetInclusivity(true)">
+        <label class="btn btn-outline-primary" for="incl_on">Inclusive [ ]</label>
+
+        <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
+               checked="@(!State.IsInclusive)" @onchange="() => State.SetInclusivity(false)">
+        <label class="btn btn-outline-primary" for="incl_off">Exclusive ( )</label>
+    </div>
 </div>
 
 @code {

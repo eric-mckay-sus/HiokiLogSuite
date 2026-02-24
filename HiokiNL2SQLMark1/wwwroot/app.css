@@ -20,13 +20,25 @@ input::-webkit-inner-spin-button {
 
 /* All btn-primary overrides need to be marked !important to be picked over Bootstrap defaults */
 .btn-primary {
-    color: #fff;
+    color: #f8f8f8 !important;
+    background-color: #004d99 !important;
+    border-color: #11477e !important;
+}
+
+.btn-outline-primary {
+    color: #004d99 !important;
+    background-color: #fff !important;
+    border-color: #11477e !important;
+}
+
+.btn-check:checked + .btn-outline-primary {
+    color: #ffffff !important;
     background-color: #004d99 !important;
     border-color: #11477e !important;
 }
 
 .btn-primary:hover {
-    color: #fff;
+    color: #fff !important;
     background-color: hsl(210, 100%, 40%) !important; 
     border-color: hsl(210, 76%, 35%) !important;
 }
@@ -363,18 +375,35 @@ h1:focus {
     background-color: #e4e4e4 !important;
 }
 
-.d-flex.gap-2 button.btn-sm {
+.filter-row button.btn-sm {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
-    border-top: none; /* Optional: removes the double border look */
+    border-top: none;
 }
 
 .filter-row {
     margin-left: 3rem; 
 }
 
+/* Remove the upper border, and un-round the top corners */
+.inclusive-exclusive .btn{
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+}
+
+/* Retain the divider between items in the button group */
+.inclusive-exclusive .btn-group > .btn:not(:first-child) {
+    border-left: 1px solid #11477e;
+}
+
+.inclusive-exclusive {
+    margin-right: 4.55rem;
+}
+
 /* Remove the dividing borders */
 #searchBar {
+    border-left: none;
     border-right: none;
 }
 
