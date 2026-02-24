@@ -4,27 +4,27 @@ using Parser = HiokiNL2SQLMark1.Services.SearchParserService;
 
 namespace HiokiNL2SQLMark1;
 /// <summary>
-/// This abstract class forms the interface between a page and LogTableLogic
+/// This abstract class forms the interface between a page and LogTableLogic and holds all shared information between VQ pages
 /// </summary>
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
 {
-    protected Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");
-    protected Filter<DateTime?> FilterStartDate => Logic.GetFilter<DateTime?>("after");
-    protected Filter<DateTime?> FilterEndDate => Logic.GetFilter<DateTime?>("before");
-    protected Filter<string?> FilterResult => Logic.GetFilter<string?>("result");
-    protected Filter<int?> FilterGroup => Logic.GetFilter<int?>("group");
+    protected Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode"); // For filtering barcodes
+    protected Filter<DateTime?> FilterStartDate => Logic.GetFilter<DateTime?>("after"); // For filtering a start date
+    protected Filter<DateTime?> FilterEndDate => Logic.GetFilter<DateTime?>("before"); // For filtering an end date
+    protected Filter<string?> FilterResult => Logic.GetFilter<string?>("result"); // For filtering a test result
+    protected Filter<int?> FilterGroup => Logic.GetFilter<int?>("group"); // For filtering a group number
     protected LogTableLogic<T> Logic { get; set; } = default!; // Where all the logic lives. The particular instance of LogTableLogic is determined by the page
-    protected DateTime? _startDatePart;
-    protected string? _startTimePart;    
-    protected DateTime? _endDatePart;
-    protected string? _endTimePart;
-    protected bool _isInclusive;
+    public DateTime? StartDatePart { get; set; } // The date part of the start datetime
+    public string? StartTimePart { get; set; } // The time part of the start datetime
+    public DateTime? EndDatePart { get; set; } // The date part of the end datetime
+    public string? EndTimePart { get; set; } // The time part of the end datetime
+    public bool IsInclusive { get; set; } = true; // Whether date filters should be applied in inclusive mode (or exclusive)
 
     protected override async Task OnInitializedAsync()
     {
-        // Logic is instantiated in the synchronous OnInitialized()
-        // Now we run the async setup
+        // Logic is instantiated in the synchronous OnInitialized() (in children)
+        // Now we initialize caches and get the initial data for this table (must be performed async)
         await Logic.InitializeCaches();
         await RefreshData(); 
     }
@@ -40,47 +40,53 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
         StateHasChanged();
     }
 
-    protected void UpdateStart()
+    /// <summary>
+    /// Updates the start date filter from its constituent parts
+    /// </summary>
+    public void UpdateStart()
     {
-        string datePart = _startDatePart?.ToString("yyyy-MM-dd") ?? "";
+        string datePart = StartDatePart?.ToString("yyyy-MM-dd") ?? "";
 
         // Combine parts: date only, time only, or both
-        string combined = $"{datePart} {_startTimePart}".Trim();
+        string combined = $"{datePart} {StartTimePart}".Trim();
         
-        FilterStartDate.Value = Parser.ProcessDateValue("after", combined, _isInclusive);
+        FilterStartDate.Value = Parser.ProcessDateValue("after", combined, IsInclusive);
     }
 
-    protected void UpdateEnd()
+    /// <summary>
+    /// Updates the end date filter from its constituent parts
+    /// </summary>
+    public void UpdateEnd()
     {       
-        string datePart = _endDatePart?.ToString("yyyy-MM-dd") ?? "";
+        string datePart = EndDatePart?.ToString("yyyy-MM-dd") ?? "";
        
-        string combined = $"{datePart} {_endTimePart}".Trim();
+        string combined = $"{datePart} {EndTimePart}".Trim();
         
-        FilterEndDate.Value = Parser.ProcessDateValue("before", combined, _isInclusive);
+        FilterEndDate.Value = Parser.ProcessDateValue("before", combined, IsInclusive);
     }
 
     /// <summary>
     /// Re-process date filters when inclusivity changes
     /// </summary>
     /// <param name="toSet">New value of inclusivity</param>
-    protected void SetInclusivity(bool toSet)
+    public void SetInclusivity(bool toSet)
     {
-        _isInclusive = toSet;
+        IsInclusive = toSet;
 
-        if (_startDatePart != null || !string.IsNullOrEmpty(_startTimePart))
+        if (StartDatePart != null || !string.IsNullOrEmpty(StartTimePart))
         UpdateStart();
         
-        if (_endDatePart != null || !string.IsNullOrEmpty(_endTimePart))
+        if (EndDatePart != null || !string.IsNullOrEmpty(EndTimePart))
             UpdateEnd();
     }
 
     /// <summary>
-    /// Clears all filters on a query
+    /// Clears all filters on a query, plus internal fields backing date filters
     /// </summary>
     /// <returns></returns>
-    public virtual async Task ClearFilters() {
-        _startDatePart = _endDatePart = null;
-        _startTimePart = _endTimePart = null;
+    protected virtual async Task ClearFilters() {
+        StartDatePart = EndDatePart = null;
+        StartTimePart = EndTimePart = null;
         await Logic.ClearFilters();
         StateHasChanged();
     }

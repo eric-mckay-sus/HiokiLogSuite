@@ -1,0 +1,20 @@
+@typeparam T where T : class, IHiokiLog
+
+@if (Parent != null){
+    <div class="ms-auto btn-group btn-group-sm" role="group">
+        <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
+            checked="@Parent.IsInclusive" 
+            @onchange="() => Parent.SetInclusivity(true)">
+        <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
+
+        <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
+            checked="@(!Parent.IsInclusive)" 
+            @onchange="() => Parent.SetInclusivity(false)">
+        <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    public LogTableBase<T> Parent { get; set; } = default!;
+}

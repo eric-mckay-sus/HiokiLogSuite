@@ -1,5 +1,4 @@
 ﻿@page "/group"
-@using Parser = HiokiNL2SQLMark1.Services.SearchParserService
 @rendermode InteractiveServer
 @inherits LogTableBase<GroupResult> // Group table is the page type
 @inject Logic.GroupTableLogic GroupLogic // The page is controlled by group logic
@@ -8,108 +7,76 @@
 
 <h1>Hioki 1220 ICT Group Test Results</h1>
 
-<div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
-    <div class="query-builder-panel mb-4 p-3 border rounded bg-light style="max-width: 100%; overflow-x: hidden;">
-        <div class="row g-3">
-            <FilterWrapper Filter='FilterBarcode' Label="Barcode" ColumnClass="col-3">
-                <input type="text" class="form-control" placeholder="Scan or type..." @bind-value='FilterBarcode.Value' @bind-value:event='oninput' />
-            </FilterWrapper>
-            <div class="col-3">
-                <label class="form-label fw-bold">Start Date</label>
-                <div class="input-group">
-                    <input type="date" class="form-control" @bind="_startDatePart" @bind:after="UpdateStart" />
-                    <select class="form-select" @bind="_startTimePart" @bind:after="UpdateStart">
-                        <option value="">All Shifts</option>
-                        @foreach (string shift in Parser.shiftDetails.Keys)
-                        {
-                            <option value="@shift">@shift</option>
-                        }
+<CascadingValue Value="this">
+    <div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
+        <div class="query-builder-panel mb-4 p-3 border rounded bg-light style="max-width: 100%; overflow-x: hidden;">
+            <div class="row g-3">
+                <FilterWrapper Filter='FilterBarcode' Label="Barcode" ColumnClass="col-3">
+                    <input type="text" class="form-control" placeholder="Scan or type..." @bind-value='FilterBarcode.Value' @bind-value:event='oninput' />
+                </FilterWrapper>
+                <DateFields T="GroupResult" />
+                <FilterWrapper Filter='FilterGroup' Label="Group #" ColumnClass="col-1">
+                    <input type="number" class="form-control" @bind-value='FilterGroup.Value' @bind-value:event="oninput" />
+                </FilterWrapper>
+                <FilterWrapper Filter='FilterResult' Label="Overall Result" ColumnClass="col-2">
+                    <select class="form-select" @bind='FilterResult.Value'>
+                        <option value="">All Results</option>
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
                     </select>
-                </div>
-            </div>
-            <div class="col-3">
-                <label class="form-label fw-bold">End Date</label>
-                <div class="input-group">
-                    <input type="date" class="form-control" @bind="_endDatePart" @bind:after="UpdateEnd" />
-                    <select class="form-select" @bind="_endTimePart" @bind:after="UpdateEnd">
-                        <option value="">All Shifts</option>
-                        @foreach (string shift in Parser.shiftDetails.Keys)
-                        {
-                            <option value="@shift">@shift</option>
-                        }
+                </FilterWrapper>
+                <FilterWrapper Filter='FilterComp' Label="Component Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind='FilterComp.Value'>
+                        <option value="">All Results</option>
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
                     </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterShort" Label="Short Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterShort.Value">
+                        <option value="">All Results</option>
+                        <option value="UN-T">UN-T</option>
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterMacro" Label="Macro Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterMacro.Value">
+                        <option value="">All Results</option>
+                        <option value="UN-T">UN-T</option>
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterIC" Label="IC Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterIC.Value">
+                        <option value="">All Results</option>
+                        <option value="UN-T">UN-T</option>
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterFunction" Label="Function Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterFunction.Value">
+                        <option value="">All Results</option>
+                        <option value="UN-T">UN-T</option>
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
+                    </select>
+                </FilterWrapper>
+                <div class="col-12 d-flex justify-content-end gap-3">
+                    <InclusivityControls T="GroupResult" />
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    @*Have to use parentheses for RefreshData because it takes an argument now (even though it's optional)*@
+                    <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>
                 </div>
-            </div>
-            <FilterWrapper Filter='FilterGroup' Label="Group #" ColumnClass="col-1">
-                <input type="number" class="form-control" @bind-value='FilterGroup.Value' @bind-value:event="oninput" />
-            </FilterWrapper>
-            <FilterWrapper Filter='FilterResult' Label="Overall Result" ColumnClass="col-2">
-                <select class="form-select" @bind='FilterResult.Value'>
-                    <option value="">All Results</option>
-                    <option value="PASS">PASS</option>
-                    <option value="FAIL">FAIL</option>
-                </select>
-            </FilterWrapper>
-            <FilterWrapper Filter='FilterComp' Label="Component Test Result" ColumnClass="col-2">
-                <select class="form-select" @bind='FilterComp.Value'>
-                    <option value="">All Results</option>
-                    <option value="PASS">PASS</option>
-                    <option value="FAIL">FAIL</option>
-                </select>
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterShort" Label="Short Test Result" ColumnClass="col-2">
-                <select class="form-select" @bind="FilterShort.Value">
-                    <option value="">All Results</option>
-                    <option value="UN-T">UN-T</option>
-                    <option value="PASS">PASS</option>
-                    <option value="FAIL">FAIL</option>
-                </select>
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterMacro" Label="Macro Test Result" ColumnClass="col-2">
-                <select class="form-select" @bind="FilterMacro.Value">
-                    <option value="">All Results</option>
-                    <option value="UN-T">UN-T</option>
-                    <option value="PASS">PASS</option>
-                    <option value="FAIL">FAIL</option>
-                </select>
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterIC" Label="IC Test Result" ColumnClass="col-2">
-                <select class="form-select" @bind="FilterIC.Value">
-                    <option value="">All Results</option>
-                    <option value="UN-T">UN-T</option>
-                    <option value="PASS">PASS</option>
-                    <option value="FAIL">FAIL</option>
-                </select>
-            </FilterWrapper>
-            <FilterWrapper Filter="FilterFunction" Label="Function Test Result" ColumnClass="col-2">
-                <select class="form-select" @bind="FilterFunction.Value">
-                    <option value="">All Results</option>
-                    <option value="UN-T">UN-T</option>
-                    <option value="PASS">PASS</option>
-                    <option value="FAIL">FAIL</option>
-                </select>
-            </FilterWrapper>
-            <div class="col-12 d-flex justify-content-end gap-3">
-                <div class="ms-auto btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
-                        checked="@_isInclusive" 
-                        @onchange="() => SetInclusivity(true)">
-                    <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
-
-                    <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
-                        checked="@(!_isInclusive)" 
-                        @onchange="() => SetInclusivity(false)">
-                    <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
-                </div>
-                <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
-                @*Have to use parentheses for RefreshData because it takes an argument now (even though it's optional)*@
-                <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>
             </div>
         </div>
     </div>
-</div>
 
-<LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
+
+    <LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
+</CascadingValue>
 
 @code {
     private Filter<string?> FilterComp => Logic.GetFilter<string?>("comp");

@@ -1,0 +1,36 @@
+@using Parser = HiokiNL2SQLMark1.Services.SearchParserService
+@typeparam T where T : class, IHiokiLog
+
+@if (Parent != null){
+    <div class="col-3">
+    <label class="form-label fw-bold">Start Date</label>
+    <div class="input-group">
+        <input type="date" class="form-control" @bind="Parent.StartDatePart" @bind:after="Parent.UpdateStart" />
+        <select class="form-select" @bind="Parent.StartTimePart" @bind:after="Parent.UpdateStart">
+            <option value="">All Shifts</option>
+            @foreach (string shift in Parser.shiftDetails.Keys)
+            {
+                <option value="@shift">@shift</option>
+            }
+        </select>
+    </div>
+</div>
+<div class="col-3">
+    <label class="form-label fw-bold">End Date</label>
+    <div class="input-group">
+        <input type="date" class="form-control" @bind="Parent.EndDatePart" @bind:after="Parent.UpdateEnd" />
+        <select class="form-select" @bind="Parent.EndTimePart" @bind:after="Parent.UpdateEnd">
+            <option value="">All Shifts</option>
+            @foreach (string shift in Parser.shiftDetails.Keys)
+            {
+                <option value="@shift">@shift</option>
+            }
+        </select>
+    </div>
+</div>
+}
+
+@code {
+    [CascadingParameter]
+    public LogTableBase<T> Parent { get; set; } = default!;
+}
