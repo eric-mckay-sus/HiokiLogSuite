@@ -219,7 +219,7 @@ public class SearchParserService
             if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
                 if (expectedType == ValType.DateTime) result.HasDateFilter = true;
                 if (!IsValidValue(expectedType, cleanKey, value, out string errorMessage)) {
-                    result.ErrorMessages.Add($"Invalid value for **{key}**--{errorMessage}");
+                    result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
                     lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
                     continue;
                 }
@@ -331,6 +331,11 @@ public class SearchParserService
                     error = $"**{value}** (read as **{normalized}**) is not a valid date or alias. Please use \"YYYY-MM-DD HH:mm:ss\" (ISO formatting) or a shortcut below.";
                     return false;
                 }
+                if (key.Equals("after", StringComparison.OrdinalIgnoreCase) && normalized > DateTime.Now)
+                {
+                    error = $"**{value}** is in the future. Did you mean to search before that date?";
+                    return false;
+                }
                 break;
         }
         // The input value is already a string, so there's no check that case (typos not a part of this check)
@@ -435,7 +440,6 @@ public class SearchParserService
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         bool isBefore = key.Equals("before", StringComparison.OrdinalIgnoreCase);
-        bool afterExclusive = !isBefore && !isInclusive;
 
         // Detect specific time to deactivate date-only inclusivity check (excluding time shouldn't skip entire day)
         bool hasSpecificTime = Regex.IsMatch(value, @"\d{1,2}:\d{2}", RegexOptions.IgnoreCase);
@@ -457,8 +461,8 @@ public class SearchParserService
                 }
             }
 
-            DateTime datePart = BaseDateTimeFromAlias(parts[0], afterExclusive);
-            DateTime timePart = BaseDateTimeFromAlias(parts[1], afterExclusive);
+            DateTime datePart = BaseDateTimeFromAlias(parts[0]);
+            DateTime timePart = BaseDateTimeFromAlias(parts[1]);
 
             // If either was unexpected, return immediately
             if (datePart.Equals(DateTime.MinValue) || timePart.Equals(DateTime.MinValue)) return DateTime.MinValue;
@@ -472,7 +476,11 @@ public class SearchParserService
         else // Otherwise, just let BaseDateTime handle it
         {
             if (shiftDetails.TryGetValue(value.ToLower(), out var detail)) offsetHours = detail.Hours;
-            baseDateTime = BaseDateTimeFromAlias(value, afterExclusive);
+            baseDateTime = BaseDateTimeFromAlias(value);
+
+            // If an after tag targets a future date, the search cannot possibly have results
+            // For shift-only, this is just an expansion of auto-detection (we'll handle user-specified out-of-range dates later)
+            if ((baseDateTime > DateTime.Now) && !isBefore && offsetHours != 24) baseDateTime = baseDateTime.AddDays(-1);
         }
 
         // Verify that there actually was a date
@@ -496,9 +504,6 @@ public class SearchParserService
                 if (!isInclusive && !hasSpecificTime) baseDateTime = baseDateTime.AddHours(offsetHours);
             }
         }
-
-        // Catch-all in case something was unexpected
-        if (baseDateTime > DateTime.Now) baseDateTime = baseDateTime.AddDays(-1);
         return baseDateTime;
     }
 
@@ -507,7 +512,7 @@ public class SearchParserService
     /// </summary>
     /// <param name="alias">The alias for which to get the bounding datetime</param>
     /// <returns>A datetime representing the starting boundary for this alias</returns>
-    private static DateTime BaseDateTimeFromAlias(string alias, bool afterExclusive=false)
+    private static DateTime BaseDateTimeFromAlias(string alias)
     {
         DateTime now = DateTime.Now;
         DateTime today = now.Date; // Could use DateTime.Today, but if this parser were set up to run automatically at midnight, that would become unstable

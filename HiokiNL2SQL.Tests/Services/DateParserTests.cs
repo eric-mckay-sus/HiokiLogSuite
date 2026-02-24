@@ -1,4 +1,4 @@
-using HiokiNL2SQLMark1.Services;
+using Parser = HiokiNL2SQLMark1.Services.SearchParserService;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
@@ -6,18 +6,13 @@ namespace HiokiNL2SQL.Tests.Services;
 [ExcludeFromCodeCoverage]
 public class DateParserTests
 {
-	private readonly MethodInfo _processDateValueInfo;
     private readonly MethodInfo _baseDateTimeFromAliasInfo;
 
     public DateParserTests()
     {
-        // Access private methods via reflection
-        _processDateValueInfo = typeof(SearchParserService).GetMethod("ProcessDateValue", BindingFlags.NonPublic | BindingFlags.Static)!;
-        _baseDateTimeFromAliasInfo = typeof(SearchParserService).GetMethod("BaseDateTimeFromAlias", BindingFlags.NonPublic | BindingFlags.Static)!;
+        // Access private method via reflection
+        _baseDateTimeFromAliasInfo = typeof(Parser).GetMethod("BaseDateTimeFromAlias", BindingFlags.NonPublic | BindingFlags.Static)!;
     }
-
-    private DateTime? InvokeProcessDateValue(string key, string value, bool isInclusive) =>
-        (DateTime?)_processDateValueInfo.Invoke(null, [key, value, isInclusive]);
 
     private DateTime InvokeBaseDateTimeFromAlias(string alias) =>
         (DateTime)_baseDateTimeFromAliasInfo.Invoke(null, [alias])!;
@@ -44,26 +39,6 @@ public class DateParserTests
 
     #endregion
 
-    #region Inclusivity and Key Combinations
-
-    [Theory]
-    // AFTER (Start Boundary)
-    [InlineData("after", "2026-02-20", true, "2026-02-20 00:00:00")]  // Inclusive: Start of day
-    [InlineData("after", "2026-02-20", false, "2026-02-21 00:00:00")] // Exclusive: Start of NEXT day
-    // BEFORE (End Boundary)
-    [InlineData("before", "2026-02-20", true, "2026-02-20 23:59:59")]  // Inclusive: End of day (last tick)
-    [InlineData("before", "2026-02-20", false, "2026-02-19 23:59:59")] // Exclusive: End of PREVIOUS day
-    public void ProcessDateValue_HandlesInclusivityLogic(string key, string value, bool isInclusive, string expected)
-    {
-        var result = InvokeProcessDateValue(key, value, isInclusive);
-        
-        // Using a small tolerance for the "Last Tick" (-1 tick) logic
-        var expectedDt = DateTime.Parse(expected);
-        Assert.True(Math.Abs((result!.Value - expectedDt).TotalSeconds) < 1);
-    }
-
-    #endregion
-
     #region Value Types (Time vs Date vs Combined)
 
     [Fact]
@@ -73,7 +48,7 @@ public class DateParserTests
         string val = "2026-02-20 08:30";
         
         // After + Exclusive + Specific Time should NOT jump to Feb 21
-        var result = InvokeProcessDateValue("after", val, false);
+        var result = Parser.ProcessDateValue("after", val, false);
         
         Assert.Equal(2026, result!.Value.Year);
         Assert.Equal(2, result!.Value.Month);
@@ -86,20 +61,20 @@ public class DateParserTests
     {
         // Test "today shift2" (Date Alias + Time Alias)
         // Shift 2 starts at 15:00
-        var result = InvokeProcessDateValue("after", "today shift2", true);
+        var result = Parser.ProcessDateValue("after", "today shift2", true);
         
         var today = DateTime.Today;
-        Assert.Equal(today.Date.AddHours(15), result);
+        Assert.Equal(today.Date.AddHours(15.5), result);
     }
 
     [Fact]
     public void ProcessDateValue_ShiftAlias_HandlesExclusivity()
     {
-        // Shift is 8 hours. After + Exclusive + Shift should jump 8 hours.
-        var result = InvokeProcessDateValue("after", "shift1", false);
+        // Shift is 8 hours. After + Exclusive + Shift should jump 8.5 hours.
+        var result = Parser.ProcessDateValue("after", "shift1", false);
         var baseShift1 = InvokeBaseDateTimeFromAlias("shift1");
         
-        Assert.Equal(baseShift1.AddHours(8), result);
+        Assert.Equal(baseShift1.AddHours(8.5), result);
     }
 
     #endregion
@@ -112,8 +87,88 @@ public class DateParserTests
     [InlineData("   ")]
     public void ProcessDateValue_EmptyInput_ReturnsNull(string? input)
     {
-        var result = InvokeProcessDateValue("after", input!, true);
+        var result = Parser.ProcessDateValue("after", input!, true);
         Assert.Null(result);
+    }
+
+    #endregion
+
+    #region Shift Logic and Future Correction
+
+    [Fact]
+    public void ProcessDateValue_ShiftAlias_AutoCorrectsFutureToYesterday()
+    {
+        // Setup: If it's currently morning, shift2 (15:30) is in the future.
+        // The logic should subtract 1 day so 'after:shift2' shows yesterday's shift.
+        var result = Parser.ProcessDateValue("after", "shift2", true);
+        
+        if (DateTime.Now.TimeOfDay < new TimeSpan(15, 30, 0))
+        {
+            Assert.True(result < DateTime.Today, "Should have shifted to yesterday because shift hasn't started yet.");
+        }
+    }
+
+    [Fact]
+    public void ProcessDateValue_Shift3_AppliesNegativeDateOffset()
+    {
+        // Shift 3 starts at 22:30 (-1.5 hours from midnight)
+        // 'today shift3' should result in Yesterday at 22:30
+        var result = Parser.ProcessDateValue("after", "today shift3", true);
+        var expected = DateTime.Today.AddDays(-1).Add(new TimeSpan(22, 30, 0));
+        
+        Assert.Equal(expected, result);
+    }
+
+    #endregion
+
+    #region Inclusivity and "Today" Safety
+
+    [Theory]
+    // Verification that the 'before:today' inclusive bug is fixed
+    [InlineData("before", "today", true)] 
+    public void ProcessDateValue_BeforeTodayInclusive_IsEndOfToday(string key, string value, bool inclusive)
+    {
+        var result = Parser.ProcessDateValue(key, value, inclusive);
+        var expectedEndofToday = DateTime.Today.AddDays(1).AddTicks(-1);
+
+        // It should be the very last tick of today, NOT yesterday.
+        Assert.Equal(expectedEndofToday, result);
+        Assert.True(result > DateTime.Now.Date); 
+    }
+
+    [Theory]
+    [InlineData("after", "2026-02-20", true, "2026-02-20 00:00:00")]
+    [InlineData("after", "2026-02-20", false, "2026-02-21 00:00:00")]
+    [InlineData("before", "2026-02-20", true, "2026-02-20 23:59:59")]
+    [InlineData("before", "2026-02-20", false, "2026-02-19 23:59:59")]
+    public void ProcessDateValue_HandlesInclusivityLogic(string key, string value, bool isInclusive, string expected)
+    {
+        var result = Parser.ProcessDateValue(key, value, isInclusive);
+        var expectedDt = DateTime.Parse(expected);
+        
+        Assert.True(Math.Abs((result!.Value - expectedDt).TotalSeconds) < 1);
+    }
+
+    #endregion
+
+    #region Edge Cases and Combined Aliases
+
+    [Fact]
+    public void ProcessDateValue_InvalidAlias_ReturnsMinValue()
+    {
+        var result = Parser.ProcessDateValue("after", "not-a-date", true);
+        Assert.Equal(DateTime.MinValue, result);
+    }
+
+    [Fact]
+    public void ProcessDateValue_Last24h_IgnoresInclusivityNudge()
+    {
+        // last24h uses 'now', so it shouldn't be nudged by day/shift offsets
+        var result = Parser.ProcessDateValue("after", "last24h", true);
+        var expected = DateTime.Now.AddHours(-24);
+
+        // Tolerance of 2 seconds for execution time
+        Assert.True(Math.Abs((result!.Value - expected).TotalSeconds) < 2);
     }
 
     #endregion
