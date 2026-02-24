@@ -17,8 +17,8 @@
             <div class="col-3">
                 <label class="form-label fw-bold">Start Date</label>
                 <div class="input-group">
-                    <input type="date" class="form-control" @onchange="@(e => UpdateStart(e.Value?.ToString(), _startTimePart))" />
-                    <select class="form-select" @bind="StartTimePart">
+                    <input type="date" class="form-control" @bind="_startDatePart" @bind:after="UpdateStart" />
+                    <select class="form-select" @bind="_startTimePart" @bind:after="UpdateStart">
                         <option value="">All Shifts</option>
                         @foreach (string shift in Parser.shiftDetails.Keys)
                         {
@@ -30,8 +30,8 @@
             <div class="col-3">
                 <label class="form-label fw-bold">End Date</label>
                 <div class="input-group">
-                    <input type="date" class="form-control" @onchange="@(e => UpdateEnd(e.Value?.ToString(), _endTimePart))" />
-                    <select class="form-select" @bind="EndTimePart">
+                    <input type="date" class="form-control" @bind="_endDatePart" @bind:after="UpdateEnd" />
+                    <select class="form-select" @bind="_endTimePart" @bind:after="UpdateEnd">
                         <option value="">All Shifts</option>
                         @foreach (string shift in Parser.shiftDetails.Keys)
                         {
@@ -89,7 +89,18 @@
                     <option value="FAIL">FAIL</option>
                 </select>
             </FilterWrapper>
-            <div class="col-12 d-flex justify-content-end gap-2">
+            <div class="col-12 d-flex justify-content-end gap-3">
+                <div class="ms-auto btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
+                        checked="@_isInclusive" 
+                        @onchange="() => SetInclusivity(true)">
+                    <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
+
+                    <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
+                        checked="@(!_isInclusive)" 
+                        @onchange="() => SetInclusivity(false)">
+                    <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+                </div>
                 <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
                 @*Have to use parentheses for RefreshData because it takes an argument now (even though it's optional)*@
                 <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>
@@ -101,50 +112,11 @@
 <LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
 
 @code {
-    private Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");
-    private Filter<DateTime?> FilterStartDate => Logic.GetFilter<DateTime?>("after");
-    private Filter<DateTime?> FilterEndDate => Logic.GetFilter<DateTime?>("before");
-    private Filter<string?> FilterResult => Logic.GetFilter<string?>("result");
-    private Filter<int?> FilterGroup => Logic.GetFilter<int?>("group");
     private Filter<string?> FilterComp => Logic.GetFilter<string?>("comp");
     private Filter<string?> FilterShort => Logic.GetFilter<string?>("short");
     private Filter<string?> FilterMacro => Logic.GetFilter<string?>("macro");
     private Filter<string?> FilterIC => Logic.GetFilter<string?>("ic");
     private Filter<string?> FilterFunction => Logic.GetFilter<string?>("function");
-
-    private string? _startDatePart;
-    public string? StartDatePart {
-        get => _startDatePart;
-        set {
-            value = _startDatePart;
-            UpdateStart(_startDatePart, _startTimePart);
-        }
-    }
-    private string? _startTimePart;
-    public string? StartTimePart {
-        get => _startTimePart;
-        set {
-            value = _startTimePart;
-            UpdateStart(_startDatePart, _startTimePart);
-        }
-    }
-    
-    private string? _endDatePart;
-    public string? EndDatePart {
-        get => _endDatePart;
-        set {
-            value = _endDatePart;
-            UpdateStart(_endDatePart, _endTimePart);
-        }
-    }
-    private string? _endTimePart;
-    public string? EndTimePart {
-        get => _endTimePart;
-        set {
-            value = _endTimePart;
-            UpdateStart(_endDatePart, _endTimePart);
-        }
-    }
 
     /// <summary>
     /// When the page loads, inform LogTableBase that it is a group page
@@ -153,32 +125,5 @@
     {
         base.Logic = GroupLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
-    }
-
-    private void UpdateStart(string? date, string? time)
-    {
-        _startDatePart = date;
-        _startTimePart = time;
-
-        // Combine parts: "2026-02-20 shift1" or just "2026-02-20"
-        string combined = $"{date} {time}".Trim();
-        
-        FilterStartDate.Value = Parser.ProcessDateValue("after", combined);
-    }
-
-    private void UpdateEnd(string? date, string? time)
-    {
-        _endDatePart = date;
-        _endTimePart = time;
-        string combined = $"{date} {time}".Trim();
-        
-        FilterEndDate.Value = Parser.ProcessDateValue("before", combined);
-    }
-
-    // Override ClearFilters to reset shadow properties
-    private new async Task ClearFilters()
-    {
-        _startDatePart = _startTimePart = _endDatePart = _endTimePart = null;
-        await base.ClearFilters();
     }
 }

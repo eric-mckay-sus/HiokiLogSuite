@@ -1,4 +1,5 @@
 ﻿@page "/fct"
+@using Parser = HiokiNL2SQLMark1.Services.SearchParserService
 @rendermode InteractiveServer
 @inherits LogTableBase<FctResult> // FCT table is the page type
 @inject Logic.FctTableLogic FctLogic // The page is controlled by FCT logic
@@ -14,16 +15,30 @@
             <FilterWrapper Filter="FilterBarcode" Label="Barcode" ColumnClass="col-2">
                 <input type="text" class="form-control" @bind-value="FilterBarcode.Value" @bind-value:event="oninput" placeholder="Scan or type..." />
             </FilterWrapper>
-            <div class="col-2">
+            <div class="col-3">
                 <label class="form-label fw-bold">Start Date</label>
-                <div @key="FilterStartDate">
-                    <input type="date" class="form-control" @bind="FilterStartDate.Value" />
+                <div class="input-group">
+                    <input type="date" class="form-control" @bind="_startDatePart" @bind:after="UpdateStart" />
+                    <select class="form-select" @bind="_startTimePart" @bind:after="UpdateStart">
+                        <option value="">All Shifts</option>
+                        @foreach (string shift in Parser.shiftDetails.Keys)
+                        {
+                            <option value="@shift">@shift</option>
+                        }
+                    </select>
                 </div>
             </div>
-            <div class="col-2">
+            <div class="col-3">
                 <label class="form-label fw-bold">End Date</label>
-                <div @key="FilterEndDate">
-                    <input type="date" class="form-control" @bind="FilterEndDate.Value" />
+                <div class="input-group">
+                    <input type="date" class="form-control" @bind="_endDatePart" @bind:after="UpdateEnd" />
+                    <select class="form-select" @bind="_endTimePart" @bind:after="UpdateEnd">
+                        <option value="">All Shifts</option>
+                        @foreach (string shift in Parser.shiftDetails.Keys)
+                        {
+                            <option value="@shift">@shift</option>
+                        }
+                    </select>
                 </div>
             </div>
             <FilterWrapper Filter="FilterGroup" Label="Group #" ColumnClass="col-1">
@@ -51,6 +66,17 @@
                 </select>
             </FilterWrapper>
             <div class="col-12 d-flex justify-content-end gap-2">
+                <div class="ms-auto btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
+                        checked="@_isInclusive" 
+                        @onchange="() => SetInclusivity(true)">
+                    <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
+
+                    <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
+                        checked="@(!_isInclusive)" 
+                        @onchange="() => SetInclusivity(false)">
+                    <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+                </div>
                 <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
                 <button class="btn btn-primary" @onclick="() => RefreshData()">Execute</button>
             </div>
@@ -61,11 +87,6 @@
 <LogTablePresenter T="FctResult" TableLogic="FctLogic" />
 
 @code {
-    private Filter<string?> FilterBarcode => Logic.GetFilter<string?>("barcode");
-    private Filter<DateTime?> FilterStartDate => Logic.GetFilter<DateTime?>("after");
-    private Filter<DateTime?> FilterEndDate => Logic.GetFilter<DateTime?>("before");
-    private Filter<string?> FilterResult => Logic.GetFilter<string?>("result");
-    private Filter<int?> FilterGroup => Logic.GetFilter<int?>("group");
     private Filter<int?> FilterStep => Logic.GetFilter<int?>("step");
     private Filter<string?> FilterMode => Logic.GetFilter<string?>("mode");
 
