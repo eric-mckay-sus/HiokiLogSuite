@@ -20,6 +20,7 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     public DateTime? EndDatePart { get; set; } // The date part of the end datetime
     public string? EndTimePart { get; set; } // The time part of the end datetime
     public bool IsInclusive { get; set; } = true; // Whether date filters should be applied in inclusive mode (or exclusive)
+    protected string Preview { get; set; } = ""; // The human-readable preview
 
     protected override async Task OnInitializedAsync()
     {
@@ -33,10 +34,12 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// Calls Logic.RefreshData to update table, then tells the child the state has changed
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
+    /// <param name="force">Whether to skip the hydration check</param>
     /// <returns></returns>
     protected async Task RefreshData(bool keepPage=false, bool force=false)
     {
         await Logic.RefreshData(keepPage, force);
+        Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary());
         StateHasChanged();
     }
 

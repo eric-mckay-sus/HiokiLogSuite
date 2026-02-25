@@ -1,0 +1,13 @@
+<div class="px-2 pb-1">
+    @if (!string.IsNullOrWhiteSpace(Preview))
+    {
+        <small class="text-muted d-inline-flex">
+            <i class="bi bi-search me-1"></i> 
+            <Markdown>@((MarkupString)Preview)</Markdown>
+        </small>
+    }
+</div>
+
+@code{
+    [Parameter] public string Preview { get; set; } = "";
+}

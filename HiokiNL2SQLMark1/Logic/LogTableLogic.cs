@@ -19,9 +19,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     protected readonly IJSService JS; // For handling CSV download
     protected readonly INavService Nav; // For navigating to the power search page in a barcode "drill-down"
 
-    // Shared filters
-    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase); // To store the filters and their state
-
     // Pagination variables
     public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
     public int PageSize { get; set; } = 50; // The number of results per page
@@ -33,7 +30,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public string SortDir { get; set; } = "none"; // The sort direction of the currently sorted column
     
     // Data storage
-    public bool IsLoading { get; private set; } // Whether the query is currently loading the table display
+    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase); // Filter registry, updated as necessary by children
+    public bool IsLoading { get; private set; } = true; // Whether the query is currently loading the table display
     public List<T> DataView { get; private set; } = []; // Stores the query results, only of the current page
     public List<string> ModeCache { get; private set; } = []; // The list of test modes to choose from (technically this should be in the children)
     public List<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
@@ -127,19 +125,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns></returns>
     public async Task RefreshData(bool keepPage = false, bool force=false)
     {
-        // Filters are activating, but hydration check is blocking execution. The staleness check is not updating correctly. Filter values are setting properly.
-        foreach (var kvp in Filters)
-        {
-            if (Filters.TryGetValue(kvp.Key, out var f))
-            {
-                if(f is Filter<string?> strFilter) Console.WriteLine($"{strFilter.Key}:{strFilter.Value}");
-                if(f is Filter<int?> intFilter) Console.WriteLine($"{intFilter.Key}:{intFilter.Value}");
-                if(f is Filter<DateTime?> dtFilter) Console.WriteLine($"{dtFilter.Key}:{dtFilter.Value}");
-            }
-        }
-        var currentHash = GetFilterStateHash(Filters);
-        Console.WriteLine($"DEBUG: Last: {LastQueryHash} | Current: {currentHash} | Match: {LastQueryHash == currentHash}");
-        Console.WriteLine($"The displayed data is {(IsStale ? "stale" : "not stale")} (override {(IsStaleOverride == null ? "deactivated" : "active")}).");
         if (DataView.Count > 0 && !IsStale && !force) return;
 
         if (!keepPage) CurrentPage = 1;
