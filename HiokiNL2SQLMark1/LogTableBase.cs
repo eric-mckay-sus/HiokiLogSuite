@@ -34,9 +34,9 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
     /// <returns></returns>
-    protected async Task RefreshData(bool keepPage = false)
+    protected async Task RefreshData(bool keepPage=false, bool force=false)
     {
-        await Logic.RefreshData(keepPage);
+        await Logic.RefreshData(keepPage, force);
         StateHasChanged();
     }
 

@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -41,6 +40,9 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
     /// <returns></returns>
     public override async Task InitializeCaches()
     {
+        // Hydration check
+        if (LastQueryHash != null && CompCache.Count != 0) return;
+
         // Run parent's initializer for the result type cache
         var baseTask = base.InitializeCaches();
 

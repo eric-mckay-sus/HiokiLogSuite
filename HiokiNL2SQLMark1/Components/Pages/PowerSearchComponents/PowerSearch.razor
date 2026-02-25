@@ -1,48 +1,64 @@
 ﻿@page "/"
 @rendermode InteractiveServer
-@inject PowerSearchLogic State
 @inject INavService NavService
+@inject IServiceScopeFactory ScopeFactory
 @implements IDisposable // for the automatic Dispose method
 
-<PageTitle>@State.LastExecutedQuery</PageTitle>
+<PageTitle>@State?.LastExecutedQuery</PageTitle>
 
-<h1>Hioki 1220 ICT Power Search</h1>
+@if (State == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <CascadingValue Value="State" IsFixed="true">
+        <h1>Hioki 1220 ICT Power Search</h1>
 
-<ErrorDisplay Messages="State.errorMessages" />
+        <ErrorDisplay Messages="State.errorMessages" />
 
-<div class="command-container mb-4">
-    <SearchBar />
-    <Preview />
-    <SearchTags />
-</div>
+        <div class="command-container mb-4">
+            <SearchBar />
+            <Preview />
+            <SearchTags />
+        </div>
 
-<SearchResults />
+        <SearchResults />
+    </CascadingValue>
+}
 
 @code{
+    private IServiceScope? _pageScope;
+    private PowerSearchLogic? State;
+    private bool _isInitialized = false;
 
     /// <summary>
     /// When the page opens, check the URL for filters, sorts, and pagination.
     /// If there are filters, immediately run a query with them.
     /// </summary>
     /// <returns></returns>
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        string? currentQuery = NavService.GetCurrentQuery();
-        
-        if (!string.IsNullOrEmpty(currentQuery))
+        if (firstRender)
         {
-            // Update logic state from URL (Initial Load)
-            await ApplyUrlState();
-        }
-    }
+            // Create the scope here instead of OnInitialized
+            _pageScope = ScopeFactory.CreateScope();
+            State = _pageScope.ServiceProvider.GetRequiredService<PowerSearchLogic>();
 
-    /// <summary>
-    /// When this page opens, continuously watch the query for filter changes
-    /// </summary>
-    protected override void OnInitialized()
-    {
-        State.OnRefreshRequested += HandleRefreshRequested;
-        NavService.OnLocationChanged += HandleLocationChanged;
+            // Wire up events
+            State.OnRefreshRequested += HandleRefreshRequested;
+            NavService.OnLocationChanged += HandleLocationChanged;
+
+            // Process initial URL state
+            string? currentQuery = NavService.GetCurrentQuery();
+            if (!string.IsNullOrEmpty(currentQuery))
+            {
+                await ApplyUrlState();
+            }
+
+            _isInitialized = true;
+            StateHasChanged(); // Re-render now that State is populated
+        }
     }
 
     /// <summary>
@@ -50,9 +66,12 @@
     /// </summary>
     public void Dispose()
     {
-        State.OnRefreshRequested -= HandleRefreshRequested;
+        if (State != null) {
+            State.OnRefreshRequested -= HandleRefreshRequested;
+            State.DebounceTimer?.Dispose();
+        }
         NavService.OnLocationChanged -= HandleLocationChanged;
-        State.DebounceTimer?.Dispose();
+        _pageScope?.Dispose();
     }
 
     /// <summary>
@@ -68,7 +87,7 @@
     public async void HandleLocationChanged(string newLocation)
     {
         try{
-            if (State.IsProcessingNavigation) return;
+            if (State != null && State.IsProcessingNavigation) return;
 
             await InvokeAsync(async () =>
             {
@@ -86,21 +105,23 @@
 
     private async Task ApplyUrlState()
     {
-        UrlState? state = NavService.GetFullStateFromUrl();
-        State.commandInput = state.Query;
+        UrlState? urlState = NavService.GetFullStateFromUrl();
+        if (State != null){
+            State.commandInput = urlState.Query;
         
-        var activeTable = State.TableLogics.FirstOrDefault(t => 
-        t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
+            var activeTable = State.TableLogics.FirstOrDefault(t => 
+            t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        if (activeTable != null)
-        {
-            activeTable.CurrentPage = state.Page ?? 1;
-            activeTable.PageSize = state.PageSize ?? 50;
-            activeTable.CurrentSortColumn = state.SortCol ?? "";
-            activeTable.SortDir = state.SortDir ?? "none";
+            if (activeTable != null)
+            {
+                activeTable.CurrentPage = urlState.Page ?? 1;
+                activeTable.PageSize = urlState.PageSize ?? 50;
+                activeTable.CurrentSortColumn = urlState.SortCol ?? "";
+                activeTable.SortDir = urlState.SortDir ?? "none";
+            }
+
+            // Execute the search (passing true to keepPage ensures we use the URL's page number)
+            await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
         }
-
-        // Execute the search (passing true to keepPage ensures we use the URL's page number)
-        await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
     }
 }

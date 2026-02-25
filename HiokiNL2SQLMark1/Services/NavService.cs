@@ -9,6 +9,7 @@ public class NavService : INavService, IDisposable
 {
     private readonly NavigationManager _nav;
     public event Action<string>? OnLocationChanged;
+    private bool _isLocationChangedSubscribed = false;
 
     /// <summary>
     /// Builds a NavService using the specified NavigationManager.
@@ -18,7 +19,24 @@ public class NavService : INavService, IDisposable
     public NavService(NavigationManager nav)
     {
         _nav = nav;
-        _nav.LocationChanged += HandleLocationChanged;
+        try
+        {
+            _nav.LocationChanged += HandleLocationChanged;
+            _isLocationChangedSubscribed = true;
+        }
+        catch (InvalidOperationException)
+        {
+            // NavigationManager hasn't been initialized yet, just need to make sure it is before first use
+        }
+    }
+
+    private void EnsureSubscribed()
+    {
+        if (!_isLocationChangedSubscribed)
+        {
+            _nav.LocationChanged += HandleLocationChanged;
+            _isLocationChangedSubscribed = true;
+        }
     }
     
 
@@ -99,5 +117,12 @@ public class NavService : INavService, IDisposable
     /// <summary>
     /// Upon navigating away from this page, unsubscribe from the URL monitor
     /// </summary>
-    public void Dispose() => _nav.LocationChanged -= HandleLocationChanged;
+    public void Dispose()
+    {
+        if (_isLocationChangedSubscribed)
+        {
+            _nav.LocationChanged -= HandleLocationChanged;
+            _isLocationChangedSubscribed = false;
+        }
+    }
 }

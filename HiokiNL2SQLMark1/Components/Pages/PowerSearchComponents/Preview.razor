@@ -1,5 +1,4 @@
 @implements IDisposable
-@inject PowerSearchLogic State
 
 <div class="mt-1 px-2">
         @if (!string.IsNullOrWhiteSpace(State.Preview))
@@ -12,6 +11,9 @@
     </div>
 
 @code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
+    
     protected override void OnInitialized()
     {
         // Listen for changes from the SearchBar so we can update highlights

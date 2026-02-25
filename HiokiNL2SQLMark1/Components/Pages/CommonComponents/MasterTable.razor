@@ -65,7 +65,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <Virtualize TItem="TItem" Items="@(Items?.ToList())" Context="item" OverscanCount="10" ItemSize="41">
+                    <Virtualize TItem="TItem" Items="@(Items?.ToList())" Context="item" OverscanCount="10">
                         <tr>
                             @foreach (PropertyInfo prop in _cachedProps)
                             {

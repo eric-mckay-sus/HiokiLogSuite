@@ -81,16 +81,27 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 // Ignore 'in' key, it does not affect the search contents within a table
                 if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
 
-                // Factor in each aspect of the filter, but only if it is active
+                // Factor in each aspect of the filter
                 var filter = filterDict[key];
+
+                // Key and activity status are part of hash regardless of activity status
+                hash *= 31 + key.ToLower().GetHashCode();
+                hash *= 31 + filter.IsActive.GetHashCode();
+
+                // Only hash filter details if active
                 if (filter.IsActive)
                 {
-                    hash *= 31 + key.ToLower().GetHashCode();
                     hash *= 31 + filter.IsNegated.GetHashCode();
                     string value = filter.GetValue()?.ToString()?.Trim().ToLower() ?? "";
                     hash *= 31 + value.GetHashCode();
                 }
             }
+            // Sorts and pagination affect view, so a hash of the view should include them
+            hash *= 31 + CurrentSortColumn.GetHashCode();
+            hash *= 31 + SortDir.GetHashCode();
+            hash *= 31 + CurrentPage.GetHashCode();
+            hash *= 31 + PageSize.GetHashCode();
+            
             return hash;
         }
     }
@@ -112,28 +123,50 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
+    /// <param name="force">Whether to force a refresh</param>
     /// <returns></returns>
-    public async Task RefreshData(bool keepPage = false)
+    public async Task RefreshData(bool keepPage = false, bool force=false)
     {
+        // Filters are activating, but hydration check is blocking execution. The staleness check is not updating correctly. Filter values are setting properly.
+        foreach (var kvp in Filters)
+        {
+            if (Filters.TryGetValue(kvp.Key, out var f))
+            {
+                if(f is Filter<string?> strFilter) Console.WriteLine($"{strFilter.Key}:{strFilter.Value}");
+                if(f is Filter<int?> intFilter) Console.WriteLine($"{intFilter.Key}:{intFilter.Value}");
+                if(f is Filter<DateTime?> dtFilter) Console.WriteLine($"{dtFilter.Key}:{dtFilter.Value}");
+            }
+        }
+        var currentHash = GetFilterStateHash(Filters);
+        Console.WriteLine($"DEBUG: Last: {LastQueryHash} | Current: {currentHash} | Match: {LastQueryHash == currentHash}");
+        Console.WriteLine($"The displayed data is {(IsStale ? "stale" : "not stale")} (override {(IsStaleOverride == null ? "deactivated" : "active")}).");
+        if (DataView.Count > 0 && !IsStale && !force) return;
+
         if (!keepPage) CurrentPage = 1;
 
         IsLoading = true;
-        // One DbContext per refresh
-        using var db = await _dbFactory.CreateDbContextAsync();
-
-        IQueryable<T> query = _querySelector(db).AsNoTracking();
-        query = ApplyFilters(query);
-        TotalCount = await query.CountAsync();
-        query = ApplySorting(query);
+        OnNotifyUI?.Invoke(); // Show loading state
         
-        DataView = await query
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToListAsync();
+        try {
+            using var db = await _dbFactory.CreateDbContextAsync(); // One DbContext per refresh
+            IQueryable<T> query = _querySelector(db).AsNoTracking();
 
-        IsLoading = false;
-        LastQueryHash = GetFilterStateHash(Filters);
-        OnNotifyUI?.Invoke();
+            query = ApplyFilters(query);
+            TotalCount = await query.CountAsync();
+            query = ApplySorting(query);
+            
+            DataView = await query
+                .Skip((CurrentPage - 1) * PageSize)
+                .Take(PageSize)
+                .ToListAsync();
+
+            LastQueryHash = GetFilterStateHash(Filters);
+        }
+        finally
+        {
+            IsLoading = false;
+            OnNotifyUI?.Invoke();
+        }
     }
 
     /// <summary>
@@ -142,13 +175,43 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <typeparam name="U">The generic type of a Filter, one of string, int, or DateTime</typeparam>
     /// <param name="key">The key for which to get the filter</param>
     /// <returns>The Filter with its appropriate type</returns>
-    public Filter<U> GetFilter<U>(string key) => 
-        Filters.TryGetValue(key, out var f) && f is Filter<U> typed 
-        ? typed 
-        : new Filter<U>(key, default!);
+    public Filter<U> GetFilter<U>(string key)
+    {
+        // 99% will go here
+        if(Filters.TryGetValue(key, out var f) && f is Filter<U> typed) return typed;
+
+        // But if something slips through the cracks, this will ensure the hash doesn't break
+        var newFilter = new Filter<U>(key, default!) { OnChanged = NotifyStateChanged };
+        Filters[key] = newFilter;
+        return newFilter;
+    }
+
+    /// <summary>
+    /// Saves a mapping of search keys to IFilters to the registry, then calls for a refresh
+    /// Table-specific filters are handled because their child class has added their key to the registry in InitializeFilters
+    /// </summary>
+    /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
+    /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
+    /// <returns></returns>
+    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
+    {
+        foreach (var existing in Filters.Values)
+        {
+            // Check to see if there's a new filter
+            if (filterDict.TryGetValue(existing.Key, out var incoming)) {
+                existing.CopyFrom(incoming);
+            }
+            // Otherwise, reset it, as it's not part of this query 
+            else {
+                existing.Reset();
+            }
+        }
+        await RefreshData(keepPage);
+    }
 
     /// <summary>
     /// Applies the five filters common between all three pages
+    /// Overridden in children to apply table-specific filters
     /// </summary>
     /// <param name="query">The query to which the filters should be appended</param>
     /// <returns>An IQueryable object with filters applied</returns>
@@ -182,29 +245,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 : query.Where(x => x.Result == result.Value);
 
         return query;
-    }
-
-    /// <summary>
-    /// Saves a mapping of search keys to IFilters to the registry, then calls for a refresh
-    /// Table-specific filters are handled because their child class has added their key to the registry in InitializeFilters
-    /// </summary>
-    /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
-    /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
-    /// <returns></returns>
-    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
-    {
-        foreach (var existing in Filters.Values)
-        {
-            // Check to see if there's a new filter
-            if (filterDict.TryGetValue(existing.Key, out var incoming)) {
-                existing.CopyFrom(incoming);
-            }
-            // Otherwise, reset it, as it's not part of this query 
-            else {
-                existing.Reset();
-            }
-        }
-        await RefreshData(keepPage);
     }
 
     /// <summary>
@@ -354,6 +394,9 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns></returns>
     public virtual async Task InitializeCaches()
     {
+        // If the result cache is full, don't reload it (this destroys the point of a cache)
+        if (LastQueryHash != null && ResultCache.Count != 0) return;
+        
         // Fill the final result cache for all tables
         ResultCache = await GetDistinctList("Result");
 

@@ -15,12 +15,24 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
 builder.Services.AddScoped<GroupTableLogic>();
 builder.Services.AddScoped<StepTableLogic>();
 builder.Services.AddScoped<FctTableLogic>();
-builder.Services.AddScoped<PowerSearchLogic>();
 
-// Logic for the power search page
-builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
-builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
-builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
+// Isolate PowerSearchLogic and its dependencies so it does not interact with the other pages
+builder.Services.AddScoped<PowerSearchLogic>(sp =>
+{
+    var dbFactory = sp.GetRequiredService<IDbContextFactory<LogDbContext>>();
+    var js = sp.GetRequiredService<IJSService>();
+    var nav = sp.GetRequiredService<INavService>();
+    var parser = sp.GetRequiredService<SearchParserService>();
+
+    var privateTables = new List<ILogTableLogic>
+    {
+        new GroupTableLogic(dbFactory, js, nav),
+        new StepTableLogic(dbFactory, js, nav),
+        new FctTableLogic(dbFactory, js, nav)
+    };
+
+    return new PowerSearchLogic(privateTables, parser, nav, js);
+});
 
 // Services for the entire app
 builder.Services.AddScoped<INavService, NavService>();

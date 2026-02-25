@@ -1,5 +1,4 @@
 @using HiokiNL2SQLMark1.Services
-@inject PowerSearchLogic State
 @implements IDisposable
 
 <div class="input-group mb-0">
@@ -45,6 +44,8 @@
 </div>
 
 @code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
 
     /// <summary>
     /// When this component loads, continuously watch the query for filter changes
