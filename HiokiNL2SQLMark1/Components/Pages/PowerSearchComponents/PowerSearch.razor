@@ -47,6 +47,7 @@ else
 
             // Wire up events
             State.OnRefreshRequested += HandleRefreshRequested;
+            NavService.EnsureSubscribed();
             NavService.OnLocationChanged += HandleLocationChanged;
 
             // Process initial URL state
@@ -87,8 +88,6 @@ else
     public async void HandleLocationChanged(string newLocation)
     {
         try{
-            if (State != null && State.IsProcessingNavigation) return;
-
             await InvokeAsync(async () =>
             {
                 await ApplyUrlState();
@@ -106,7 +105,10 @@ else
     private async Task ApplyUrlState()
     {
         UrlState? urlState = NavService.GetFullStateFromUrl();
-        if (State != null){
+        if (State == null){
+            using var scope = ScopeFactory.CreateScope();
+            State = scope.ServiceProvider.GetRequiredService<PowerSearchLogic>();
+        }
             State.commandInput = urlState.Query;
         
             var activeTable = State.TableLogics.FirstOrDefault(t => 
@@ -122,6 +124,5 @@ else
 
             // Execute the search (passing true to keepPage ensures we use the URL's page number)
             await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
-        }
     }
 }

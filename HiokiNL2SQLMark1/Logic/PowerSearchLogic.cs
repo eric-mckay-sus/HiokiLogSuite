@@ -46,13 +46,21 @@ public class PowerSearchLogic()
         JSService = jsService;
 
         // Wire each table's notification to this class
-        foreach (var table in TableLogics)
-        {
-            table.OnNotifyUI = NotifyStateChanged;
-            table.UpdatePSUrl = SyncUrl;
-            table.IsStaleOverride = () => IsStale;
-            table.TriggerPowerSearch = (query) => NavService.UpdateSearchState(query);
-        }
+            foreach (var table in TableLogics)
+            {
+                table.OnNotifyUI = NotifyStateChanged;
+                table.UpdatePSUrl = SyncUrl;
+                // When a table requests a power-search (e.g., barcode drill-down),
+                // update the URL and also execute the search locally so behavior
+                // matches clicking the Power Search tab.
+                table.TriggerPowerSearch = (query) => {
+                    try {
+                        NavService.UpdateSearchState(query);
+                    } catch { }
+                    _ = ExecutePowerSearch(skipUrlUpdate: true);
+                };
+                table.IsStaleOverride = () => IsStale;
+            }
     }
 
     /// <summary>

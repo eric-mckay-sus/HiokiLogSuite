@@ -9,7 +9,7 @@ namespace HiokiNL2SQLMark1.Logic;
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 {
-    // For compliance with ILogTable (these particular values should never be seen)
+    // For compliance with ILogTable (these particular values should never be seen, overridden by children)
     public virtual string TableName => "unknown"; // The internal name of this table
     public virtual string DisplayName => "Unknown Table"; // The external name of this table
 
@@ -38,8 +38,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 
     // Provided to the UI
     public Action? OnNotifyUI { private get; set; } // Prompts the view to refresh (this is not architecturally correct for MVVM)
-    public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string, jumping to the power search page
     public Action? UpdatePSUrl { get; set; } // Prompts the power search engine to update its URL
+    public Action<string>? TriggerPowerSearch { get; set; } // Allows UI/tests to request a PowerSearch URL update
     public int? LastQueryHash { get; private set; } // The hash of the filter state of the most recent query on this table
     public Func<bool>? IsStaleOverride { get; set; } // Allows the power search page to provide its own definition of IsStale
     public virtual bool IsStale => IsStaleOverride != null // If there is an override, use it, otherwise just compare the hash of this filter state and the last one

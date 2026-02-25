@@ -5,17 +5,22 @@ using Microsoft.AspNetCore.Components.Routing;
 
 namespace HiokiNL2SQLMark1.Services;
 
+/// <summary>
+/// Builds a NavService using the specified NavigationManager.
+/// Wires the built-in NavigationManager LocationChanged to the custom action
+/// </summary>
 public class NavService : INavService, IDisposable
 {
     private readonly NavigationManager _nav;
     public event Action<string>? OnLocationChanged;
     private bool _isLocationChangedSubscribed = false;
+    private string? _pendingNavigateUri;
+    private bool _pendingNavigateReplace;
 
     /// <summary>
-    /// Builds a NavService using the specified NavigationManager.
-    /// Wires the built-in NavigationManager LocationChanged to the custom action
+    /// Constructor - try to subscribe now but fall back to lazy subscription
+    /// if NavigationManager isn't initialized yet (e.g., during prerendering).
     /// </summary>
-    /// <param name="nav">The NavigationManager to use</param>
     public NavService(NavigationManager nav)
     {
         _nav = nav;
@@ -26,16 +31,43 @@ public class NavService : INavService, IDisposable
         }
         catch (InvalidOperationException)
         {
-            // NavigationManager hasn't been initialized yet, just need to make sure it is before first use
+            // NavigationManager hasn't been initialized yet, subscribe lazily
         }
     }
 
-    private void EnsureSubscribed()
+    public bool EnsureSubscribed()
     {
-        if (!_isLocationChangedSubscribed)
+        if (_isLocationChangedSubscribed) return true;
+        try
         {
             _nav.LocationChanged += HandleLocationChanged;
             _isLocationChangedSubscribed = true;
+
+            // If a navigation was attempted before NavigationManager was initialized,
+            // perform it now.
+            if (!string.IsNullOrEmpty(_pendingNavigateUri))
+            {
+                var uri = _pendingNavigateUri!;
+                var replace = _pendingNavigateReplace;
+                _pendingNavigateUri = null;
+                try
+                {
+                    _nav.NavigateTo(uri, replace: replace);
+                }
+                catch (InvalidOperationException)
+                {
+                    // If it still fails, put it back for a future attempt
+                    _pendingNavigateUri = uri;
+                    _pendingNavigateReplace = replace;
+                }
+            }
+
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            // NavigationManager hasn't been initialized yet; try again later
+            return false;
         }
     }
     
@@ -71,7 +103,18 @@ public class NavService : INavService, IDisposable
 
         string newUri = QueryHelpers.AddQueryString(uri, parameters);
 
-        _nav.NavigateTo(newUri, replace: replaceHistory);
+        // Try to subscribe and perform navigation. If NavigationManager is not yet
+        // initialized, queue the navigation to perform once it becomes available.
+        EnsureSubscribed();
+        try
+        {
+            _nav.NavigateTo(newUri, replace: replaceHistory);
+        }
+        catch (InvalidOperationException)
+        {
+            _pendingNavigateUri = newUri;
+            _pendingNavigateReplace = replaceHistory;
+        }
     }
 
     /// <summary>
@@ -80,30 +123,46 @@ public class NavService : INavService, IDisposable
     /// <returns>The query of the current page</returns>
     public string GetCurrentQuery()
     {
-        var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
+        try
         {
-            return value.ToString();
+            var uri = _nav.ToAbsoluteUri(_nav.Uri);
+            if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
+            {
+                return value.ToString();
+            }
         }
+        catch (InvalidOperationException)
+        {
+            // NavigationManager not initialized yet
+        }
+
         return string.Empty;
     }
 
     /// <summary>
-    /// Gets all the parameters from the URL
+    /// Gets all the parameters from the URL and returns them in one record
     /// </summary>
     /// <returns>A record represesnting the query, page number & size, and sort column & direction</returns>
     public UrlState GetFullStateFromUrl()
     {
-        var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        var q = QueryHelpers.ParseQuery(uri.Query);
+        try
+        {
+            var uri = _nav.ToAbsoluteUri(_nav.Uri);
+            var q = QueryHelpers.ParseQuery(uri.Query);
 
-        return new UrlState(
-            Query: q.TryGetValue("q", out var query) ? query.ToString() : "",
-            Page: q.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : null,
-            PageSize: q.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : null,
-            SortCol: q.TryGetValue("s", out var s) ? s.ToString() : null,
-            SortDir: q.TryGetValue("d", out var d) ? d.ToString() : null
-        );
+            return new UrlState(
+                Query: q.TryGetValue("q", out var query) ? query.ToString() : "",
+                Page: q.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : null,
+                PageSize: q.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : null,
+                SortCol: q.TryGetValue("s", out var s) ? s.ToString() : null,
+                SortDir: q.TryGetValue("d", out var d) ? d.ToString() : null
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            // NavigationManager not initialized yet - return default empty state
+            return new UrlState(Query: "", Page: null, PageSize: null, SortCol: null, SortDir: null);
+        }
     }
 
     /// <summary>
