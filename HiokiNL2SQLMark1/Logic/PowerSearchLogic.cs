@@ -47,6 +47,12 @@ public class PowerSearchLogic()
             {
                 table.OnNotifyUI = NotifyStateChanged;
                 table.UpdatePSUrl = SyncUrl;
+                // UI stale state for the table comes from a simple comparison
+                // between the current search bar text and the tab name (minus the
+                // "Search: " prefix).  This boolean is purely for visual feedback.
+                table.UIIsStaleOverride = () =>
+                    commandInput.Trim() != LastExecutedQuery.Replace("Search: ", "");
+
                 // When a table requests a power-search (e.g., barcode drill-down),
                 // update the URL and also execute the search locally so behavior
                 // matches clicking the Power Search tab.
@@ -78,6 +84,18 @@ public class PowerSearchLogic()
         errorMessages = parseResult.ErrorMessages;
         CurrentType = parseResult.CurrentType;
         Preview = parseResult.Preview;
+
+        // If the user hasn't entered any search text (and parser returned no filters),
+        // we want to preserve the splash screen and avoid querying the database at all.
+        // This is the situation that occurs on first render of power search.
+        if (string.IsNullOrWhiteSpace(commandInput) && Filters.Count == 0)
+        {
+            foreach (var table in TableLogics) table.ClearData();
+            LastExecutedQuery = "Hioki ICT Power Search";
+            IsSearching = false;
+            NotifyStateChanged();
+            return; // short-circuit before any DB hits
+        }
 
         // Detect fatal versus non-fatal errors
         bool hasFatalErrors = errorMessages.Any(m => !m.Contains("This search", StringComparison.OrdinalIgnoreCase));

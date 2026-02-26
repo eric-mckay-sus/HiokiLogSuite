@@ -103,7 +103,8 @@ else
     private async Task ApplyUrlState()
     {
         UrlState? urlState = NavService.GetFullStateFromUrl();
-        if (string.IsNullOrWhiteSpace(State.commandInput)) State.commandInput = urlState.Query;
+        // If there isn't a query from the URL, leave the search bar alone
+        if (!string.IsNullOrWhiteSpace(urlState.Query)) State.commandInput = urlState.Query;
     
         var activeTable = State.TableLogics.FirstOrDefault(t => 
         t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));

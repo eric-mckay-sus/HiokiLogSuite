@@ -21,6 +21,12 @@ public interface ILogTableLogic
     int PageSize { get; set; } // The number of results per page
     int TotalCount { get; } // The result count for this query on this page
 
+    // UI-only indicator used by MasterTable when deciding whether to fade the results
+    // (blinking inputs on power-search). This value is entirely for rendering and does
+    // not influence any query logic or caching.
+    Func<bool>? UIIsStaleOverride { get; set; }
+    bool UIIsStale { get; }
+
     // Linking to the power search page
     Action? OnNotifyUI { set; } // the trigger for which the view must watch
     Action<string>? TriggerPowerSearch { get; set; } // the trigger to jump to the power search page for a barcode "drill-down"

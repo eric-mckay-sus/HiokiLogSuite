@@ -13,6 +13,8 @@ public class PowerSearchLogicTests
     private readonly Mock<IJSService> _mockJs;
     private readonly PowerSearchLogic _logic;
 
+    private Func<bool>? _capturedUIStale;
+
     public PowerSearchLogicTests()
     {
         _mockTable = new Mock<ILogTableLogic>();
@@ -24,6 +26,28 @@ public class PowerSearchLogicTests
         _mockJs = new Mock<IJSService>();
 
         _logic = new PowerSearchLogic([_mockTable.Object], _realParser, _mockNav.Object, _mockJs.Object);
+
+        // capture delegate after construction (should have been assigned by ctor)
+        _capturedUIStale = _mockTable.Object.UIIsStaleOverride;
+
+        // capture delegate after construction (should have been assigned by ctor)
+        _capturedUIStale = _mockTable.Object.UIIsStaleOverride;
+    }
+
+    [Fact]
+    public void Constructor_Wires_UIIsStaleOverride()
+    {
+        // Delegate should be non-null and respond to mismatches between tab name and input.
+        Assert.NotNull(_capturedUIStale);
+
+        // default LastExecutedQuery is the welcome string; any non-empty commandInput should
+        // produce a stale result
+        _logic.commandInput = "foo";
+        Assert.True(_capturedUIStale());
+
+        // if we pretend the tab already matches, it should return false
+        _logic.LastExecutedQuery = "Search: foo";
+        Assert.False(_capturedUIStale());
     }
 
     [Fact]
@@ -94,6 +118,22 @@ public class PowerSearchLogicTests
 
         // 5. The UI should have been notified of the error state
         Assert.True(refreshCalled);
+    }
+
+    [Fact]
+    public async Task ExecutePowerSearch_DoesNotRunTables_WhenNoInput()
+    {
+        // Arrange: start with empty input (default) and a prepared mock
+        _logic.commandInput = "";
+
+        // Act
+        await _logic.ExecutePowerSearch(skipUrlUpdate: true);
+
+        // Assert: we should not call DictionaryToFilters and tables cleared
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()),
+            Times.Never);
+        _mockTable.Verify(t => t.ClearData(), Times.AtLeastOnce);
+        Assert.Equal("Hioki ICT Power Search", _logic.LastExecutedQuery);
     }
 
     [Fact]

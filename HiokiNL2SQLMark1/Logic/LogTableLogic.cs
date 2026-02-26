@@ -43,6 +43,13 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public int? LastQueryHash { get; private set; } // The hash of the filter state of the most recent query on this table
     public bool IsStale => // If there is an override, use it, otherwise just compare the hash of this filter state and the last one
         LastQueryHash != GetFilterStateHash(Filters);
+
+    // UI-only flag used by the MasterTable component.  PowerSearchLogic will set
+    // an override so the table can show a stale appearance whenever the tab name
+    // doesn't match the search bar text.  This value has no influence on query
+    // execution or caching; use IsStale for those semantics.
+    public Func<bool>? UIIsStaleOverride { get; set; }
+    public bool UIIsStale => UIIsStaleOverride != null ? UIIsStaleOverride() : IsStale;
     
     /// <summary>
     /// Builds a new LogTableLogic using DB context and necessary services. Adds all relevant filters to the registry based on subtype

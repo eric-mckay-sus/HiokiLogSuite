@@ -6,7 +6,7 @@
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <h4 class="mt-3 text-muted">@State.Preview.Replace("Showing", "Loading")</h4>
+        <Markdown Class="mt-3 text-muted">@(State.Preview.Replace("Showing", "Loading"))</Markdown>
     </div>
 } else{
     @* If we have no input, a "no results" message is unhelpful *@

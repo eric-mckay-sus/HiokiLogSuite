@@ -47,7 +47,7 @@
 </div>
 
 <div class="table-responsive-wrapper">
-    <div class="table-container @(IsLoading ? "loading" : IsStale ? "stale" : "")">
+    <div class="table-container @(IsLoading ? "loading" : (UIIsStale || IsStale) ? "stale" : "")">
         <div class="res-table-wrapper">
             <table class="table res-table table-striped text-nowrap">
                 <thead class="table-dark">
@@ -135,6 +135,9 @@
 
     // Whether this table applies to the query primed in the search bar/query builder
     [Parameter] public bool IsStale { get; set; }
+
+    // UI-only stale flag (e.g. power-search tab vs bar mismatch)
+    [Parameter] public bool UIIsStale { get; set; }
 
     // Whether this table is currently loading
     [Parameter] public bool IsLoading { get; set; }

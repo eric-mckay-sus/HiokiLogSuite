@@ -35,7 +35,7 @@ public class SearchParserService
     private static readonly HashSet<string> UniversalTags = new(StringComparer.OrdinalIgnoreCase) 
         { "in", "barcode", "group", "before", "after", "result" }; // tags available for use on any table
     private static readonly HashSet<string> GroupTags = new(StringComparer.OrdinalIgnoreCase) 
-        { "comp", "short", "macro", "ic", "function" }; // tags available to group table only
+        { "comp", "short", "open", "macro", "ic", "function" }; // tags available to group table only
     private static readonly HashSet<string> StepFctTags = new(StringComparer.OrdinalIgnoreCase) 
         { "step", "mode" }; // tags available to both the step and FCT tables
     private static readonly HashSet<string> StepTags = CreateStepSet(); // tags available to step table only
@@ -63,6 +63,7 @@ public class SearchParserService
         { "result", ValType.String },
         { "comp", ValType.String },
         { "short", ValType.String },
+        { "open", ValType.String },
         { "macro", ValType.String },
         { "ic", ValType.String },
         { "function", ValType.String },
@@ -81,8 +82,9 @@ public class SearchParserService
         { "result", "Filter by PASS/FAIL status" },
         { "comp", "Filter by component test results" },
         { "short", "Filter by short-circuit test results" },
+        { "open", "Filter by open-circuit test results" },
         { "macro", "Search by macro-test results" },
-        { "ic", "Filter by Integrated Circuit (IC) test results" },
+        { "ic", "Filter by integrated circuit (IC) test results" },
         { "function", "Search by functional test results" },
         { "step", "Filter by test step number" },
         { "mode", "Filter by test mode" },
