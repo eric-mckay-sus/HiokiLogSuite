@@ -33,8 +33,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase); // Filter registry, updated as necessary by children
     public bool IsLoading { get; private set; } = true; // Whether the query is currently loading the table display
     public List<T> DataView { get; private set; } = []; // Stores the query results, only of the current page
-    public List<string> ModeCache { get; private set; } = []; // The list of test modes to choose from (technically this should be in the children)
-    public List<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
+    public HashSet<string> ModeCache { get; private set; } = []; // The list of test modes to choose from (technically this should be in the children)
+    public HashSet<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
 
     // Provided to the UI
     public Action? OnNotifyUI { private get; set; } // Prompts the view to refresh (this is not architecturally correct for MVVM)
@@ -123,7 +123,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns></returns>
     public async Task RefreshData(bool keepPage = false)
     {
-        Console.WriteLine($"Data {(IsStale ? "is stale" : "is not stale")}");
         if (!keepPage) CurrentPage = 1;
         if (DataView.Count > 0 && !IsStale) return;
 
@@ -382,27 +381,28 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         if (LastQueryHash != null && ResultCache.Count != 0) return;
         
         // Fill the final result cache for all tables
-        ResultCache = await GetDistinctList("Result");
+        ResultCache = await GetCacheSet("Result");
 
         if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
         {
-            ModeCache = await GetDistinctList("Mode");
+            ModeCache = await GetCacheSet("Mode");
         }
     }
 
     /// <summary>
-    /// Gets a list of distinct values across a property
+    /// Gets a set of all values across a property
     /// </summary>
     /// <param name="property">The property for which to get unique values</param>
     /// <returns>A list of uniquer property values</returns>
-    protected async Task<List<string>> GetDistinctList(string property)
+    protected async Task<HashSet<string>> GetCacheSet(string property)
     {
         using var db = await _dbFactory.CreateDbContextAsync();
-        return await _querySelector(db).AsNoTracking()
+        var list = await _querySelector(db).AsNoTracking()
             .Select(property)
             .Distinct()
             .OrderBy("it")
             .ToDynamicListAsync<string>();
+        return [.. list];
     }
 
     /// <summary>

@@ -115,18 +115,14 @@
         }
     }
 
-    // Sorting Params
-    [Parameter] public string CurrentSortColumn { get; set; } = "";
-    [Parameter] public string SortIconString { get; set; } = "↕"; // Logic passed from parent
-    [Parameter] public EventCallback<string> OnSort { get; set; }
+    // Use the parent's GetSortIcon() to render the arrow
+    [Parameter] public EventCallback<string> OnSort { get; set; } // Handles everything related to sorting
+    [Parameter] public Func<string, string> GetSortIcon { get; set; } = (col) => "";
+    private string SortIcon(string col) => GetSortIcon?.Invoke(col) ?? "";
     
     // Denotes range of records shown
     private int StartRecord => (CurrentPage - 1) * PageSize + 1;
     private int EndRecord => Math.Min(CurrentPage * PageSize, TotalCount);
-
-    // Use the parent's GetSortIcon() to render the arrow
-    [Parameter] public Func<string, string> GetSortIcon { get; set; } = (col) => "";
-    private string SortIcon(string col) => GetSortIcon?.Invoke(col) ?? "";
 
     // Save to CSV
     [Parameter] public EventCallback OnSaveToCsv { get; set; }

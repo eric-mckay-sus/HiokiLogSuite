@@ -20,7 +20,6 @@ public interface ILogTableLogic
     int CurrentPage { get; set; } // The page number shown in the data view
     int PageSize { get; set; } // The number of results per page
     int TotalCount { get; } // The result count for this query on this page
-    bool IsLoading { get; } // Whether the query results are loading
 
     // Linking to the power search page
     Action? OnNotifyUI { set; } // the trigger for which the view must watch

@@ -85,7 +85,6 @@ else
             State.IsInternalNavigation = false;
             return;
         }
-        Console.WriteLine("Power search page firing navigation request");
         try{
             await InvokeAsync(async () =>
             {
@@ -104,7 +103,7 @@ else
     private async Task ApplyUrlState()
     {
         UrlState? urlState = NavService.GetFullStateFromUrl();
-        State.commandInput = urlState.Query;
+        if (string.IsNullOrWhiteSpace(State.commandInput)) State.commandInput = urlState.Query;
     
         var activeTable = State.TableLogics.FirstOrDefault(t => 
         t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));

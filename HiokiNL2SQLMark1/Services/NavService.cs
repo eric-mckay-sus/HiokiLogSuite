@@ -15,23 +15,23 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
     public event Action<string>? OnLocationChanged;
     private bool _isLocationChangedSubscribed = false;
 
+    /// <summary>
+    /// "Lazy subscription": because the NavigationManager doesn't actually exist at render time (we just reference it for the _nav field), we have to check it e
+    /// </summary>
+    /// <returns></returns>
     public bool EnsureSubscribed()
     {
-        if (_isLocationChangedSubscribed){
-            Console.WriteLine("It thinks it worked");
-            return true;
-        }
+        if (_isLocationChangedSubscribed) return true;
+
         try
         {
             _nav.LocationChanged -= HandleLocationChanged; // Prevent double-subs
             _nav.LocationChanged += HandleLocationChanged;
             _isLocationChangedSubscribed = true;
-            Console.WriteLine("Fixed subscription");
             return true;
         }
         catch (InvalidOperationException)
         {
-            Console.WriteLine("Caught navigation without subscription");
             return false;
         }
     }

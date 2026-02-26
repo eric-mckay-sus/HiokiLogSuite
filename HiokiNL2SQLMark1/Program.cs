@@ -12,9 +12,9 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // Logic for the visual query builders.
-builder.Services.AddTransient<GroupTableLogic>();
-builder.Services.AddTransient<StepTableLogic>();
-builder.Services.AddTransient<FctTableLogic>();
+builder.Services.AddScoped<GroupTableLogic>();
+builder.Services.AddScoped<StepTableLogic>();
+builder.Services.AddScoped<FctTableLogic>();
 builder.Services.AddScoped<PowerSearchLogic>();
 
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
