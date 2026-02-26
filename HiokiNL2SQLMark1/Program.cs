@@ -17,10 +17,9 @@ builder.Services.AddScoped<StepTableLogic>();
 builder.Services.AddScoped<FctTableLogic>();
 builder.Services.AddScoped<PowerSearchLogic>();
 
-// Logic for the power search page
-builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
-builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
-builder.Services.AddScoped<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
+builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
+builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
+builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
 
 // Services for the entire app
 builder.Services.AddScoped<INavService, NavService>();

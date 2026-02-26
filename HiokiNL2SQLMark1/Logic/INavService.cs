@@ -11,6 +11,11 @@ public interface INavService
     event Action<string>? OnLocationChanged;
 
     /// <summary>
+    /// Subscribes to the location change event
+    /// </summary>
+    bool EnsureSubscribed();
+
+    /// <summary>
     /// Navigates to the search page with a specific barcode filter
     /// </summary>
     /// <param name="barcode">The barcode to trace</param>

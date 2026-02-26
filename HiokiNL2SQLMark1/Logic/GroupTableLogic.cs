@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiokiNL2SQLMark1.Logic;
@@ -13,12 +12,12 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
 {
     public override string TableName => "group"; // This table's internal "type" as it would appear in currentType
     public override string DisplayName => "Group Results"; // The label to apply to this table in the view
-    public List<string> CompCache { get; set; } = []; // The list of component test results to choose from
-    public List<string> ShortCache { get; set; } = []; // The list of short-circuit test results to choose from
-    public List<string> OpenCache { get; set; } = []; // The list of open-circuit test results to choose from
-    public List<string> MacroCache { get; set; } = []; // The list of macro test results to choose from
-    public List<string> IcCache { get; set; } = []; // The list of IC test results to choose from
-    public List<string> FunctionCache { get; set; } = []; // The list of functional test results to choose from
+    public HashSet<string> CompCache { get; set; } = []; // The list of component test results to choose from
+    public HashSet<string> ShortCache { get; set; } = []; // The list of short-circuit test results to choose from
+    public HashSet<string> OpenCache { get; set; } = []; // The list of open-circuit test results to choose from
+    public HashSet<string> MacroCache { get; set; } = []; // The list of macro test results to choose from
+    public HashSet<string> IcCache { get; set; } = []; // The list of IC test results to choose from
+    public HashSet<string> FunctionCache { get; set; } = []; // The list of functional test results to choose from
 
     /// <summary>
     /// Populates group-specific filters in parent's filter registry
@@ -41,15 +40,18 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
     /// <returns></returns>
     public override async Task InitializeCaches()
     {
+        // Hydration check
+        if (LastQueryHash != null && CompCache.Count != 0) return;
+
         // Run parent's initializer for the result type cache
         var baseTask = base.InitializeCaches();
 
-        var compTask = GetDistinctList("ComponentTest");
-        var shortTask = GetDistinctList("ShortTest");
-        var openTask = GetDistinctList("OpenTest");
-        var macroTask = GetDistinctList("MacroTest");
-        var icTask = GetDistinctList("IcTest");
-        var functionTask = GetDistinctList("FunctionTest");
+        var compTask = GetCacheSet("ComponentTest");
+        var shortTask = GetCacheSet("ShortTest");
+        var openTask = GetCacheSet("OpenTest");
+        var macroTask = GetCacheSet("MacroTest");
+        var icTask = GetCacheSet("IcTest");
+        var functionTask = GetCacheSet("FunctionTest");
 
         // Wait for everything to finish at once
         await Task.WhenAll(baseTask, compTask, shortTask, openTask, macroTask, icTask, functionTask);

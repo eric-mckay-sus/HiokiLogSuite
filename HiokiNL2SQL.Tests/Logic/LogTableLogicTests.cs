@@ -76,16 +76,6 @@ public class LogTableLogicTests
     }
 
     [Fact]
-    public void IsStale_RespectsOverride()
-    {
-        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        logic.IsStaleOverride = () => true; 
-        
-        // Even if hashes match, it should be stale because of the override
-        Assert.True(logic.IsStale);
-    }
-
-    [Fact]
     public async Task RefreshData_KeepPageFalse_ResetsToPageOne()
     {
         // Arrange

@@ -373,7 +373,7 @@ public class SearchParserService
     /// <param name="type">The table targeted by the query</param>
     /// <param name="filters">The dictionary of filters for the query</param>
     /// <returns>A string preview of the query to be executed</returns>
-    private static string GeneratePreview(string type, Dictionary<string, IFilter> filters)
+    public static string GeneratePreview(string type, Dictionary<string, IFilter> filters)
     {
         string tableMessage = $"Showing all results";
         tableMessage += (type!="all") ? $" from **{type.ToUpper()}**" : " from **ALL** tables";

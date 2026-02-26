@@ -1,5 +1,4 @@
 @using HiokiNL2SQLMark1.Services
-@inject PowerSearchLogic State
 @implements IDisposable
 
 <div class="input-group mb-0">
@@ -33,18 +32,25 @@
             @onclick='() => State.SetType(type)'>@(char.ToUpper(type[0]) + type[1..])
         </button>
     }
-    <div class="ms-auto btn-group btn-group-sm inclusive-exclusive" role="group">
-        <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
-               checked="@State.IsInclusive" @onchange="() => State.SetInclusivity(true)">
-        <label class="btn btn-outline-primary" for="incl_on">Inclusive [ ]</label>
+    <div class="ms-auto d-flex flex-column align-items-center inclusive-exclusive tab" style="line-height: 1;">
+        <div class="btn-group btn-group-sm" role="group" title="Select how date boundaries are calculated">
+            <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off" 
+                checked="@State.IsInclusive" 
+                @onchange="() => State.SetInclusivity(true)">
+            <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
 
-        <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
-               checked="@(!State.IsInclusive)" @onchange="() => State.SetInclusivity(false)">
-        <label class="btn btn-outline-primary" for="incl_off">Exclusive ( )</label>
+            <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off" 
+                checked="@(!State.IsInclusive)" 
+                @onchange="() => State.SetInclusivity(false)">
+            <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+        </div>
+        <span class="text-muted small mb-0" style="font-size:0.7rem; letter-spacing:0.05rem; display:block;">Date filter mode</span>
     </div>
 </div>
 
 @code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
 
     /// <summary>
     /// When this component loads, continuously watch the query for filter changes

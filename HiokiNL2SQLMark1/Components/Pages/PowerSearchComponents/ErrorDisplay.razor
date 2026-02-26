@@ -1,5 +1,3 @@
-@inject PowerSearchLogic State
-
 @if (State.errorMessages != null && State.errorMessages.Any())
 {
     @foreach(string message in State.errorMessages){
@@ -20,6 +18,9 @@
 }
 
 @code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
+    
     [Parameter] public List<string> Messages { get; set; } = new();
 
     private void RemoveMessage(string message){

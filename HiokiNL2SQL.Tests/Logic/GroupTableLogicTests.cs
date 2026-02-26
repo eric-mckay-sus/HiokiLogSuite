@@ -110,4 +110,43 @@ public class GroupTableLogicTests
         Assert.Equal("ABC", logic.DataView[0].Barcode);
         Assert.Equal("C1", logic.DataView[0].ComponentTest);
     }
+
+    [Fact]
+    public async Task InitializeCaches_GetsAllGroupSubResultsAndOverallResult()
+    {
+        // Arrange (yes I know these aren't really values you'd see in the table but they need to be distinct)
+        string overallResult = "PASS";
+        string compResult = "COMP";
+        string shortResult = "SHORT";
+        string openResult = "OPEN";
+        string macroResult = "MACRO";
+        string icResult = "IC";
+        string functionResult = "FCT";
+
+        // Do it twice to verify "distinct" logic
+        var groupData = new List<GroupResult> { 
+            new() { Result = overallResult, ComponentTest = compResult, ShortTest = shortResult, OpenTest = openResult, MacroTest = macroResult, IcTest = icResult, FunctionTest = functionResult },
+            new() { Result = overallResult, ComponentTest = compResult, ShortTest = shortResult, OpenTest = openResult, MacroTest = macroResult, IcTest = icResult, FunctionTest = functionResult }
+        };
+        var logicGroup = TestLogicFactory.CreateLogic<GroupResult, GroupTableLogic>(groupData);
+
+        // Act
+        await logicGroup.InitializeCaches();
+
+        // Assert
+        Assert.Contains(overallResult, logicGroup.ResultCache);
+        Assert.Contains(compResult, logicGroup.CompCache);
+        Assert.Contains(shortResult, logicGroup.ShortCache);
+        Assert.Contains(openResult, logicGroup.OpenCache);
+        Assert.Contains(macroResult, logicGroup.MacroCache);
+        Assert.Contains(icResult, logicGroup.IcCache);
+        Assert.Contains(functionResult, logicGroup.FunctionCache);
+        Assert.Single(logicGroup.ResultCache);
+        Assert.Single(logicGroup.CompCache);
+        Assert.Single(logicGroup.ShortCache);
+        Assert.Single(logicGroup.OpenCache);
+        Assert.Single(logicGroup.MacroCache);
+        Assert.Single(logicGroup.IcCache);
+        Assert.Single(logicGroup.FunctionCache);
+    }
 }

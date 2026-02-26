@@ -5,20 +5,35 @@ using Microsoft.AspNetCore.Components.Routing;
 
 namespace HiokiNL2SQLMark1.Services;
 
-public class NavService : INavService, IDisposable
+/// <summary>
+/// Builds a NavService using the specified NavigationManager.
+/// Wires the built-in NavigationManager LocationChanged to the custom action
+/// </summary>
+public class NavService(NavigationManager nav) : INavService, IDisposable
 {
-    private readonly NavigationManager _nav;
+    private readonly NavigationManager _nav = nav;
     public event Action<string>? OnLocationChanged;
+    private bool _isLocationChangedSubscribed = false;
 
     /// <summary>
-    /// Builds a NavService using the specified NavigationManager.
-    /// Wires the built-in NavigationManager LocationChanged to the custom action
+    /// "Lazy subscription": because the NavigationManager doesn't actually exist at render time (we just reference it for the _nav field), we have to check it e
     /// </summary>
-    /// <param name="nav">The NavigationManager to use</param>
-    public NavService(NavigationManager nav)
+    /// <returns></returns>
+    public bool EnsureSubscribed()
     {
-        _nav = nav;
-        _nav.LocationChanged += HandleLocationChanged;
+        if (_isLocationChangedSubscribed) return true;
+
+        try
+        {
+            _nav.LocationChanged -= HandleLocationChanged; // Prevent double-subs
+            _nav.LocationChanged += HandleLocationChanged;
+            _isLocationChangedSubscribed = true;
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
     
 
@@ -26,7 +41,9 @@ public class NavService : INavService, IDisposable
     /// Encapsulates the specific URL structure for a trace
     /// </summary>
     /// <param name="barcode">The barcode to trace</param>
-    public void NavigateToBarcodeTrace(string barcode) =>_nav.NavigateTo($"/?q=barcode:{barcode} in:all");
+    public void NavigateToBarcodeTrace(string barcode) {
+        if(EnsureSubscribed()) _nav.NavigateTo($"/?q=barcode:{barcode} in:all");
+    }
 
     /// <summary>
     /// Updates the URL to match the page details
@@ -53,7 +70,8 @@ public class NavService : INavService, IDisposable
 
         string newUri = QueryHelpers.AddQueryString(uri, parameters);
 
-        _nav.NavigateTo(newUri, replace: replaceHistory);
+        // Only try navigation if subscribed
+        if (EnsureSubscribed()) _nav.NavigateTo(newUri, replace: replaceHistory);
     }
 
     /// <summary>
@@ -62,30 +80,39 @@ public class NavService : INavService, IDisposable
     /// <returns>The query of the current page</returns>
     public string GetCurrentQuery()
     {
-        var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
+        if (EnsureSubscribed())
         {
-            return value.ToString();
+            var uri = _nav.ToAbsoluteUri(_nav.Uri);
+            if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
+            {
+                return value.ToString();
+            }
         }
+
         return string.Empty;
     }
 
     /// <summary>
-    /// Gets all the parameters from the URL
+    /// Gets all the parameters from the URL and returns them in one record
     /// </summary>
     /// <returns>A record represesnting the query, page number & size, and sort column & direction</returns>
     public UrlState GetFullStateFromUrl()
     {
-        var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        var q = QueryHelpers.ParseQuery(uri.Query);
+        if (EnsureSubscribed())
+        {
+            var uri = _nav.ToAbsoluteUri(_nav.Uri);
+            var q = QueryHelpers.ParseQuery(uri.Query);
 
-        return new UrlState(
-            Query: q.TryGetValue("q", out var query) ? query.ToString() : "",
-            Page: q.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : null,
-            PageSize: q.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : null,
-            SortCol: q.TryGetValue("s", out var s) ? s.ToString() : null,
-            SortDir: q.TryGetValue("d", out var d) ? d.ToString() : null
-        );
+            return new UrlState(
+                Query: q.TryGetValue("q", out var query) ? query.ToString() : "",
+                Page: q.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : null,
+                PageSize: q.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : null,
+                SortCol: q.TryGetValue("s", out var s) ? s.ToString() : null,
+                SortDir: q.TryGetValue("d", out var d) ? d.ToString() : null
+            );
+        }
+        // NavigationManager not initialized yet - return default empty state
+        return new UrlState(Query: "", Page: null, PageSize: null, SortCol: null, SortDir: null);
     }
 
     /// <summary>
@@ -99,5 +126,12 @@ public class NavService : INavService, IDisposable
     /// <summary>
     /// Upon navigating away from this page, unsubscribe from the URL monitor
     /// </summary>
-    public void Dispose() => _nav.LocationChanged -= HandleLocationChanged;
+    public void Dispose()
+    {
+        if (_isLocationChangedSubscribed)
+        {
+            _nav.LocationChanged -= HandleLocationChanged;
+            _isLocationChangedSubscribed = false;
+        }
+    }
 }

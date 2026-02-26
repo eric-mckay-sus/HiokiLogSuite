@@ -46,7 +46,7 @@ public class PowerSearchLogicTests
         Assert.Contains("A123", _logic.Preview);
 
         // 3. Verify the targeted table was actually called
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Once);
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), Times.Once);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class PowerSearchLogicTests
 
         // Assert
         // Verify that even with a warning, the search was NOT aborted
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Once);
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), Times.Once);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class PowerSearchLogicTests
         _mockTable.Verify(t => t.ClearData(), Times.AtLeastOnce);
 
         // 4. DictionaryToFilters should NEVER be called on a fatal error
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), false), Times.Never);
+        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), Times.Never);
 
         // 5. The UI should have been notified of the error state
         Assert.True(refreshCalled);
@@ -101,22 +101,17 @@ public class PowerSearchLogicTests
     {
         // Arrange
         _logic.commandInput = "barcode:123 in:group";
-        int expectedHash = 12345;
 
         // Setup the mock table to look like it already has this data
         _mockTable.Setup(t => t.TableName).Returns("group");
-        _mockTable.Setup(t => t.LastQueryHash).Returns(expectedHash);
         _mockTable.Setup(t => t.TotalCount).Returns(10);
-        _mockTable.Setup(t => t.GetFilterStateHash(It.IsAny<Dictionary<string, IFilter>>()))
-                .Returns(expectedHash);
 
         // Act
         await _logic.ExecutePowerSearch();
 
         // Assert
-        // Verify we never touched the database (via DictionaryToFilters)
-        _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), 
-            Times.Never);
+        // Verify we never touched the database (via RefreshData)
+        _mockTable.Verify(t => t.RefreshData(It.IsAny<bool>()), Times.Never);
     }
 
     [Theory]

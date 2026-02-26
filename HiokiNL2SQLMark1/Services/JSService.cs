@@ -3,20 +3,57 @@ using Microsoft.JSInterop;
 
 namespace HiokiNL2SQLMark1.Services;
 
+using System.Collections.Concurrent;
+
 public class JSService(IJSRuntime js) : IJSService
 {
-    /// <summary>
-    /// Uses IJSRuntime to focus the specified element
-    /// </summary>
-    /// <param name="elementId">The ID of the HTML to focus</param>
-    /// <returns></returns>
-    public async Task FocusElement(string elementId) => await js.InvokeVoidAsync("focusElement", elementId);
+    private readonly IJSRuntime _js = js;
+    private readonly ConcurrentQueue<Func<Task>> _pending = new();
 
-    /// <summary>
-    /// Trigger a download of the specified content in the browser
-    /// </summary>
-    /// <param name="fileName">The name for the output file</param>
-    /// <param name="csvContent">The data to download as CSV</param>
-    /// <returns></returns>
-    public async Task DownloadCsv(string fileName, string csvContent) => await js.InvokeVoidAsync("downloadFileFromStream", fileName, csvContent);
+    public async Task FocusElement(string elementId)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("focusElement", elementId);
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering: queue the call for later
+            _pending.Enqueue(() => _js.InvokeVoidAsync("focusElement", elementId).AsTask());
+        }
+    }
+
+    public async Task DownloadCsv(string fileName, string csvContent)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("downloadFileFromStream", fileName, csvContent);
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering: queue the call for later
+            _pending.Enqueue(() => _js.InvokeVoidAsync("downloadFileFromStream", fileName, csvContent).AsTask());
+        }
+    }
+
+    public async Task FlushPendingAsync()
+    {
+        while (_pending.TryDequeue(out var work))
+        {
+            try
+            {
+                await work();
+            }
+            catch (InvalidOperationException)
+            {
+                // If still not ready, re-enqueue and stop flushing
+                _pending.Enqueue(work);
+                break;
+            }
+            catch
+            {
+                // Swallow other JS errors to avoid disrupting rendering
+            }
+        }
+    }
 }

@@ -14,12 +14,9 @@ public class PowerSearchLogic()
     public readonly string[] dateAliases = ["today", "yesterday", "last24h", "shift1", "shift2", "shift3",]; // the list of available date aliases
     public Dictionary<string, IFilter> Filters = []; // the key-value pairs parsed from command input
     public System.Timers.Timer? DebounceTimer; // to smooth the preview rendering
-    public bool IsProcessingNavigation; // Whether the system is currently navigating to a new page (so it can't interrupt itself)
-    public bool IsSearching; // Whether the system is currently getting query results
+    public bool IsInternalNavigation = false; // Whether the system is using NavService within this class or from the razor page
+    public bool IsSearching = false; // Whether the system is currently getting query results
     public bool IsInclusive = true; // Whether date filters are inclusive (or exclusive)
-
-    // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
-    public bool IsStale => (commandInput != LastExecutedQuery.Replace("Search: ", "")) && LastExecutedQuery != "Hioki ICT Power Search";
     public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
     public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 
@@ -46,13 +43,20 @@ public class PowerSearchLogic()
         JSService = jsService;
 
         // Wire each table's notification to this class
-        foreach (var table in TableLogics)
-        {
-            table.OnNotifyUI = NotifyStateChanged;
-            table.UpdatePSUrl = SyncUrl;
-            table.IsStaleOverride = () => IsStale;
-            table.TriggerPowerSearch = (query) => NavService.UpdateSearchState(query);
-        }
+            foreach (var table in TableLogics)
+            {
+                table.OnNotifyUI = NotifyStateChanged;
+                table.UpdatePSUrl = SyncUrl;
+                // When a table requests a power-search (e.g., barcode drill-down),
+                // update the URL and also execute the search locally so behavior
+                // matches clicking the Power Search tab.
+                table.TriggerPowerSearch = (query) => {
+                    try {
+                        NavService.UpdateSearchState(query);
+                    } catch { }
+                    _ = ExecutePowerSearch(skipUrlUpdate: true);
+                };
+            }
     }
 
     /// <summary>
@@ -100,37 +104,18 @@ public class PowerSearchLogic()
                 string replacement = af.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
                 commandInput = Regex.Replace(commandInput, SearchParserService.afterPattern, $"after:\"{replacement}\"", RegexOptions.IgnoreCase);
             }
-        }
-
-        // Now we know some change will be made, regardless of whether the DB is hit
-        LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
-        var targetTable = TableLogics.FirstOrDefault(t => t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
-
-        // Verify that the target is exactly one table, otherwise we're forced to run the query
-        if (targetTable != null && CurrentType != "all")
-        {
-            // Pre-flight check: Hash the PARSED results
-            int prospectiveHash = targetTable.GetFilterStateHash(Filters);
-
-            // Compare to target table's LAST SUCCESSFUL execution hash
-            if (targetTable.LastQueryHash == prospectiveHash && targetTable.TotalCount > 0)
-            {
-                NotifyStateChanged();
-                return; // skip DB
-            }
-        }
-
-        // If we're at this point, we prepare to execute the query
-        IsSearching = true;
+        }        
 
         try{
             // Parallelize search
+            IsSearching = true;
             await Task.WhenAll(targets.Select(t => t.DictionaryToFilters(Filters, keepPage)));
         } catch (Exception ex){
             errorMessages.Add($"Search failed: {ex.Message}");
         } finally{
             IsSearching = false;
             if(!skipUrlUpdate) SyncUrl();
+            LastExecutedQuery = string.IsNullOrWhiteSpace(commandInput) ? "Hioki ICT Power Search" : $"Search: {commandInput}";
             NotifyStateChanged();
         }
     }
@@ -143,6 +128,8 @@ public class PowerSearchLogic()
     {
         var activeTable = TableLogics.FirstOrDefault(t => 
             t.TableName.Equals(CurrentType, StringComparison.OrdinalIgnoreCase));
+
+        IsInternalNavigation = true;
 
         if (activeTable != null && CurrentType != "all")
         {

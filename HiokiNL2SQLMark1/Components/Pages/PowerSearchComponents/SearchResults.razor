@@ -1,4 +1,3 @@
-@inject PowerSearchLogic State
 @implements IDisposable
 
 @* If there's a search in progress, show the loading screen *@
@@ -60,6 +59,9 @@
     }
 
 @code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
+    
     protected override void OnInitialized()
     {
         // Listen for changes from the SearchBar so we can update highlights

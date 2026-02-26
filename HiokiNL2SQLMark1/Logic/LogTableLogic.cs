@@ -9,7 +9,7 @@ namespace HiokiNL2SQLMark1.Logic;
 /// <typeparam name="T">An implementation of IHiokiLog (defined in LogDbContext)</typeparam>
 public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
 {
-    // For compliance with ILogTable (these particular values should never be seen)
+    // For compliance with ILogTable (these particular values should never be seen, overridden by children)
     public virtual string TableName => "unknown"; // The internal name of this table
     public virtual string DisplayName => "Unknown Table"; // The external name of this table
 
@@ -18,9 +18,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     protected readonly Func<LogDbContext, IQueryable<T>> _querySelector; // Encapsulates the connection and query information
     protected readonly IJSService JS; // For handling CSV download
     protected readonly INavService Nav; // For navigating to the power search page in a barcode "drill-down"
-
-    // Shared filters
-    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase); // To store the filters and their state
 
     // Pagination variables
     public int CurrentPage { get; set; } = 1; // Tracks the current page number (always between 1 and TotalPages, inclusive)
@@ -33,20 +30,19 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public string SortDir { get; set; } = "none"; // The sort direction of the currently sorted column
     
     // Data storage
-    public bool IsLoading { get; private set; } // Whether the query is currently loading the table display
+    public Dictionary<string, IFilter> Filters { get; set; } = new(StringComparer.OrdinalIgnoreCase); // Filter registry, updated as necessary by children
+    public bool IsLoading { get; private set; } = true; // Whether the query is currently loading the table display
     public List<T> DataView { get; private set; } = []; // Stores the query results, only of the current page
-    public List<string> ModeCache { get; private set; } = []; // The list of test modes to choose from (technically this should be in the children)
-    public List<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
+    public HashSet<string> ModeCache { get; private set; } = []; // The list of test modes to choose from (technically this should be in the children)
+    public HashSet<string> ResultCache { get; private set; } = []; // The list of test result types to choose from
 
     // Provided to the UI
     public Action? OnNotifyUI { private get; set; } // Prompts the view to refresh (this is not architecturally correct for MVVM)
-    public Action<string>? TriggerPowerSearch { get; set; } // Directly executes a power search with the input string, jumping to the power search page
     public Action? UpdatePSUrl { get; set; } // Prompts the power search engine to update its URL
+    public Action<string>? TriggerPowerSearch { get; set; } // Allows UI/tests to request a PowerSearch URL update
     public int? LastQueryHash { get; private set; } // The hash of the filter state of the most recent query on this table
-    public Func<bool>? IsStaleOverride { get; set; } // Allows the power search page to provide its own definition of IsStale
-    public virtual bool IsStale => IsStaleOverride != null // If there is an override, use it, otherwise just compare the hash of this filter state and the last one
-        ? IsStaleOverride() 
-        : LastQueryHash != GetFilterStateHash(Filters);
+    public bool IsStale => // If there is an override, use it, otherwise just compare the hash of this filter state and the last one
+        LastQueryHash != GetFilterStateHash(Filters);
     
     /// <summary>
     /// Builds a new LogTableLogic using DB context and necessary services. Adds all relevant filters to the registry based on subtype
@@ -81,16 +77,27 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 // Ignore 'in' key, it does not affect the search contents within a table
                 if (key.Equals("in", StringComparison.OrdinalIgnoreCase)) continue;
 
-                // Factor in each aspect of the filter, but only if it is active
+                // Factor in each aspect of the filter
                 var filter = filterDict[key];
+
+                // Key and activity status are part of hash regardless of activity status
+                hash *= 31 + key.ToLower().GetHashCode();
+                hash *= 31 + filter.IsActive.GetHashCode();
+
+                // Only hash filter details if active
                 if (filter.IsActive)
                 {
-                    hash *= 31 + key.ToLower().GetHashCode();
                     hash *= 31 + filter.IsNegated.GetHashCode();
                     string value = filter.GetValue()?.ToString()?.Trim().ToLower() ?? "";
                     hash *= 31 + value.GetHashCode();
                 }
             }
+            // Sorts and pagination affect view, so a hash of the view should include them
+            hash *= 31 + CurrentSortColumn.GetHashCode();
+            hash *= 31 + SortDir.GetHashCode();
+            hash *= 31 + CurrentPage.GetHashCode();
+            hash *= 31 + PageSize.GetHashCode();
+            
             return hash;
         }
     }
@@ -112,28 +119,36 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
+    /// <param name="force">Whether to force a refresh</param>
     /// <returns></returns>
     public async Task RefreshData(bool keepPage = false)
     {
         if (!keepPage) CurrentPage = 1;
+        if (DataView.Count > 0 && !IsStale) return;
 
         IsLoading = true;
-        // One DbContext per refresh
-        using var db = await _dbFactory.CreateDbContextAsync();
-
-        IQueryable<T> query = _querySelector(db).AsNoTracking();
-        query = ApplyFilters(query);
-        TotalCount = await query.CountAsync();
-        query = ApplySorting(query);
+        OnNotifyUI?.Invoke(); // Show loading state
         
-        DataView = await query
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToListAsync();
+        try {
+            using var db = await _dbFactory.CreateDbContextAsync(); // One DbContext per refresh
+            IQueryable<T> query = _querySelector(db).AsNoTracking();
 
-        IsLoading = false;
-        LastQueryHash = GetFilterStateHash(Filters);
-        OnNotifyUI?.Invoke();
+            query = ApplyFilters(query);
+            TotalCount = await query.CountAsync();
+            query = ApplySorting(query);
+            
+            DataView = await query
+                .Skip((CurrentPage - 1) * PageSize)
+                .Take(PageSize)
+                .ToListAsync();
+
+            LastQueryHash = GetFilterStateHash(Filters);
+        }
+        finally
+        {
+            IsLoading = false;
+            OnNotifyUI?.Invoke();
+        }
     }
 
     /// <summary>
@@ -142,13 +157,43 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <typeparam name="U">The generic type of a Filter, one of string, int, or DateTime</typeparam>
     /// <param name="key">The key for which to get the filter</param>
     /// <returns>The Filter with its appropriate type</returns>
-    public Filter<U> GetFilter<U>(string key) => 
-        Filters.TryGetValue(key, out var f) && f is Filter<U> typed 
-        ? typed 
-        : new Filter<U>(key, default!);
+    public Filter<U> GetFilter<U>(string key)
+    {
+        // 99% will go here
+        if(Filters.TryGetValue(key, out var f) && f is Filter<U> typed) return typed;
+
+        // But if something slips through the cracks, this will ensure the hash doesn't break
+        var newFilter = new Filter<U>(key, default!) { OnChanged = NotifyStateChanged };
+        Filters[key] = newFilter;
+        return newFilter;
+    }
+
+    /// <summary>
+    /// Saves a mapping of search keys to IFilters to the registry, then calls for a refresh
+    /// Table-specific filters are handled because their child class has added their key to the registry in InitializeFilters
+    /// </summary>
+    /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
+    /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
+    /// <returns></returns>
+    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
+    {
+        foreach (var existing in Filters.Values)
+        {
+            // Check to see if there's a new filter
+            if (filterDict.TryGetValue(existing.Key, out var incoming)) {
+                existing.CopyFrom(incoming);
+            }
+            // Otherwise, reset it, as it's not part of this query 
+            else {
+                existing.Reset();
+            }
+        }
+        await RefreshData(keepPage);
+    }
 
     /// <summary>
     /// Applies the five filters common between all three pages
+    /// Overridden in children to apply table-specific filters
     /// </summary>
     /// <param name="query">The query to which the filters should be appended</param>
     /// <returns>An IQueryable object with filters applied</returns>
@@ -182,29 +227,6 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 : query.Where(x => x.Result == result.Value);
 
         return query;
-    }
-
-    /// <summary>
-    /// Saves a mapping of search keys to IFilters to the registry, then calls for a refresh
-    /// Table-specific filters are handled because their child class has added their key to the registry in InitializeFilters
-    /// </summary>
-    /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
-    /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
-    /// <returns></returns>
-    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
-    {
-        foreach (var existing in Filters.Values)
-        {
-            // Check to see if there's a new filter
-            if (filterDict.TryGetValue(existing.Key, out var incoming)) {
-                existing.CopyFrom(incoming);
-            }
-            // Otherwise, reset it, as it's not part of this query 
-            else {
-                existing.Reset();
-            }
-        }
-        await RefreshData(keepPage);
     }
 
     /// <summary>
@@ -267,6 +289,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <param name="barcode">The barcode to trace</param>
     public void HandleBarcodeClick(string barcode)
     {
+        Nav.EnsureSubscribed();
         string query = $"in:all barcode:{barcode}";
         // Redirect to the PowerSearch page to view all results
         if (OnNotifyUI != null)
@@ -354,28 +377,32 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <returns></returns>
     public virtual async Task InitializeCaches()
     {
+        // If the result cache is full, don't reload it (this destroys the point of a cache)
+        if (LastQueryHash != null && ResultCache.Count != 0) return;
+        
         // Fill the final result cache for all tables
-        ResultCache = await GetDistinctList("Result");
+        ResultCache = await GetCacheSet("Result");
 
         if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
         {
-            ModeCache = await GetDistinctList("Mode");
+            ModeCache = await GetCacheSet("Mode");
         }
     }
 
     /// <summary>
-    /// Gets a list of distinct values across a property
+    /// Gets a set of all values across a property
     /// </summary>
     /// <param name="property">The property for which to get unique values</param>
     /// <returns>A list of uniquer property values</returns>
-    protected async Task<List<string>> GetDistinctList(string property)
+    protected async Task<HashSet<string>> GetCacheSet(string property)
     {
         using var db = await _dbFactory.CreateDbContextAsync();
-        return await _querySelector(db).AsNoTracking()
+        var list = await _querySelector(db).AsNoTracking()
             .Select(property)
             .Distinct()
             .OrderBy("it")
             .ToDynamicListAsync<string>();
+        return [.. list];
     }
 
     /// <summary>

@@ -16,6 +16,7 @@ HiokiNL2SQLMark1/
 │  │  ├──CommonComponents/
 │  │  │  ├──DateFields.razor
 │  │  │  ├──FilterWrapper.razor
+│  │  │  ├──SimplePreview.razor
 │  │  │  ├──InclusivityControls.razor
 │  │  │  ├──LogTablePresenter.razor
 │  │  │  └──MasterTable.razor

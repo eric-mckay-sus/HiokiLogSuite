@@ -16,4 +16,8 @@ public interface IJSService
     /// <param name="csvContent">The data to download as CSV</param>
     /// <returns></returns>
     Task DownloadCsv(string fileName, string csvContent);
+    /// <summary>
+    /// Attempts to flush any JS calls that were queued while prerendering.
+    /// </summary>
+    Task FlushPendingAsync();
 }
