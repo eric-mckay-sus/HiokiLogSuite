@@ -1,8 +1,6 @@
 @typeparam TItem
 @using System.Reflection
 @using System.ComponentModel.DataAnnotations.Schema
-@implements IDisposable
-@inject PowerSearchLogic GlobalState
 
 @* PAGINATION TOP *@
 <div class="pagination-container d-flex justify-content-between align-items-center">
@@ -144,21 +142,4 @@
 
     // Whether this table is currently loading
     [Parameter] public bool IsLoading { get; set; }
-
-    protected override void OnInitialized()
-    {
-        // Subscribe to the global refresh event
-        GlobalState.OnRefreshRequested += HandleRefresh;
-    }
-
-    private void HandleRefresh()
-    {
-        // Force the table to re-render with new parameter values
-        InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        GlobalState.OnRefreshRequested -= HandleRefresh;
-    }
 }

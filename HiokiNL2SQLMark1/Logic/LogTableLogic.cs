@@ -41,10 +41,8 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     public Action? UpdatePSUrl { get; set; } // Prompts the power search engine to update its URL
     public Action<string>? TriggerPowerSearch { get; set; } // Allows UI/tests to request a PowerSearch URL update
     public int? LastQueryHash { get; private set; } // The hash of the filter state of the most recent query on this table
-    public Func<bool>? IsStaleOverride { get; set; } // Allows the power search page to provide its own definition of IsStale
-    public virtual bool IsStale => IsStaleOverride != null // If there is an override, use it, otherwise just compare the hash of this filter state and the last one
-        ? IsStaleOverride() 
-        : LastQueryHash != GetFilterStateHash(Filters);
+    public bool IsStale => // If there is an override, use it, otherwise just compare the hash of this filter state and the last one
+        LastQueryHash != GetFilterStateHash(Filters);
     
     /// <summary>
     /// Builds a new LogTableLogic using DB context and necessary services. Adds all relevant filters to the registry based on subtype
@@ -178,7 +176,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
     /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
     /// <returns></returns>
-    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false, bool refresh=true)
+    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
     {
         foreach (var existing in Filters.Values)
         {
@@ -191,7 +189,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 existing.Reset();
             }
         }
-        if (refresh) await RefreshData(keepPage);
+        await RefreshData(keepPage);
     }
 
     /// <summary>

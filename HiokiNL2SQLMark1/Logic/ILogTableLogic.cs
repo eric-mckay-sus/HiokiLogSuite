@@ -10,23 +10,21 @@ public interface ILogTableLogic
     // Sorting parameters for URL control
     string CurrentSortColumn { get; set; } // The column currently being sorted
     string SortDir { get; set; } // The direction of the current sort
-    int? LastQueryHash { get; } // A hash representing the state of the filters from the most recent query
     
     // The core methods we need to trigger from the UI
     Task RefreshData(bool keepPage=false);
-    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false, bool refresh=true);
-    int GetFilterStateHash(Dictionary<string, IFilter> filterDict);
+    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false);
     void ClearData();
     
     // Shared UI state for the MasterTable
     int CurrentPage { get; set; } // The page number shown in the data view
     int PageSize { get; set; } // The number of results per page
-    int TotalPages { get; } // The number of pages
     int TotalCount { get; } // The result count for this query on this page
+    bool IsLoading { get; } // Whether the query results are loading
+
+    // Linking to the power search page
     Action? OnNotifyUI { set; } // the trigger for which the view must watch
     Action<string>? TriggerPowerSearch { get; set; } // the trigger to jump to the power search page for a barcode "drill-down"
     Action? UpdatePSUrl { get; set; } // update the URL from the power search page
-    public Func<bool>? IsStaleOverride { get; set; } // to allow PowerSearch to provide its own definition of IsStale
-    bool IsStale { get; } // Whether the query contents are the ones that generated the shown results
-    bool IsLoading { get; } // Whether the query results are loading
+    
 }

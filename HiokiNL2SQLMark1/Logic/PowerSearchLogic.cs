@@ -17,9 +17,6 @@ public class PowerSearchLogic()
     public bool IsInternalNavigation = false; // Whether the system is using NavService within this class or from the razor page
     public bool IsSearching = false; // Whether the system is currently getting query results
     public bool IsInclusive = true; // Whether date filters are inclusive (or exclusive)
-
-    // Whether the search bar contents match the table(s) shown. WILL BREAK IF TAB NAME CHANGES IN THE FUTURE
-    public bool IsStale => (commandInput != LastExecutedQuery.Replace("Search: ", "")) && LastExecutedQuery != "Hioki ICT Power Search";
     public int AllCount => TableLogics.Sum(t => t.TotalCount); // The count of all results, across all three tables
     public string LastExecutedQuery = "Hioki ICT Power Search"; // The details of the last executed query, for display in the tab name
 
@@ -59,7 +56,6 @@ public class PowerSearchLogic()
                     } catch { }
                     _ = ExecutePowerSearch(skipUrlUpdate: true);
                 };
-                table.IsStaleOverride = () => IsStale;
             }
     }
 
