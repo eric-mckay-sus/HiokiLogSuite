@@ -127,6 +127,7 @@ public class NavServiceTests
     {
         // Arrange
         string? capturedLocation = null;
+        _service.EnsureSubscribed();
         _service.OnLocationChanged += (loc) => capturedLocation = loc;
         var newUri = "http://localhost/new-page";
 

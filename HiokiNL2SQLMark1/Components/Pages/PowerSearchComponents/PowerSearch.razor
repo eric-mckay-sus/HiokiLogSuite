@@ -1,5 +1,6 @@
 ﻿@page "/"
 @rendermode InteractiveServer
+@inject PowerSearchLogic State
 @inject INavService NavService
 @inject IJSService JSService
 @inject IServiceScopeFactory ScopeFactory
@@ -29,9 +30,6 @@ else
 }
 
 @code{
-    private IServiceScope? _pageScope;
-    private PowerSearchLogic? State;
-    private bool _isInitialized = false;
 
     /// <summary>
     /// When the page opens, check the URL for filters, sorts, and pagination.
@@ -42,28 +40,20 @@ else
     {
         if (firstRender)
         {
-            // Create the scope here instead of OnInitialized
-            _pageScope = ScopeFactory.CreateScope();
-            State = _pageScope.ServiceProvider.GetRequiredService<PowerSearchLogic>();
-
-            // Wire up events
-            State.OnRefreshRequested += HandleRefreshRequested;
             NavService.EnsureSubscribed();
-            NavService.OnLocationChanged += HandleLocationChanged;
 
-            // Process initial URL state
-            string? currentQuery = NavService.GetCurrentQuery();
-            if (!string.IsNullOrEmpty(currentQuery))
-            {
-                await ApplyUrlState();
-            }
-
-            _isInitialized = true;
+            await ApplyUrlState();
             StateHasChanged(); // Re-render now that State is populated
 
             // Flush any JS calls that were queued during prerendering
             try { await JSService.FlushPendingAsync(); } catch { }
         }
+    }
+
+    protected override void OnInitialized()
+    {
+        State.OnRefreshRequested += HandleRefreshRequested;
+        NavService.OnLocationChanged += HandleLocationChanged;
     }
 
     /// <summary>
@@ -73,10 +63,10 @@ else
     {
         if (State != null) {
             State.OnRefreshRequested -= HandleRefreshRequested;
+            State.DebounceTimer?.Stop();
             State.DebounceTimer?.Dispose();
         }
         NavService.OnLocationChanged -= HandleLocationChanged;
-        _pageScope?.Dispose();
     }
 
     /// <summary>
@@ -91,6 +81,11 @@ else
     /// <param name="e">The information about the event to handle</param>
     public async void HandleLocationChanged(string newLocation)
     {
+        if (State != null && State.IsInternalNavigation){
+            State.IsInternalNavigation = false;
+            return;
+        }
+        Console.WriteLine("Power search page firing navigation request");
         try{
             await InvokeAsync(async () =>
             {
@@ -109,24 +104,20 @@ else
     private async Task ApplyUrlState()
     {
         UrlState? urlState = NavService.GetFullStateFromUrl();
-        if (State == null){
-            using var scope = ScopeFactory.CreateScope();
-            State = scope.ServiceProvider.GetRequiredService<PowerSearchLogic>();
+        State.commandInput = urlState.Query;
+    
+        var activeTable = State.TableLogics.FirstOrDefault(t => 
+        t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
+
+        if (activeTable != null)
+        {
+            activeTable.CurrentPage = urlState.Page ?? 1;
+            activeTable.PageSize = urlState.PageSize ?? 50;
+            activeTable.CurrentSortColumn = urlState.SortCol ?? "";
+            activeTable.SortDir = urlState.SortDir ?? "none";
         }
-            State.commandInput = urlState.Query;
-        
-            var activeTable = State.TableLogics.FirstOrDefault(t => 
-            t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
 
-            if (activeTable != null)
-            {
-                activeTable.CurrentPage = urlState.Page ?? 1;
-                activeTable.PageSize = urlState.PageSize ?? 50;
-                activeTable.CurrentSortColumn = urlState.SortCol ?? "";
-                activeTable.SortDir = urlState.SortDir ?? "none";
-            }
-
-            // Execute the search (passing true to keepPage ensures we use the URL's page number)
-            await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
+        // Execute the search (passing true to keepPage ensures we use the URL's page number)
+        await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
     }
 }

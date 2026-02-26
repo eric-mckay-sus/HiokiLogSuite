@@ -13,7 +13,8 @@ public interface ILogTableLogic
     int? LastQueryHash { get; } // A hash representing the state of the filters from the most recent query
     
     // The core methods we need to trigger from the UI
-    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false);
+    Task RefreshData(bool keepPage=false);
+    Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false, bool refresh=true);
     int GetFilterStateHash(Dictionary<string, IFilter> filterDict);
     void ClearData();
     

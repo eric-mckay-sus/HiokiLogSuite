@@ -123,11 +123,11 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <param name="keepPage">Whether to keep the current page</param>
     /// <param name="force">Whether to force a refresh</param>
     /// <returns></returns>
-    public async Task RefreshData(bool keepPage = false, bool force=false)
+    public async Task RefreshData(bool keepPage = false)
     {
-        if (DataView.Count > 0 && !IsStale && !force) return;
-
+        Console.WriteLine($"Data {(IsStale ? "is stale" : "is not stale")}");
         if (!keepPage) CurrentPage = 1;
+        if (DataView.Count > 0 && !IsStale) return;
 
         IsLoading = true;
         OnNotifyUI?.Invoke(); // Show loading state
@@ -178,7 +178,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <param name="filterDict">The dictionary of search keys mapped to filters</param>
     /// <param name="keepPage">Whether to keep the page number (or reset it)</param>
     /// <returns></returns>
-    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false)
+    public async Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false, bool refresh=true)
     {
         foreach (var existing in Filters.Values)
         {
@@ -191,7 +191,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
                 existing.Reset();
             }
         }
-        await RefreshData(keepPage);
+        if (refresh) await RefreshData(keepPage);
     }
 
     /// <summary>
@@ -292,6 +292,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// <param name="barcode">The barcode to trace</param>
     public void HandleBarcodeClick(string barcode)
     {
+        Nav.EnsureSubscribed();
         string query = $"in:all barcode:{barcode}";
         // Redirect to the PowerSearch page to view all results
         if (OnNotifyUI != null)

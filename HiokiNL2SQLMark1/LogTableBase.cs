@@ -36,9 +36,9 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// <param name="keepPage">Whether to keep the current page</param>
     /// <param name="force">Whether to skip the hydration check</param>
     /// <returns></returns>
-    protected async Task RefreshData(bool keepPage=false, bool force=false)
+    protected async Task RefreshData(bool keepPage=false)
     {
-        await Logic.RefreshData(keepPage, force);
+        await Logic.RefreshData(keepPage);
         Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary());
         StateHasChanged();
     }
