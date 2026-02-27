@@ -36,6 +36,19 @@ public class JSService(IJSRuntime js) : IJSService
         }
     }
 
+    public async Task ScrollToElement(string elementId)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("scrollToElement", elementId);
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering: queue the call for later
+            _pending.Enqueue(() => _js.InvokeVoidAsync("scrollToElement", elementId).AsTask());
+        }
+    }
+
     public async Task FlushPendingAsync()
     {
         while (_pending.TryDequeue(out var work))

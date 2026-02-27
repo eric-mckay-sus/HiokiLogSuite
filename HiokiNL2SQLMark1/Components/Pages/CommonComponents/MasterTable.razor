@@ -48,48 +48,46 @@
 
 <div class="table-responsive-wrapper">
     <div class="table-container @(IsLoading ? "loading" : (UIIsStale || IsStale) ? "stale" : "")">
-        <div class="res-table-wrapper">
-            <table class="table res-table table-striped text-nowrap">
-                <thead class="table-dark">
+        <table class="table res-table table-striped text-nowrap">
+            <thead class="table-dark">
+                <tr>
+                    @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
+                    {
+                        ColumnAttribute? attribute = prop.GetCustomAttribute<ColumnAttribute>();
+                        string? displayName = attribute?.Name ?? prop.Name;
+                        
+                        <th @onclick="() => OnSort.InvokeAsync(prop.Name)" style="cursor:pointer">
+                            @displayName @SortIcon(prop.Name)
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                <Virtualize TItem="TItem" Items="@(Items?.ToList())" Context="item" OverscanCount="10">
                     <tr>
-                        @foreach (PropertyInfo prop in typeof(TItem).GetProperties())
+                        @foreach (PropertyInfo prop in _cachedProps)
                         {
-                            ColumnAttribute? attribute = prop.GetCustomAttribute<ColumnAttribute>();
-                            string? displayName = attribute?.Name ?? prop.Name;
-                            
-                            <th @onclick="() => OnSort.InvokeAsync(prop.Name)" style="cursor:pointer">
-                                @displayName @SortIcon(prop.Name)
-                            </th>
+                            string? value = prop.GetValue(item)?.ToString();
+                            if (prop.Name.Equals("Barcode", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <td>
+                                    <button class="p-0 border-0 text-start font-monospace" 
+                                            style="cursor: pointer;"
+                                            title="Trace this barcode through all tables"
+                                            @onclick='() => OnBarcodeClick.InvokeAsync(value)'>
+                                        @value
+                                    </button>
+                                </td>
+                            }
+                            else
+                            {
+                                <td>@value</td>
+                            }
                         }
                     </tr>
-                </thead>
-                <tbody>
-                    <Virtualize TItem="TItem" Items="@(Items?.ToList())" Context="item" OverscanCount="10">
-                        <tr>
-                            @foreach (PropertyInfo prop in _cachedProps)
-                            {
-                                string? value = prop.GetValue(item)?.ToString();
-                                if (prop.Name.Equals("Barcode", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    <td>
-                                        <button class="p-0 border-0 text-start font-monospace" 
-                                                style="cursor: pointer;"
-                                                title="Trace this barcode through all tables"
-                                                @onclick='() => OnBarcodeClick.InvokeAsync(value)'>
-                                            @value
-                                        </button>
-                                    </td>
-                                }
-                                else
-                                {
-                                    <td>@value</td>
-                                }
-                            }
-                        </tr>
-                    </Virtualize>
-                </tbody>
-            </table>
-        </div>
+                </Virtualize>
+            </tbody>
+        </table>
     </div>
 </div>
 

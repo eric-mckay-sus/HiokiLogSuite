@@ -45,6 +45,15 @@
             URL.revokeObjectURL(url);
         }
     </script>
+    <script>
+        // Scrolls to show entire element (used to scroll to table for "full screen" effect)
+        window.scrollToElement = (elementId) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        };
+    </script>
 </body>
 
 </html>

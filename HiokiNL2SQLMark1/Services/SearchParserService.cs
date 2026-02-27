@@ -15,7 +15,7 @@ public class SearchParserService
     // Parentheses and brackets are for grouping the regex itself (VS does a little better at demonstrating this than VS Code).
     // THIS REGEX WILL BREAK IF THE QUOTE IS REQUIRED AS A LITERAL VALUE IN THE SEARCH (quoted values are only parsed as grouping)
     protected const string tagPattern = @"(-?\w+)\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
-    public const string inPattern = @"(-?)in\s*:\s*(\w+)"; // represents the key-value pair for the "in" tag. Includes optional negation
+    public const string inPattern = @"(-?)in\s*:\s*(-?\w+)"; // represents the key-value pair for the "in" tag. Includes optional negation, plus attempted negation of value
     public static readonly string beforePattern = @"before\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
     public static readonly string afterPattern = @"after\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
     public static readonly string[] availableTypes = ["all", "group", "step", "fct"]; // all available tables
@@ -160,19 +160,27 @@ public class SearchParserService
         var matches = Regex.Matches(rawInput, inPattern, RegexOptions.IgnoreCase);
         if (matches.Count > 0)
         {
-            Match contextMatch = matches[^1];
+            bool multipleInTags = matches.Count > 1;
+            Match contextMatch = matches[^1]; // Always use the last 'in' tag, if multiple
             string polarity = contextMatch.Groups[1].Value;
             string targetType = contextMatch.Groups[2].Value.ToLower();
-            if (matches.Count > 1) result.ErrorMessages.Add($"Duplicate **in** tag. This search is now **in:{targetType}...**. All previous uses of this key are *ignored*.");
+            string cleanType = targetType.TrimStart('-');
 
-            if (polarity.Equals("-")) result.ErrorMessages.Add($"The **in** tag cannot be negated. This search is now **in : {targetType}...**.");
+            // No tag can be duplicated, but we need separate handling here to pin down the table now
+            if (multipleInTags) result.ErrorMessages.Add($"Duplicate **in** tag. This search is now **in:{cleanType}...**. All previous uses of this key are *ignored*.");
 
-            if (availableTypes.Contains(targetType))
-            {
-                result.CurrentType = targetType;
+            // Can't negate the 'in' tag, so don't assign it, and throw a non-fatal error
+            if (polarity.Equals("-")) result.ErrorMessages.Add($"The {(multipleInTags ? "active" : "")} **in** tag cannot be negated. This search is now **in:{cleanType}...**.");
+
+            // Conveniently, this strictness removes the need for a SQL injection check for this tag later
+            if (availableTypes.Contains(cleanType)) {
+                // If they tried to negate the value for the 'in' tag, provide an error about negating key instead of value and non-negatability of 'in' tag
+                if (targetType != cleanType){
+                    result.ErrorMessages.Add($"Negation should be applied to the key instead of value, but the **in** tag cannot be negated anyway. This search is now **in:{cleanType}.**");
+                }
+                result.CurrentType = cleanType;
             }
-            else
-            {
+            else {
                 result.ErrorMessages.Add($"**{targetType}** is not a valid table. The **in** keyword only accepts the values *all*, *group*, *step*, or *fct*.");
             }
         }
@@ -182,6 +190,7 @@ public class SearchParserService
         matches = Regex.Matches(rawInput, tagPattern);
         int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
 
+        // Loop through
         foreach (Match match in matches)
         {
             // Create error if the space between the last match and this one contains non-whitespace characters
@@ -189,10 +198,21 @@ public class SearchParserService
             string? message = MissingKeyOrValueMessage(gap);
             if (!string.IsNullOrEmpty(message)) result.ErrorMessages.Add(message);
 
+            ProcessMatch(match);
+
+            lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
+        }
+
+        // Performs validation on matches from tagPattern
+        void ProcessMatch(Match match)
+        {
             string? key = match.Groups[1].Value.ToLower();
             bool isNegated = key.StartsWith('-');
             string cleanKey = isNegated ? key[1..] : key; // for use in checking against key sets
             string? value = match.Groups[2].Value;
+
+            // We handled everything relating to the 'in' tag in the first pass
+            if (cleanKey == "in") return;
 
             // If a user put a hyphen on their value, they probably wanted to negate, but we can supply a warning for them to learn
             if (value.StartsWith('-')) 
@@ -201,52 +221,51 @@ public class SearchParserService
                 value = value[1..];
                 result.ErrorMessages.Add($"The value for **{cleanKey}** started with a hyphen. This search is now **-{cleanKey}:{value}...**. To search for a literal hyphen, use quotes like *{key}:\"-{value}\"*.");
             }
+
             value = value.Trim('"'); // cut the quotes, if the regex found them (they're no longer protecting anything)
 
             // Basic SQL injection countermeasure
             if (sqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
             {
                 result.ErrorMessages.Add($"Security Issue: The value for **{key}** contains forbidden keywords.");
-                lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
-                continue;
+                return;
             }
 
             // Validate if key is supported by system
             if (!AllTags.Contains(cleanKey)) {
                 result.ErrorMessages.Add($"The tag **{key}** wasn't recognized. Try using the table and key options below the search bar.");
-                lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
-                continue;
+                return;
             }
+
             // Validate if value matches the datatype required by the key
             if (TagTypeMap.TryGetValue(cleanKey, out var expectedType)) {
                 if (expectedType == ValType.DateTime) result.HasDateFilter = true;
                 if (!IsValidValue(expectedType, cleanKey, value, out string errorMessage)) {
                     result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
-                    lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
-                    continue;
+                    return;
                 }
             }
+
             // Validate if key is supported by the selected table
-            if (!allowedKeys.Contains(cleanKey) && cleanKey != "in") {
+            if (!allowedKeys.Contains(cleanKey)) {
                 result.ErrorMessages.Add($"The tag **{key}:** is not available when searching **{result.CurrentType}**. Try a different tag or search a table with that attribute.");
-                lastIndex = match.Index + match.Length; // move the index so the skipped tag isn't flagged as bad input again
-                continue;
+                return;
             }
+
             // Validate if filter was already used in this search. If it was, proceed and overwrite, but notify the user
             if (result.Filters.ContainsKey(cleanKey)) {
                 result.ErrorMessages.Add($"Duplicate tag detected: **{key}:**. This search is now '**{key}:{value}...**. The previous use of this key is *ignored*.");
             }
-            // If there weren't any errors, add the tag to the dictionary, looking up the alias if applicable
-            if (isNegated && (cleanKey == "before" || cleanKey == "after")) { // Attempting to negate before/after isn't fatal
+            
+            // Attempting to negate before/after isn't fatal, but it needs to be deactivated and we should tell the user
+            if (isNegated && (cleanKey == "before" || cleanKey == "after")) { 
                 result.ErrorMessages.Add($"The **{cleanKey}** tag cannot be negated. This search is now **{cleanKey} : {value}...**");
                 isNegated = false; // revoke negation for these keys
                 result.HasDateFilter = true;
             }
-            // We didn't actually remove "in", we just ignored it
-            if (cleanKey != "in") { // if it's not a datetime, it doesn't get special treatment
-                result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated, isInclusive);
-            }
-            lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
+            
+            // If it's not a datetime, it doesn't get special treatment
+            result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated, isInclusive);
         }
 
         // Verify that the start date is actually before the end date
@@ -482,7 +501,7 @@ public class SearchParserService
 
             // If an after tag targets a future date, the search cannot possibly have results
             // For shift-only, this is just an expansion of auto-detection (we'll handle user-specified out-of-range dates later)
-            if ((baseDateTime > DateTime.Now) && !isBefore && offsetHours != 24) baseDateTime = baseDateTime.AddDays(-1);
+            if ((baseDateTime > DateTime.Now) && ((!isBefore && offsetHours != 24) || hasSpecificTime)) baseDateTime = baseDateTime.AddDays(-1);
         }
 
         // Verify that there actually was a date

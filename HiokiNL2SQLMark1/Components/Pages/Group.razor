@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inherits LogTableBase<GroupResult> // Group table is the page type
 @inject Logic.GroupTableLogic GroupLogic // The page is controlled by group logic
+@inject IJSService JS
 
 <PageTitle>Hioki ICT Group Results</PageTitle>
 
@@ -92,8 +93,9 @@
         <SimplePreview Preview="@Preview"/>
     </div>
 
-
-    <LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
+    <div id="table-results-area">
+        <LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
+    </div>
 </CascadingValue>
 
 @code {
@@ -111,5 +113,16 @@
     {
         base.Logic = GroupLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Calls Logic.RefreshData to update table, then scrolls to the table
+    /// </summary>
+    /// <param name="keepPage">Whether to keep the current page</param>
+    /// <returns></returns>
+    protected new async Task RefreshData(bool keepPage=false){
+        await base.RefreshData();
+        await Task.Delay(100);
+        await JS.ScrollToElement("table-results-area");
     }
 }

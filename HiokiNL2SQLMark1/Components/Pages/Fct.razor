@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inherits LogTableBase<FctResult> // FCT table is the page type
 @inject Logic.FctTableLogic FctLogic // The page is controlled by FCT logic
+@inject IJSService JS
 
 <PageTitle>Hioki ICT FCT Results</PageTitle>
 
@@ -49,7 +50,9 @@
         <SimplePreview Preview="@Preview"/>
     </div>
 
-    <LogTablePresenter T="FctResult" TableLogic="FctLogic" />
+    <div id="table-results-area">
+        <LogTablePresenter T="FctResult" TableLogic="FctLogic" />
+    </div>
 </CascadingValue>
 
 @code {
@@ -63,5 +66,16 @@
     {
         base.Logic = FctLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Calls Logic.RefreshData to update table, then scrolls to the table
+    /// </summary>
+    /// <param name="keepPage">Whether to keep the current page</param>
+    /// <returns></returns>
+    protected new async Task RefreshData(bool keepPage=false){
+        await base.RefreshData();
+        await Task.Delay(100);
+        await JS.ScrollToElement("table-results-area");
     }
 }

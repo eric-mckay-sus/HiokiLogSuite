@@ -16,6 +16,14 @@ public interface IJSService
     /// <param name="csvContent">The data to download as CSV</param>
     /// <returns></returns>
     Task DownloadCsv(string fileName, string csvContent);
+
+    /// <summary>
+    /// Scroll to the specified HTML element
+    /// </summary>
+    /// <param name="elementId">The ID of the HTML to scroll to</param>
+    /// <returns></returns>
+    Task ScrollToElement(string elementId);
+
     /// <summary>
     /// Attempts to flush any JS calls that were queued while prerendering.
     /// </summary>

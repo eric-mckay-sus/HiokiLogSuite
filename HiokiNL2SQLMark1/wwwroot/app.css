@@ -165,8 +165,7 @@ h1:focus {
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     margin-bottom: 2rem;
     width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: visible;
     transition: all 0.3s ease-in-out;
 }
 
@@ -191,15 +190,17 @@ h1:focus {
 
 /* Professional Table Formatting */
 .res-table {
-    font-size: 0.85rem; /* Smaller font for high density */
-    margin-bottom: 0;
+    min-width: 1200px; 
+    width: 100%;
+    border-collapse: separate; /* Required for sticky headers to work correctly */
+    border-spacing: 0;
 }
 
 /* Center headers */
 .res-table thead th {
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 20;
     background-color: #f8f9fa;
     color: #495057;
     font-weight: 600;
@@ -336,7 +337,8 @@ h1:focus {
 .table-responsive-wrapper {
     width: 100%;
     overflow-x: auto; /* Only this element will scroll horizontally */
-    -webkit-overflow-scrolling: touch;
+    position: relative;
+    max-height: calc(100vh - 150px);
     border: 1px solid #dee2e6;
     margin-bottom: 1rem;
 }

@@ -186,7 +186,7 @@ public class PowerSearchLogic()
         }
 
         // If the shortcut is already touching a tag or the key/shortcut is already present in the search bar, only add the shortcut
-        if (commandInput.Contains(shortcut) || commandInput.Contains(key) || commandInput.TrimEnd()[^1] == ':'){
+        if (commandInput.Contains(shortcut) || commandInput.Contains($"{key}:") || commandInput.TrimEnd()[^1] == ':'){
             toAppend = $"{shortcut} ";
         } else { // technically unnecessary bc the parser is smart enough but it's easier to read
             toAppend = ' ' + toAppend;
@@ -259,25 +259,29 @@ public class PowerSearchLogic()
 
     /// <summary>
     /// Toggles color depending on whether the input key is present in the search bar
+    /// If multiple of this key are present, color matches the last one to reflect duplicates resolving to last instance
     /// </summary>
     /// <param name="key">The tag to check against the search bar contents</param>
     /// <param name="thisMode">Whether the tag is active in this mode (lighter styling)</param>
     /// <returns>The badge style reflecting its activation state</returns>
-    public string GetBadgeClass(string key, bool thisMode){
-        // Highlight red for negative presence (-key:)
-        if (commandInput.Contains($"-{key}:", StringComparison.OrdinalIgnoreCase))
-        {
-            return thisMode ? "search-tag is-active negative" : "search-tag is-active-tertiary negative";
-        }
+    public string GetBadgeClass(string key, bool thisMode)
+    {
+        // Get the last occurrence of the target key proceeded by a colon (to avoid false triggers for values)
+        int lastIndex = commandInput.LastIndexOf($"{key}:", StringComparison.OrdinalIgnoreCase);
 
-        // Highlight blue for positive presence (key:)
-        if (commandInput.Contains($"{key}:", StringComparison.OrdinalIgnoreCase))
+        // Verify that key was found        
+        if (lastIndex != -1)
         {
-            return thisMode ? "search-tag is-active" : "search-tag is-active-tertiary";
-        }
+            // Highlight red for negative presence (-key:) (skip index 0 to avoid out of bounds)
+            if (lastIndex != 0 && commandInput[lastIndex-1] == '-') return thisMode ? "search-tag is-active negative" : "search-tag is-active-tertiary negative";
 
-        // Otherwise, revert to respective default (inactive) states
-        return thisMode ? "search-tag secondary" : "search-tag tertiary";
+            // Highlight blue for positive presence (key:)
+            else return thisMode ? "search-tag is-active" : "search-tag is-active-tertiary";
+
+        } else // If key not found in the search bar, revert to respective default (inactive) states
+        {
+            return thisMode ? "search-tag secondary" : "search-tag tertiary";
+        }
     }
 
     /// <summary>

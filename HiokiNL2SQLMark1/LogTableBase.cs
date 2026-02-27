@@ -34,9 +34,8 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// Calls Logic.RefreshData to update table, then tells the child the state has changed
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
-    /// <param name="force">Whether to skip the hydration check</param>
     /// <returns></returns>
-    protected async Task RefreshData(bool keepPage=false)
+    protected virtual async Task RefreshData(bool keepPage=false)
     {
         await Logic.RefreshData(keepPage);
         Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary());
