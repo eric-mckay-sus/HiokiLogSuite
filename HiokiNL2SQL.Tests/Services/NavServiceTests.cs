@@ -152,6 +152,24 @@ public class NavServiceTests
         // Assert
         Assert.Equal(0, callCount); 
     }
+
+    [Theory]
+    [InlineData("http://localhost/", true)]
+    [InlineData("http://localhost", true)]
+    [InlineData("http://localhost/?q=test", true)] // query params shouldn't matter
+    [InlineData("http://localhost/group", false)]
+    [InlineData("http://localhost/step", false)]
+    public void IsOnPowerSearchPage_ShouldDetectRootPaths(string url, bool expected)
+    {
+        // Arrange
+        _fakeNav.NavigateTo(url);
+
+        // Act
+        var result = _service.IsOnPowerSearchPage();
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
 }
 
 /// <summary>

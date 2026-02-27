@@ -67,5 +67,6 @@
     {
         base.Logic = StepLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
+        Logic.UpdatePSUrl = null;
     }
 }

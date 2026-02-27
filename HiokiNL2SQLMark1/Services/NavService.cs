@@ -124,6 +124,20 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
         => OnLocationChanged?.Invoke(e.Location);
 
     /// <summary>
+    /// Determines if the user is currently on the power search page.
+    /// A trailing slash ("/") and the empty path are treated as equivalent.
+    /// </summary>
+    /// <returns>Whether the current page is power search</returns>
+    public bool IsOnPowerSearchPage()
+    {
+        if (!EnsureSubscribed()) return false;
+        var uri = _nav.ToAbsoluteUri(_nav.Uri);
+        // we only compare the path itself, the query string is irrelevant here
+        var path = uri.AbsolutePath.TrimEnd('/');
+        return string.IsNullOrEmpty(path);
+    }
+
+    /// <summary>
     /// Upon navigating away from this page, unsubscribe from the URL monitor
     /// </summary>
     public void Dispose()

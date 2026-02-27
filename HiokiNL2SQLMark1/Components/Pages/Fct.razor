@@ -62,5 +62,6 @@
     {
         base.Logic = FctLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
+        Logic.UpdatePSUrl = null;
     }
 }

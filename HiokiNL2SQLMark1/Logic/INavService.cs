@@ -16,6 +16,12 @@ public interface INavService
     bool EnsureSubscribed();
 
     /// <summary>
+    /// Determines if the current page is power search
+    /// </summary>
+    /// <returns></returns>
+    bool IsOnPowerSearchPage();
+
+    /// <summary>
     /// Navigates to the search page with a specific barcode filter
     /// </summary>
     /// <param name="barcode">The barcode to trace</param>

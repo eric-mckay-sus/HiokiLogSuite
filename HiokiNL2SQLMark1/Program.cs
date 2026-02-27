@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1.Services;
-using HiokiNL2SQLMark1.Components.Pages;
 
 var builder = WebApplication.CreateBuilder(args);
 

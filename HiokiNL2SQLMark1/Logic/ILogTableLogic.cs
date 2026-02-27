@@ -12,7 +12,7 @@ public interface ILogTableLogic
     string SortDir { get; set; } // The direction of the current sort
     
     // The core methods we need to trigger from the UI
-    Task RefreshData(bool keepPage=false);
+    Task RefreshData(bool keepPage=false, bool force=false);
     Task DictionaryToFilters(Dictionary<string, IFilter> filterDict, bool keepPage=false);
     void ClearData();
     

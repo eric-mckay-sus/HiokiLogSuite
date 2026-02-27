@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
+using HiokiNL2SQLMark1.Services;
+using HiokiNL2SQL.Tests.Services;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
@@ -361,6 +363,81 @@ public class LogTableLogicTests
         await logic.ToggleSort(col);
         Assert.Equal("", logic.CurrentSortColumn);
         Assert.Equal("↕", logic.GetSortIcon(col));
+    }
+
+    [Fact]
+    public async Task RefreshData_WithTwoFilters_SortsCorrectly()
+    {
+        // Arrange: two records with different group values and filters that match both
+        var data = new List<TestLogRecord> {
+            new() { Group = 2, Barcode = "A", Result = "PASS", Time = DateTime.Now.AddMinutes(1) },
+            new() { Group = 1, Barcode = "B", Result = "PASS", Time = DateTime.Now }
+        };
+        var logic = TestLogicFactory.CreateLogic(data);
+        // apply two filters that still return both records
+        logic.Filters["result"].SetValue("PASS");
+        logic.Filters["barcode"].SetValue("A");
+
+        await logic.RefreshData();
+        // initial unsorted state: apply sorting default (Time descending)
+        Assert.Equal(2, logic.DataView.Count);
+
+        // Act: sort by group ascending
+        await logic.ToggleSort("Group");
+
+        // Assert: records should be ordered by group 1 then 2
+        Assert.Equal(1, logic.DataView[0].Group);
+        Assert.Equal(2, logic.DataView[1].Group);
+    }
+
+    [Fact]
+    public async Task Sorts_StillRefresh_WhenNavServiceNotPowerSearch()
+    {
+        // Arrange - fake nav service returning false for power search
+        var fakeNav = new FakeNavigationManager();
+        var navService = new NavService(fakeNav);
+        fakeNav.NavigateTo("http://localhost/group");
+
+        // Put two records in reverse alphabetical order
+        var data = new List<TestLogRecord> {
+            new() { Barcode = "B" },
+            new() { Barcode = "A" }
+        };
+        var logic = TestLogicFactory.CreateLogic(data, nav: navService);
+        logic.UpdatePSUrl = navService.UpdateSearchState; // normally wired by PowerSearchLogic
+
+        // initial load
+        await logic.RefreshData();
+        Assert.Equal("B", logic.DataView[0].Barcode);
+
+        // Act - toggle a sort (should sort ascending by Barcode)
+        await logic.ToggleSort("Barcode");
+
+        // Assert: data should now be re-ordered even though NavService said we're not
+        Assert.Equal("A", logic.DataView[0].Barcode);
+    }
+
+    [Fact]
+    public void GetFilterStateHash_IncludesSortWithMultipleFilters()
+    {
+        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
+        logic.Filters["barcode"].SetValue("X");
+        logic.Filters["result"].SetValue("FAIL");
+
+        logic.CurrentSortColumn = "";
+        logic.SortDir = "none";
+        var hashNone = logic.GetFilterStateHash(logic.Filters);
+
+        logic.CurrentSortColumn = "Barcode";
+        logic.SortDir = "ascending";
+        var hashAsc = logic.GetFilterStateHash(logic.Filters);
+
+        logic.SortDir = "descending";
+        var hashDesc = logic.GetFilterStateHash(logic.Filters);
+
+        Assert.NotEqual(hashNone, hashAsc);
+        Assert.NotEqual(hashAsc, hashDesc);
+        Assert.NotEqual(hashNone, hashDesc);
     }
 
     [Fact]

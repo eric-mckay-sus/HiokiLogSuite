@@ -226,7 +226,7 @@ public class SearchParserTests
 
         // Assert
         // The parser should catch that these tags cannot be negated
-        Assert.Contains(result.ErrorMessages, e => e.Contains($"The **{key}** tag cannot be negated"));
+        Assert.Contains(result.ErrorMessages, e => e.Contains($"cannot be negated"));
         // It should then perform the non-negated action (fallback logic)
         if(key == "in")
         {

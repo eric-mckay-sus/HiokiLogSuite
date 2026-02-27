@@ -109,5 +109,6 @@
     {
         base.Logic = GroupLogic;
         Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
+        Logic.UpdatePSUrl = null; // Tell the logic that we're not on the power search page
     }
 }

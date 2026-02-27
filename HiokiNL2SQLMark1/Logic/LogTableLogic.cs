@@ -126,12 +126,13 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     /// Persists page number if query doesn't change (i.e. when the refresh is just to get the new page)
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
-    /// <param name="force">Whether to force a refresh</param>
+    /// <param name="force">Whether to force a refresh even if the cache thinks it is up-to-date</param>
     /// <returns></returns>
-    public async Task RefreshData(bool keepPage = false)
+    public async Task RefreshData(bool keepPage = false, bool force = false)
     {
         if (!keepPage) CurrentPage = 1;
-        if (DataView.Count > 0 && !IsStale) return;
+        // Only short-circuit if we're not forcing and the current view appears fresh
+        if (!force && DataView.Count > 0 && !IsStale) return;
 
         IsLoading = true;
         OnNotifyUI?.Invoke(); // Show loading state
@@ -324,8 +325,12 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
         if (newPage != CurrentPage && newPage >= 1 && newPage <= TotalPages)
         {
             CurrentPage = newPage;
-            await RefreshData(keepPage: true);
-            UpdatePSUrl?.Invoke();
+            await RefreshData(keepPage: true, force: true);
+            // only push the URL when the user is actually viewing the power
+            // search page; the same table logic is reused on the visual-queries
+            // pages but we don't want to force navigation there.
+            if (Nav.IsOnPowerSearchPage())
+                UpdatePSUrl?.Invoke();
         }
     }
 
@@ -341,8 +346,9 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
             PageSize = newSize;
             // Reset to page 1 because the number of pages has changed
             CurrentPage = 1; 
-            await RefreshData();
-            UpdatePSUrl?.Invoke();
+            await RefreshData(force: true);
+            if (Nav.IsOnPowerSearchPage())
+                UpdatePSUrl?.Invoke();
         }
     }
 
@@ -363,8 +369,9 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
             SortDir = "none";
             CurrentSortColumn = "";
         }
-        await RefreshData(); // because the parameters change, we wish to reset to page 1
-        UpdatePSUrl?.Invoke();
+        await RefreshData(force: true); // because the sort parameters change we want a guaranteed refresh
+        if (Nav.IsOnPowerSearchPage())
+            UpdatePSUrl?.Invoke();
     }
 
     /// <summary>

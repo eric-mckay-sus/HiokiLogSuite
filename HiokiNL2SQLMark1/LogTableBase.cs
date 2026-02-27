@@ -36,9 +36,9 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// <param name="keepPage">Whether to keep the current page</param>
     /// <param name="withScroll">Whether to scroll to the table after refresh (bind to Execute button)</param>
     /// <returns></returns>
-    public virtual async Task RefreshData(bool keepPage=false, bool withScroll=false)
+    public virtual async Task RefreshData(bool keepPage=false, bool withScroll=false, bool force=false)
     {
-        await Logic.RefreshData(keepPage);
+        await Logic.RefreshData(keepPage, force);
         Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
         StateHasChanged();
         if (withScroll)

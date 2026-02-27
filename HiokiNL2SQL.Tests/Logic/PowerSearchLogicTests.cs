@@ -151,7 +151,7 @@ public class PowerSearchLogicTests
 
         // Assert
         // Verify we never touched the database (via RefreshData)
-        _mockTable.Verify(t => t.RefreshData(It.IsAny<bool>()), Times.Never);
+        _mockTable.Verify(t => t.RefreshData(It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Theory]
