@@ -34,12 +34,18 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// Calls Logic.RefreshData to update table, then tells the child the state has changed
     /// </summary>
     /// <param name="keepPage">Whether to keep the current page</param>
+    /// <param name="withScroll">Whether to scroll to the table after refresh (bind to Execute button)</param>
     /// <returns></returns>
-    protected virtual async Task RefreshData(bool keepPage=false)
+    public virtual async Task RefreshData(bool keepPage=false, bool withScroll=false)
     {
         await Logic.RefreshData(keepPage);
-        Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary());
+        Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
         StateHasChanged();
+        if (withScroll)
+        {
+            await Task.Delay(100);
+            await Logic.JS.ScrollToElement("table-results-area");
+        }
     }
 
     /// <summary>
@@ -76,7 +82,7 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
         IsInclusive = toSet;
 
         if (StartDatePart != null || !string.IsNullOrEmpty(StartTimePart))
-        UpdateStart();
+            UpdateStart();
         
         if (EndDatePart != null || !string.IsNullOrEmpty(EndTimePart))
             UpdateEnd();
@@ -86,10 +92,11 @@ public abstract class LogTableBase<T> : ComponentBase where T : class, IHiokiLog
     /// Clears all filters on a query, plus internal fields backing date filters
     /// </summary>
     /// <returns></returns>
-    protected virtual async Task ClearFilters() {
+    public virtual async Task ClearFilters() {
         StartDatePart = EndDatePart = null;
         StartTimePart = EndTimePart = null;
         await Logic.ClearFilters();
+        Preview = Parser.GeneratePreview(Logic.TableName, Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
         StateHasChanged();
     }
 }

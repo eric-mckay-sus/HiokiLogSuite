@@ -338,7 +338,7 @@ h1:focus {
     width: 100%;
     overflow-x: auto; /* Only this element will scroll horizontally */
     position: relative;
-    max-height: calc(100vh - 150px);
+    max-height: calc(100vh - 100px);
     border: 1px solid #dee2e6;
     margin-bottom: 1rem;
 }

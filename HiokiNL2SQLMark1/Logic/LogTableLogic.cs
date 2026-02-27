@@ -16,7 +16,7 @@ public class LogTableLogic<T> : ILogTableLogic where T : class, IHiokiLog
     // Dependencies
     protected readonly IDbContextFactory<LogDbContext> _dbFactory; // Generates a new DbContext on demand (thread-safe)
     protected readonly Func<LogDbContext, IQueryable<T>> _querySelector; // Encapsulates the connection and query information
-    protected readonly IJSService JS; // For handling CSV download
+    public readonly IJSService JS; // For handling CSV download
     protected readonly INavService Nav; // For navigating to the power search page in a barcode "drill-down"
 
     // Pagination variables

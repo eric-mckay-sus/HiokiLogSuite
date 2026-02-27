@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1.Services;
+using HiokiNL2SQLMark1.Components.Pages;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,8 +16,9 @@ builder.Services.AddDbContextFactory<LogDbContext>(options =>
 builder.Services.AddScoped<GroupTableLogic>();
 builder.Services.AddScoped<StepTableLogic>();
 builder.Services.AddScoped<FctTableLogic>();
-builder.Services.AddScoped<PowerSearchLogic>();
 
+// Logic for the power search page
+builder.Services.AddScoped<PowerSearchLogic>();
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<GroupTableLogic>());
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<StepTableLogic>());
 builder.Services.AddTransient<ILogTableLogic>(sp => sp.GetRequiredService<FctTableLogic>());
