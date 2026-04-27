@@ -1,58 +1,83 @@
-﻿using Microsoft.Data.SqlClient;
+﻿// <copyright file="Program.cs" company="Stanley Electric US Co. Inc.">
+// Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
+// </copyright>
+
+namespace HiokiParserMark1;
+
+using Microsoft.Data.SqlClient;
 using System.Collections.Concurrent;
 using System.Data;
-using System.IO;
-using DotNetEnv;
-using System;
 using System.Globalization;
-using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
-using System.Numerics;
-using DotNetEnv.Extensions;
 
 /// <summary>
-/// Parses Hioki 1220-50 output files (group & step), and saves it to a remote database
-/// Needs details on how barcodes change within one file
+/// Parses Hioki 1220-50 output files (group and step), and saves it to a remote database
+/// The 'barcode' is harvested directly from the file and may not correspond to the actual barcode.
 /// </summary>
-partial class Program // must be marked partial to allow compile-time compilation of regex
+public partial class Program // must be marked partial to allow compile-time compilation of regex
 {
-    private static string ConnectionString = ""; // string of the information necessary to open a connection (insecure?)
-    private static ConcurrentDictionary<string, byte> ResultTypeCache = new(); // the cache used to store result types with their respective indices
-    private static ConcurrentDictionary<string, byte> TestModeCache = new(); // the cache used to store test modes with their respective indices
-
     private static readonly Regex ValueUnitRegex = MyRegex(); // matches scientific notation with an optional unit
-
-    [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>[^,]*?)\s*$", RegexOptions.Compiled)]
-    private static partial Regex MyRegex(); // this generates at compile-time, which was suggested by Intellisense
+    private static ConcurrentDictionary<string, byte> resultTypeCache = new (); // the cache used to store result types with their respective indices
+    private static ConcurrentDictionary<string, byte> testModeCache = new (); // the cache used to store test modes with their respective indices
 
     /// <summary>
-    /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through
+    /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through.
     /// </summary>
-    public class CommonPackage
+    public record CommonPackage
     {
-        public string Barcode { get; set; } = ""; // the base product ID TODO from which all sub-barcodes can be computed
-        public DateTime TestTime { get; set; } // the timestamp of when this product was tested
-        public int TimesTested { get; set; } // the number of times this product has been tested
-        public int? Group { get; set; } // the group number for this product, ignored for group file parsing
+        /// <summary>
+        /// Gets or sets the base product ID.
+        /// </summary>
+        public string Barcode { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the timestamp of when this product was tested.
+        /// </summary>
+        public DateTime TestTime { get; set; }
+
+        /// <summary>
+        /// Gets or setsthe number of times this product has been tested.
+        /// </summary>
+        public int TimesTested { get; set; }
+
+        /// <summary>
+        /// Gets or sets the group number for this product (ignored for group file parsing).
+        /// </summary>
+        public int? Group { get; set; }
     }
 
     /// <summary>
-    /// Abstracts the three objects required for parsing plus one for the CommonPackage
+    /// Abstracts the three objects required for parsing plus one for the CommonPackage.
     /// </summary>
-    public class ParsingContext(StreamReader reader, SqlConnection conn, SqlTransaction trans, CommonPackage data) // apparently you can put the constructor in the class definition
+    public record ParsingContext(StreamReader reader, SqlConnection conn, SqlTransaction trans, CommonPackage data) // apparently you can put the constructor in the class definition
     {
-        public StreamReader Reader { get; } = reader; // the reader that scans through the file
-        public SqlConnection Connection { get; } = conn; // the connection to the database
-        public SqlTransaction Transaction { get; } = trans; // the current DB transaction
-        public CommonPackage Data { get; } = data; // the data associated with the current file
+        /// <summary>
+        /// Gets the reader that scans through the file.
+        /// </summary>
+        public StreamReader Reader { get; } = reader;
+
+        /// <summary>
+        /// Gets the connection to the database (reused within batch).
+        /// </summary>
+        public SqlConnection Connection { get; } = conn;
+
+        /// <summary>
+        /// Gets the current DB transaction (reused within batch).
+        /// </summary>
+        public SqlTransaction Transaction { get; } = trans;
+
+        /// <summary>
+        /// Gets the <see cref="CommonPackage"/>  associated with the current file.
+        /// </summary>
+        public CommonPackage Data { get; } = data;
     }
 
     /// <summary>
     /// Entry point for the program. Parses every file in the specified file or folder and adds it to the database.
     /// </summary>
-    /// <param name="args"> The directory to search (must only contain files of the correct filetype and format)</param>
-    /// <returns></returns>
-    static async Task Main(string[] args)
+    /// <param name="args"> The directory to search (must only contain files of the correct filetype and format).</param>
+    /// <returns>A Task representing that the batch is finished.</returns>
+    public static async Task Main(string[] args)
     {
         if (args.Length == 0)
         {
@@ -61,26 +86,21 @@ partial class Program // must be marked partial to allow compile-time compilatio
         }
 
         bool isFolder;
-        if (Directory.Exists(args[0])) {
+        if (Directory.Exists(args[0]))
+        {
             isFolder = true;
-        } else if (File.Exists(args[0])) {
+        }
+        else if (File.Exists(args[0]))
+        {
             isFolder = false;
-        } else {
-            Console.WriteLine($"The file you specified ({args[0]}) could not be found. Please check your spelling and try again. The path may be relative to this program or absolute.");
+        }
+        else
+        {
+            Console.WriteLine($"The file/folder you specified ({args[0]}) could not be found. Please check your spelling and try again. The path may be relative to this program or absolute.");
             return;
         }
 
         Console.Write("Connecting...");
-        Env.Load(); // Only use of DotNetEnv
-        var builder = new SqlConnectionStringBuilder
-        {
-            DataSource = Environment.GetEnvironmentVariable("DB_SERVER"),
-            UserID = Environment.GetEnvironmentVariable("DB_USER"),
-            Password = Environment.GetEnvironmentVariable("DB_PASS"),
-            InitialCatalog = Environment.GetEnvironmentVariable("DB_NAME"),
-            TrustServerCertificate = true //TODO insecure, eventually require certificate verification
-        };
-        ConnectionString = builder.ConnectionString;
 
         await InitializeCaches();
         Console.Write("Parsing...");
@@ -91,8 +111,10 @@ partial class Program // must be marked partial to allow compile-time compilatio
             {
                 await ParseHioki(file);
             }
+
             Console.WriteLine($"Complete! {files.Length} files added to database");
-        } else
+        }
+        else
         {
             await ParseHioki(args[0]);
             Console.WriteLine("Complete!");
@@ -100,46 +122,53 @@ partial class Program // must be marked partial to allow compile-time compilatio
     }
 
     /// <summary>
-    /// Initializes caches for ResultType and TestMode to reduce DB queries
+    /// Initializes caches for ResultType and TestMode to reduce DB queries.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>A Task representing that the caches are ready for use.</returns>
     private static async Task InitializeCaches()
     {
         // This syntax for keyword "using" places the closing brace where the variable goes out of scope
-        using SqlConnection connection = new(ConnectionString); // when InitializeCaches() returns, connection knows it's finished
+        using SqlConnection connection = new (GetConnectionString()); // when InitializeCaches() returns, connection knows it's finished
         await connection.OpenAsync();
         Console.WriteLine("Connected!");
 
         // Fill ResultTypeCache
-        using (SqlCommand cmd = new("SELECT id, resultType FROM pe3coop.dbo.ResultTypes", connection))
-        using (var reader = await cmd.ExecuteReaderAsync())
+        using (SqlCommand cmd = new ("SELECT id, resultType FROM pe3coop.dbo.ResultTypes", connection))
+        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
-                ResultTypeCache.TryAdd(reader.GetString(1).Trim(), reader.GetByte(0));
+            {
+                resultTypeCache.TryAdd(reader.GetString(1).Trim(), reader.GetByte(0));
+            }
         }
 
         // Fill TestModeCache
-        using (SqlCommand cmd = new("SELECT id, testMode FROM pe3coop.dbo.TestModes", connection))
-        using (var reader = await cmd.ExecuteReaderAsync())
+        using (SqlCommand cmd = new ("SELECT id, testMode FROM pe3coop.dbo.TestModes", connection))
+        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
-                TestModeCache.TryAdd(reader.GetString(1).Trim(), reader.GetByte(0));
+            {
+                testModeCache.TryAdd(reader.GetString(1).Trim(), reader.GetByte(0));
+            }
         }
     }
 
     /// <summary>
     /// Checks the cache to see if a certain result type or mode is already in the DB.
-    /// If it isn't, this method creates a new row for it in the DB and adds it to the cache to keep it current
+    /// If it isn't, this method creates a new row for it in the DB and adds it to the cache to keep it current.
     /// </summary>
-    /// <param name="toCheck"> A string representing the result or mode to check for </param>
-    /// <param name="isResultType"> whether the string to check is a result type (or test mode) </param>
-    /// <param name="context"> for harvesting connection and transaction </param>
-    /// <returns> the id of the type or mode, either existing or new </returns>
-    static public async Task<byte> GetCachedId(string toCheck, bool isResultType, ParsingContext context)
+    /// <param name="toCheck">A string representing the result or mode for which to check.</param>
+    /// <param name="isResultType">Whether the string to check is a result type (or test mode).</param>
+    /// <param name="context">For harvesting connection and transaction.</param>
+    /// <returns>The id of the type or mode, either existing or new.</returns>
+    private static async Task<byte> GetCachedId(string toCheck, bool isResultType, ParsingContext context)
     {
-        if (string.IsNullOrWhiteSpace(toCheck)) return 0;
+        if (string.IsNullOrWhiteSpace(toCheck))
+        {
+            return 0;
+        }
 
-        var cache = isResultType ? ResultTypeCache : TestModeCache;
+        ConcurrentDictionary<string, byte> cache = isResultType ? resultTypeCache : testModeCache;
 
         // First, check the cache
         if (cache.TryGetValue(toCheck, out byte existingId))
@@ -161,12 +190,15 @@ partial class Program // must be marked partial to allow compile-time compilatio
             SELECT id FROM {tableName} WHERE {columnName} = @val;
         COMMIT TRAN";
 
-        using SqlCommand command = new(insertSql, context.Connection);
+        using SqlCommand command = new (insertSql, context.Connection);
         command.Transaction = context.Transaction;
         command.Parameters.AddWithValue("@val", toCheck);
 
         var result = await command.ExecuteScalarAsync();
-        if (result == null || result == DBNull.Value) return 0;
+        if (result == null || result == DBNull.Value)
+        {
+            return 0;
+        }
 
         // Then update cache so we don't hit the DB for this string again
         byte newId = Convert.ToByte(result);
@@ -175,31 +207,39 @@ partial class Program // must be marked partial to allow compile-time compilatio
     }
 
     /// <summary>
-    /// Converts an input string representing a hexadecimal value to a double (in decimal)
+    /// Converts an input string representing a hexadecimal value to a double (in decimal).
     /// </summary>
-    /// <param name="input">The string to parse for a hex value</param>
-    /// <returns>The parsed input string as a double</returns>
+    /// <param name="input">The string to parse for a hex value.</param>
+    /// <returns>The parsed input string as a double.</returns>
     private static double HexOrSciToDouble(string input)
     {
-        if (int.TryParse(input, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int hex)) {
+        if (int.TryParse(input, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int hex))
+        {
             return hex;
-        } else if (double.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out double sciNotation)){
+        }
+        else if (double.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out double sciNotation))
+        {
             return sciNotation;
         }
+
         return -1;
     }
 
     /// <summary>
     /// Parses input string for float and unit.
-    /// Returns nullable tuple to convert later to DBNull. Avoiding the use of the "object" keyword here helps the garbage collector. 
+    /// Returns nullable tuple to convert later to DBNull. Avoiding the use of the "object" keyword here helps the garbage collector.
     /// </summary>
-    /// <param name="input"> The string representation of the float to be cleaned </param>
-    /// <returns> An tuple of the parsed float and unit </returns>
+    /// <param name="input"> The string representation of the float to be cleaned. </param>
+    /// <returns> An tuple of the parsed float and unit. </returns>
     private static (double? Value, string? Unit) CleanFloatValue(string input)
 {
-    if (string.IsNullOrWhiteSpace(input)) return (null, null);
+    if (string.IsNullOrWhiteSpace(input))
+    {
+        return (null, null);
+    }
 
-    var match = ValueUnitRegex.Match(input); // matches to value-unit pattern
+    Match match = ValueUnitRegex.Match(input); // matches to value-unit pattern
+
     // If the pattern matches, proceed
     if (match.Success)
     {
@@ -214,25 +254,26 @@ partial class Program // must be marked partial to allow compile-time compilatio
             return (result, string.IsNullOrEmpty(unitPart) ? null : unitPart);
         }
     }
+
     // Otherwise, exit immediately. The unit is irrelevant without a value.
     return (null, null);
 }
 
     /// <summary>
     /// Gets the barcode, test datetime, and number of times tested from the header common between step and group result files,
-    /// then passes the context to the appropriate handler for the rest of the file to parse one entire Hioki log file and add it to the DB
+    /// then passes the context to the appropriate handler for the rest of the file to parse one entire Hioki log file and add it to the DB.
     /// </summary>
-    /// <param name="file"> the file to parse </param>
-    /// <returns></returns>
+    /// <param name="file"> the file to parse. </param>
+    /// <returns>A Task representing that the file has been parsed.</returns>
     private static async Task ParseHioki(string file)
     {
         try
         {
             // reader closes when ParseHioki() returns (at the end of the run)
-            using StreamReader reader = new(file);
-            
+            using StreamReader reader = new (file);
+
             // new() is a really cool constructor that uses the implied class from the declaration (can pass arguments just the same)
-            CommonPackage package = new(); // in this case, package already knows it will be a CommonPackage from the left hand side, so new() can figure it out
+            CommonPackage package = new (); // in this case, package already knows it will be a CommonPackage from the left hand side, so new() can figure it out
             reader.ReadLine(); // cut "[Test Results]"
             reader.ReadLine(); // cut "File: filename"
 
@@ -244,6 +285,7 @@ partial class Program // must be marked partial to allow compile-time compilatio
                 Console.Error.WriteLine($"Error reading timesTested for {file}");
                 return;
             }
+
             reader.ReadLine(); // cut "Lot No."
 
             // Parse barcode
@@ -280,16 +322,20 @@ partial class Program // must be marked partial to allow compile-time compilatio
                 return;
             }
 
-            using SqlConnection connection = new(ConnectionString); // Create the connection to be used for the rest of the program
+            using SqlConnection connection = new (GetConnectionString()); // Create the connection to be used for the rest of the program
             await connection.OpenAsync();
             using SqlTransaction transaction = connection.BeginTransaction(); // Create the transaction to be used for the rest of the program
             try
             {
-                ParsingContext context = new(reader, connection, transaction, package); // Compile everything the parser needs to know into a context object
+                ParsingContext context = new (reader, connection, transaction, package); // Compile everything the parser needs to know into a context object
                 line = reader.ReadLine(); // This will tell us whether we're dealing with group or step section
-                while(!reader.EndOfStream)
+                while (!reader.EndOfStream)
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
                     if (line.Contains("-----  Group  -----"))
                     {
                         reader.ReadLine(); // Cut the column name row
@@ -303,8 +349,10 @@ partial class Program // must be marked partial to allow compile-time compilatio
                         context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
                         await ParseStepFile(context);
                     }
+
                     line = await reader.ReadLineAsync();
                 }
+
                 transaction.Commit();
             }
             catch (Exception)
@@ -328,22 +376,26 @@ partial class Program // must be marked partial to allow compile-time compilatio
     }
 
     /// <summary>
-    /// Helper function for ParseHioki (handles group files). Picks up at the beginning of the group-specific content and creates a new entry in the database for every entry in the file
+    /// Helper function for ParseHioki (handles group files). Picks up at the beginning of the group-specific content and creates a new entry in the database for every entry in the file.
     /// </summary>
-    /// <param name="context"> the context required to parse a group file </param>
-    /// <returns></returns>
-    private static async Task ParseGroupFile(ParsingContext context) //TODO needs to handle multiple items on same barcode
+    /// <param name="context"> the context required to parse a group file. </param>
+    /// <returns>A Task representing that the group file has been parsed.</returns>
+    private static async Task ParseGroupFile(ParsingContext context)
     {
         string sql = @"INSERT INTO pe3coop.dbo.GroupResults (barcode, testTime, groupNumber, timesTested, allResult,
                        componentTest, shortTest, openTest, icTest, macroTest, functionTest)
                        VALUES (@barcode, @testTime, @groupNum, @timesTested, @result,
                        @comp, @short, @open, @ic, @macro, @function)"; // Reflects order in DB
         string[] paramNames = ["@result", "@comp", "@short", "@open", "@ic", "@macro", "@function"]; // to map the line values to their parameters in SQL, reflects order in CSV
-        
+
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            if (raw != null && raw.Contains("[EOT]")) return; // If we find EOT, that means the group section is complete
+            if (raw != null && raw.Contains("[EOT]"))
+            {
+                return; // If we find EOT, that means the group section is complete
+            }
+
             string[]? split = raw?.Split(",");
             if (split != null)
             {
@@ -359,8 +411,9 @@ partial class Program // must be marked partial to allow compile-time compilatio
                     await GetCachedId(split[7].Trim(), true, context)
                 ];
 
-                using SqlCommand command = new(sql, context.Connection);
+                using SqlCommand command = new (sql, context.Connection);
                 command.Transaction = context.Transaction;
+
                 // Load the common parameters manually
                 command.Parameters.AddWithValue("@barcode", context.Data.Barcode);
                 command.Parameters.AddWithValue("@testTime", context.Data.TestTime);
@@ -372,20 +425,21 @@ partial class Program // must be marked partial to allow compile-time compilatio
                 {
                     command.Parameters.AddWithValue(paramNames[i], SqlDbType.TinyInt).Value = (byte)ids[i];
                 }
+
                 await command.ExecuteNonQueryAsync();
             }
         }
     }
 
     /// <summary>
-    /// Helper function for ParseHioki (handles step files). Picks up at the beginning of the step-specific content and creates a new entry in the database for every entry in the file
+    /// Helper function for ParseHioki (handles step files). Picks up at the beginning of the step-specific content and creates a new entry in the database for every entry in the file.
     /// </summary>
-    /// <param name="context"> the context required to parse a step file </param>
-    /// <returns></returns>
-    private static async Task ParseStepFile(ParsingContext context) //TODO needs barcode extension
+    /// <param name="context"> the context required to parse a step file. </param>
+    /// <returns>A Task representing that the step file has been parsed.</returns>
+    private static async Task ParseStepFile(ParsingContext context)
     {
         // Create a DataTable to hold the data in memory
-        DataTable table = new();
+        DataTable table = new ();
         table.Columns.Add("barcode", typeof(string));
         table.Columns.Add("testTime", typeof(DateTime));
         table.Columns.Add("groupNum", typeof(int));
@@ -408,8 +462,15 @@ partial class Program // must be marked partial to allow compile-time compilatio
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            if (string.IsNullOrWhiteSpace(raw)) continue; // If the line is empty, skip it
-            if (raw.Contains("[EOT]")) break; // If we see EOT, the step results are finished
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue; // If the line is empty, skip it
+            }
+
+            if (raw.Contains("[EOT]"))
+            {
+                break; // If we see EOT, the step results are finished
+            }
 
             string[] line = raw.Split(',');
             if (line[0].StartsWith("Gr"))
@@ -417,23 +478,28 @@ partial class Program // must be marked partial to allow compile-time compilatio
                 context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
                 continue;
             }
+
             if (line[0].Contains("-----  FCT  -----"))
             {
                 await ParseFctSection(context);
                 break;
             }
-            if (line.Length < 13) continue;
+
+            if (line.Length < 13)
+            {
+                continue;
+            }
 
             // Get result ID from cache
             byte resultId = await GetCachedId(line[0].Trim(), true, context);
             byte modeId = await GetCachedId(line[6].Trim(), false, context);
 
             // The discard operator "_" says to ignore the unit (because we already have it)
-            var (hLim, unit) = CleanFloatValue(line[8]);
-            var (lLim, _) = CleanFloatValue(line[9]);
-            var (act, _) = CleanFloatValue(line[10]);
-            var (refVal, _) = CleanFloatValue(line[11]);
-            var (meas, _) = CleanFloatValue(line[12]);
+            (double? hLim, string? unit) = CleanFloatValue(line[8]);
+            (double? lLim, string? _) = CleanFloatValue(line[9]);
+            (double? act, string? _) = CleanFloatValue(line[10]);
+            (double? refVal, string? _) = CleanFloatValue(line[11]);
+            (double? meas, string? _) = CleanFloatValue(line[12]);
 
             // Add a row to the DataTable
             DataRow row = table.NewRow();
@@ -460,11 +526,14 @@ partial class Program // must be marked partial to allow compile-time compilatio
         }
 
         // Perform the Bulk Copy with special "using" and "new"
-        using SqlBulkCopy bulkCopy = new(context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
+        using SqlBulkCopy bulkCopy = new (context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
         bulkCopy.DestinationTableName = "pe3coop.dbo.StepResults";
 
         // Map the DataTable columns to the Database columns
-        foreach (DataColumn column in table.Columns) bulkCopy.ColumnMappings.Add(column.ColumnName, column.ColumnName);
+        foreach (DataColumn column in table.Columns)
+        {
+            bulkCopy.ColumnMappings.Add(column.ColumnName, column.ColumnName);
+        }
 
         try
         {
@@ -477,13 +546,13 @@ partial class Program // must be marked partial to allow compile-time compilatio
     }
 
     /// <summary>
-    /// Helper function for ParseStepResults (handles the FCT section). Picks up at the beginning of the FCT-specific content and creates a new entry in the database for every entry in the file
+    /// Helper function for ParseStepResults (handles the FCT section). Picks up at the beginning of the FCT-specific content and creates a new entry in the database for every entry in the file.
     /// </summary>
-    /// <param name="context"> the context required to parse the FCT section of a step file </param>
-    /// <returns></returns>
+    /// <param name="context"> the context required to parse the FCT section of a step file. </param>
+    /// <returns>A Task representing that the FCT section has been parsed.</returns>
     private static async Task ParseFctSection(ParsingContext context)
     {
-        DataTable table = new();
+        DataTable table = new ();
         table.Columns.Add("barcode", typeof(string));
         table.Columns.Add("testTime", typeof(DateTime));
         table.Columns.Add("groupNum", typeof(int));
@@ -516,24 +585,31 @@ partial class Program // must be marked partial to allow compile-time compilatio
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            if (raw.Contains("[EOT]")) break; // If we see EOT, the FCT section is finished
-            
+            if (raw.Contains("[EOT]"))
+            {
+                break; // If we see EOT, the FCT section is finished
+            }
+
             string[] line = raw.Split(',');
             if (line[0].StartsWith("Gr")) // found new group
             {
                 context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
                 continue;
             }
-            if (line[0].Contains("Rslt")) continue; // found header
+
+            if (line[0].Contains("Rslt"))
+            {
+                continue; // found header
+            }
 
             // Check the caches
             byte resultId = await GetCachedId(line[0].Trim(), true, context);
             byte modeId = await GetCachedId(line[5].Trim(), false, context);
 
             // The discard operator "_" says to ignore the unit (because we already have it)
-            var (hLim, unit) = CleanFloatValue(line[10]);
-            var (lLim, _) = CleanFloatValue(line[11]);
-            var (inputVol, _) = CleanFloatValue(line[16]);
+            (double? hLim, string? unit) = CleanFloatValue(line[10]);
+            (double? lLim, string? _) = CleanFloatValue(line[11]);
+            (double? inputVol, string? _) = CleanFloatValue(line[16]);
 
             // Create a new row in the internal DataTable
             DataRow row = table.NewRow();
@@ -568,9 +644,9 @@ partial class Program // must be marked partial to allow compile-time compilatio
 
             table.Rows.Add(row);
         }
-        
+
         // Once the table's full, prepare the DB insert
-        using SqlBulkCopy bulkCopy = new(context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
+        using SqlBulkCopy bulkCopy = new (context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
         bulkCopy.DestinationTableName = "pe3coop.dbo.FCTResults";
 
         // Map the DataTable columns to the DB columns in case there's a discrepancy (technically unnecessary but this protects the code in case DB structure changes)
@@ -588,4 +664,36 @@ partial class Program // must be marked partial to allow compile-time compilatio
             Console.WriteLine($"Bulk Copy Error: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Gets the connection string for the database whose credentials are stored in environment variables.
+    /// </summary>
+    /// <returns>A SQL Server connection string for access to the database.</returns>
+    /// <throws>InvalidOperationException when there are missing environment variable(s).</throws>
+    private static string GetConnectionString()
+    {
+        static string GetRequired(string key)
+        {
+            string? value = Environment.GetEnvironmentVariable(key);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidOperationException($"Required environment variable '{key}' is missing for database connection.");
+            }
+
+            return value;
+        }
+
+        SqlConnectionStringBuilder builder = new ()
+        {
+            DataSource = GetRequired("DB_SERVER"),
+            UserID = GetRequired("DB_USER"),
+            Password = GetRequired("DB_PASS"),
+            InitialCatalog = GetRequired("DB_NAME"),
+            TrustServerCertificate = true,
+        };
+        return builder.ConnectionString;
+    }
+
+    [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>[^,]*?)\s*$", RegexOptions.Compiled)]
+    private static partial Regex MyRegex(); // this generates at compile-time, which was suggested by Intellisense
 }
