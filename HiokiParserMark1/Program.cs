@@ -694,7 +694,7 @@ public partial class Program // must be marked partial to allow compile-time com
             DataSource = GetRequired("DB_SERVER"),
             UserID = GetRequired("DB_USER"),
             Password = GetRequired("DB_PASS"),
-            InitialCatalog = GetRequired("DB_NAME"),
+            InitialCatalog = GetRequired("HIOKI_DB_NAME"),
             TrustServerCertificate = true,
         };
         return builder.ConnectionString;

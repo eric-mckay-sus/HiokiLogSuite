@@ -1,5 +1,5 @@
-html, body, h1, h2 {
-    font-family: sans-serif, 'Helvetica Neue', Helvetica, Arial;
+html, body {
+    font-family: "Segoe UI", sans-serif, 'Helvetica Neue', Helvetica, Arial;
 }
 
 a, .btn-link {
@@ -13,34 +13,32 @@ input::-webkit-inner-spin-button {
     margin: 0;
 }
 
-.form-control:focus {  
-  border-color: #FF0000;  
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba(255, 0, 0, 0.6);  
-}  
+.form-control:focus {
+  border-color: #FF0000;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba(255, 0, 0, 0.6);
+}
 
-/* All btn-primary overrides need to be marked !important to be picked over Bootstrap defaults */
 .btn-primary {
-    color: #f8f8f8 !important;
-    background-color: #004d99 !important;
-    border-color: #11477e !important;
+    color: #fff;
+    background-color: hsl(210, 76%, 40%);
+    border-color: hsl(210, 76%, 35%);
 }
 
 .btn-outline-primary {
-    color: #004d99 !important;
-    background-color: #fff !important;
-    border-color: #11477e !important;
+    color: hsl(210, 76%, 40%);
+    background-color: #fff;
+    border-color: hsl(210, 76%, 35%);
 }
 
 .btn-check:checked + .btn-outline-primary {
-    color: #ffffff !important;
-    background-color: #004d99 !important;
-    border-color: #11477e !important;
+    color: #ffffff;
+    background-color: #004d99;
+    border-color: #11477e;
 }
 
 .btn-primary:hover {
-    color: #fff !important;
-    background-color: hsl(210, 100%, 40%) !important; 
-    border-color: hsl(210, 76%, 35%) !important;
+    color: #fff;
+    background-color: hsl(210, 76%, 40%);
 }
 
 .btn-outline-secondary.vis-query {
@@ -67,7 +65,7 @@ input::-webkit-inner-spin-button {
 }
 
 .search-tag.secondary:hover {
-    background-color: hsl(210, 7%, 60%); 
+    background-color: hsl(210, 7%, 60%);
     border-color: hsl(210, 7%, 45%);
 }
 
@@ -116,11 +114,11 @@ input::-webkit-inner-spin-button {
 }
 
 .spinner-border.text-primary{
-    color: #004d99 !important;
+    color: #004d99;
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb !important;
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
 .content {
@@ -157,16 +155,56 @@ h1:focus {
     border-color: #929292;
 }
 
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}
+
+.stanley-icon {
+    background-image: url('favicon.svg');
+    background-size: contain; /* Ensures the image fits within the element size */
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 1.6rem; /* Define size */
+    height: 1.6rem; /* Define size */
+    display: inline-block; /* Aligns with text if used inline */
+    flex-shrink: 0;
+    transform: translate(-1px, -1px); /* The Stanley 'S' has more weight at the lower right, so shift it up and left to make it look nice */
+}
+
+.centered-container{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Force pagination and headers to stay within the viewport */
+.pagination-container,
+.query-builder-panel {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    bottom: 0;
+    background: white; /* Prevent table rows from showing through */
+    padding-top: 10px 0;
+    z-index: 20;
+    border-top: 1px solid #dee2e6;
+}
+
 /* Custom Data Grid Styling */
 .table-container {
     background-color: #ffffff;
     border: 1px solid #dee2e6;
     border-radius: 4px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    margin-bottom: 2rem;
     width: 100%;
     overflow-x: visible;
     transition: all 0.3s ease-in-out;
+    margin-bottom: 0;
 }
 
 .table-container.stale {
@@ -190,10 +228,11 @@ h1:focus {
 
 /* Professional Table Formatting */
 .res-table {
-    min-width: 1200px; 
+    min-width: 600px;
     width: 100%;
     border-collapse: separate; /* Required for sticky headers to work correctly */
     border-spacing: 0;
+    margin-bottom: 0;
 }
 
 /* Center headers */
@@ -209,8 +248,8 @@ h1:focus {
     border-bottom: 2px solid #dee2e6;
     white-space: nowrap;
     padding: 12px 8px;
-    
-    text-align: center; 
+
+    text-align: center;
 }
 
 .res-table tbody td {
@@ -218,7 +257,7 @@ h1:focus {
     vertical-align: middle;
     color: #333;
     border-bottom: 1px solid #f0f0f0;
-    
+
     text-align: center;
 }
 
@@ -226,7 +265,7 @@ h1:focus {
 /* This is a professional standard for comparing decimal places */
 .text-numeric {
     font-family: 'Roboto Mono', monospace;
-    text-align: right !important; 
+    text-align: right !important;
     padding-right: 15px !important;
 }
 
@@ -243,7 +282,7 @@ h1:focus {
     text-transform: uppercase;
 }
 
-.query-builder-panel .form-control, 
+.query-builder-panel .form-control,
 .query-builder-panel .form-select {
     border-radius: 2px;
     font-size: 0.9rem;
@@ -321,7 +360,7 @@ h1:focus {
 }
 
 /* Force pagination and headers to stay within the viewport */
-.pagination-container, 
+.pagination-container,
 .query-builder-panel {
     width: 100%;
     max-width: 100%;
@@ -384,7 +423,7 @@ h1:focus {
 }
 
 .filter-row {
-    margin-left: 3rem; 
+    margin-left: 3rem;
 }
 
 /* Remove the upper border, and un-round the top corners */

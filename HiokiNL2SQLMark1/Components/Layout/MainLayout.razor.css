@@ -1,39 +1,61 @@
 .page {
     position: relative;
-    display: flex;
-    flex-direction: column;
+    display: block;
 }
+
+    .page::after {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.2); /* The "dim" color */
+        z-index: 999; /* Higher than 'main' but lower than 'sidebar' */
+        opacity: 0;
+        pointer-events: none; /* Allows clicking through the dim when hidden */
+        transition: opacity 0.3s ease;
+    }
+
+    /* If page contains a sidebar that is hovered, dim the background */
+    .page:has(.sidebar:hover)::after {
+        opacity: 1;
+    }
 
 main {
-    flex: 1;
+    margin-left: 3.75rem; /* Give navbar room */
+    width: auto;
+    transition: margin-left 0.2s ease;
 }
+
+    .page:has(.sidebar:hover) main {
+        filter: blur(1.5px);
+        transition: filter 0.2s ease;
+    }
 
 .sidebar {
-    background-image: linear-gradient(225deg, #00095e 50%, #222222 70%);
+    /* Overlay */
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1001;
+
+    /* shape */
+    width: 3.75rem;
+    transition: all 0.2s ease;
+    overflow: hidden;
+
+    /* Pretty */
+    background-image: linear-gradient(225deg, hsl(234, 60%, 28%) 50%, hsl(0, 0%, 18%) 70%);
+    backdrop-filter: blur(10px); /* This blurs the content behind the bar */
+    -webkit-backdrop-filter: blur(10px); /* Safari support */
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.top-row {
-    background-color: #ffffff;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
-}
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-        text-decoration: none;
-    }
-
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
+    .sidebar:hover {
+        width: 250px;
+        box-shadow: 5px 0 15px rgba(0,0,0,0.3); /* perceived depth */
     }
 
 @media (max-width: 640.98px) {
@@ -48,31 +70,25 @@ main {
 
 @media (min-width: 641px) {
     .page {
-        flex-direction: row;
         width: 100%;
         overflow: hidden;
     }
 
     main {
-        width: 0; 
-        flex: 1 1 auto;
-        min-width: 0; 
-        display: flex;
-        flex-direction: column;
-        overflow: hidden; /* Stops the table from expanding the main body */
+        margin-left: 3.75rem;
+        padding-left: 0;
     }
 
     /* Target the article specifically where @Body is rendered */
     article.content {
         width: 100%;
         max-width: 100%;
-        overflow-x: hidden; /* Force horizontal scroll only on the table wrapper in Step.razor */
+        overflow-x: hidden;
     }
 
     .sidebar {
-        width: 175px;
-        position: sticky;
-        top: 0;
+        position: fixed;
+        height: 100%;
     }
 
     .top-row {
@@ -82,7 +98,6 @@ main {
     }
 
     .top-row.auth ::deep a:first-child {
-        flex: 1;
         text-align: right;
         width: 0;
     }
@@ -123,8 +138,6 @@ html, body {
 main {
     max-width: 100%;
     overflow-x: hidden;
-    display: flex;
-    flex-direction: column;
 }
 
 /* This targets the specific Bootstrap row bleed */

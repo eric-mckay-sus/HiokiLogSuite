@@ -17,24 +17,24 @@ public abstract class LogTableBase<T> : ComponentBase
     where T : class, IHiokiLog
 {
     /// <summary>
-    /// Sets the date part of the start datetime.
+    /// Gets or sets the date part of the start datetime.
     /// </summary>
-    public DateTime? StartDatePart { private get; set; }
+    public DateTime? StartDatePart { get; set; }
 
     /// <summary>
-    /// Sets the time part of the start datetime.
+    /// Gets or sets the time part of the start datetime.
     /// </summary>
-    public string? StartTimePart { private get; set; }
+    public string? StartTimePart { get; set; }
 
     /// <summary>
-    /// Sets the date part of the end datetime.
+    /// Gets or sets the date part of the end datetime.
     /// </summary>
-    public DateTime? EndDatePart { private get; set; }
+    public DateTime? EndDatePart { get; set; }
 
     /// <summary>
-    /// Sets the time part of the end datetime.
+    /// Gets or sets the time part of the end datetime.
     /// </summary>
-    public string? EndTimePart { private get; set; }
+    public string? EndTimePart { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether date filter mode is inclusive (i.e. date filters should include the target).
@@ -156,6 +156,7 @@ public abstract class LogTableBase<T> : ComponentBase
 
     /// <summary>
     /// When a log table page is created, initialize the caches and perform a refresh to load the table.
+    /// This method runs on the assumption that <see cref="ComponentBase.OnInitialized"/> has been overridden to instantiate <see cref="Logic"/>.
     /// </summary>
     /// <returns>A Task representing that the page has been initialized.</returns>
     protected override async Task OnInitializedAsync()

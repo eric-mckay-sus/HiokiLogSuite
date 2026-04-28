@@ -178,7 +178,8 @@ public class LogTableLogic<T> : ILogTableLogic
     /// <returns>A value representing the state of the filters for the input dictionary.</returns>
     public int GetFilterStateHash(Dictionary<string, IFilter> filterDict)
     {
-        unchecked // Tells the compiler to simply truncate the calculation instead of throwing an exception for integer overflow
+        // Tells the compiler to simply truncate the calculation instead of throwing an exception for integer overflow
+        unchecked
         {
             int hash = 17;
 
@@ -331,12 +332,14 @@ public class LogTableLogic<T> : ILogTableLogic
                 : query.Where(x => x.Barcode != null && x.Barcode.Contains(barcode.Value));
         }
 
-        if (startDate.IsActive) // Can't negate date checks, so ignore negation status
+        // Can't negate date checks, so ignore negation status
+        if (startDate.IsActive)
         {
             query = query.Where(x => x.Time >= startDate.Value);
         }
 
-        if (endDate.IsActive) // The semantics of the word "before" are tricky and depend on whether a time was specified, but that's handled in the parser now
+        // The semantics of the word "before" are tricky and depend on whether a time was specified, but that's handled in the parser now
+        if (endDate.IsActive)
         {
             query = query.Where(x => x.Time <= endDate.Value);
         }
@@ -530,7 +533,7 @@ public class LogTableLogic<T> : ILogTableLogic
     }
 
     /// <summary>
-    /// Initializes the test mode and result type caches (for step & FCT tables).
+    /// Initializes the test mode and result type caches (for step and FCT tables).
     /// </summary>
     /// <returns>A Task representing that the caches have been loaded.</returns>
     public virtual async Task InitializeCaches()

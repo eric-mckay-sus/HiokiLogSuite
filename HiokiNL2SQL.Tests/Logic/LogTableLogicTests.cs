@@ -23,7 +23,7 @@ public class TestStepFct : TestLogRecord, IStepFCT
     public string? Mode { get; set; }
     public double? HighLim { get; set; }
     public double? LowLim { get; set; }
-    public char? MeasurementValue { get; set; }
+    public char? MeasurementUnit { get; set; }
     public double? RefVal { get; set; }
     public double? MeasVal { get; set; }
 }

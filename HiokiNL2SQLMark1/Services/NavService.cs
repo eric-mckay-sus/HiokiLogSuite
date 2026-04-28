@@ -28,7 +28,7 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
     /// <summary>
     /// "Lazy subscription": because the NavigationManager doesn't actually exist at render time (we just reference it for the nav field), we have to check the subscription every time we wish to use it.
     /// </summary>
-    /// <returns>Whether <see cref="nav"/>'s subscription was successfully verified.</returns>
+    /// <returns>Whether <see cref="navManager"/>'s subscription was successfully verified.</returns>
     public bool EnsureSubscribed()
     {
         if (this.isLocationChangedSubscribed)
@@ -114,7 +114,7 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
     /// <summary>
     /// Gets all the parameters from the URL and returns them in one record.
     /// </summary>
-    /// <returns>A <see cref="UrlState"/> represesnting the query, page number & size, and sort column & direction.</returns>
+    /// <returns>A <see cref="UrlState"/> represesnting the query, page number/size, and sort column/direction.</returns>
     public UrlState GetFullStateFromUrl()
     {
         if (this.EnsureSubscribed())

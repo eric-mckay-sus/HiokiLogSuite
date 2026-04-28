@@ -2,19 +2,29 @@
 // Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
 // </copyright>
 
+#pragma warning disable SA1200 // Top-level code may not be in a namespace
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 
-using HiokiNL2SQLMark1.Components;
 using HiokiNL2SQLMark1;
+using HiokiNL2SQLMark1.Components;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1.Services;
+#pragma warning restore SA1200 // Top-level code may not be in a namespace
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection"); // from appsettings.json, no idea how this looks in production
+SqlConnectionStringBuilder connectionStringBuilder = new ()
+{
+    DataSource = builder.Configuration["DB_SERVER"],
+    UserID = builder.Configuration["DB_USER"],
+    Password = builder.Configuration["DB_PASS"],
+    InitialCatalog = builder.Configuration["HIOKI_DB_NAME"],
+    TrustServerCertificate = true,
+};
 
 builder.Services.AddDbContextFactory<LogDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionStringBuilder.ConnectionString));
 
 // Logic for the visual query builders.
 builder.Services.AddScoped<GroupTableLogic>();
@@ -41,6 +51,7 @@ WebApplication app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
+
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }

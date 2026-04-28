@@ -77,8 +77,7 @@ else
     /// <summary>
     /// Check the search bar for filters, then update the URL as necessary
     /// </summary>
-    /// <param name="sender">The origin of this call</param>
-    /// <param name="e">The information about the event to handle</param>
+    /// <param name="newLocation">The location navigated to that requires a URL update.</param>
     public async void HandleLocationChanged(string newLocation)
     {
         if (State != null && State.IsInternalNavigation){
@@ -97,7 +96,6 @@ else
             // Log error or update UI state - async void must handle its own errors!
             Console.WriteLine($"Navigation error: {ex.Message}");
         }
-
     }
 
     private async Task ApplyUrlState()

@@ -169,6 +169,9 @@ dotnet_diagnostic.SA1011.severity = none
 # SA1314: Type parameter names should begin with T
 dotnet_diagnostic.SA1314.severity = none
 
+# SA1200: Using directives should be placed alphabetically, regardless of whether they are standard or custom
+dotnet_diagnostic.SA1210.severity = none
+
 # Space preferences
 csharp_space_after_cast = false
 csharp_space_after_colon_in_inheritance_clause = true

@@ -224,7 +224,7 @@ public partial class PowerSearchLogic()
         IEnumerable<ILogTableLogic> targets = this.TableLogics
             .Where(t => this.CurrentType == "all" || t.TableName.Equals(this.CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        SearchParserService.SearchParseResult parseResult = this.ParserService.ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
+        SearchParseResult parseResult = this.ParserService.ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
 
         this.filters = parseResult.Filters;
         this.ErrorMessages = parseResult.ErrorMessages;
@@ -249,7 +249,9 @@ public partial class PowerSearchLogic()
 
         // Detect fatal versus non-fatal errors
         bool hasFatalErrors = this.ErrorMessages.Any(m => !m.Contains("This search", StringComparison.OrdinalIgnoreCase));
-        if (hasFatalErrors) // if there was an fatal error, don't execute the search (warnings ok)
+
+        // If there was an fatal error, don't execute the search (warnings ok)
+        if (hasFatalErrors)
         {
             foreach (ILogTableLogic table in this.TableLogics)
             {
@@ -435,7 +437,7 @@ public partial class PowerSearchLogic()
     /// </summary>
     public void SyncLivePreview()
     {
-        SearchParserService.SearchParseResult liveResult = this.ParserService.ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
+        SearchParseResult liveResult = this.ParserService.ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
         this.Preview = liveResult.Preview;
 
         // Update the CurrentType if the user entered the "in" tag
@@ -474,7 +476,9 @@ public partial class PowerSearchLogic()
                 return thisMode ? "search-tag is-active" : "search-tag is-active-tertiary";
             }
         }
-        else // If key not found in the search bar, revert to respective default (inactive) states
+
+        // If key not found in the search bar, revert to respective default (inactive) states
+        else
         {
             return thisMode ? "search-tag secondary" : "search-tag tertiary";
         }

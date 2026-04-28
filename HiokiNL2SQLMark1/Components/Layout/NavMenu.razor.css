@@ -15,37 +15,86 @@ body {
     background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255, 255, 255, 0.1);
 }
 
-.navbar-toggler:checked {
-    background-color: rgba(255, 255, 255, 0.5);
-}
+    .navbar-toggler:checked {
+        background-color: rgba(255, 255, 255, 0.5);
+    }
 
 .top-row {
     height: 3.5rem;
-    background-color: #000953;
+    background-color: rgba(0,0,0,0.4);
 }
 
-.navbar-brand {
-    margin-left: 0;
-    font-size: 1.3rem;
+.bottom-row {
+    position: absolute;
+    bottom: 0;
+    padding-bottom: 20px;
+    text-align: right;
+    width: 100%;
+    padding-right: 28px;
 }
 
-.bi {
-    display: inline-block;
-    position: relative;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-right: 0.75rem;
-    top: -1px;
-    background-size: cover;
+/* Header shape */
+.sidebar-header {
+    height: 3.5rem;
+    background-color: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+/* Header behavior */
+.header-content {
+    display: flex;
+    align-items: center;
+    padding: 0 1.3rem;
+    width: 100%;
+    gap: 0.7rem;
+}
+
+/* Header styling */
+.header-brand {
+    color: white;
+    text-decoration: none;
+    line-height: 1;
+    margin: 0;
+    font-size: 1.4rem;
+    white-space: nowrap;
+    opacity: 0; /* Hidden when collapsed */
+    transition: opacity 0.2s ease;
 }
 
 .nav-item {
-    font-size: 1rem;
+    font-size: 1.1rem;
     padding-bottom: 0.5rem;
+    cursor: pointer;
 }
 
+    .nav-item label {
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+    }
+
+    .nav-item label, .header-brand {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        white-space: nowrap;
+    }
+
+    /* Target icons inside a nav-item */
+    .nav-item ::deep .bi,
+    .nav-item ::deep i {
+        font-size: 1.5rem; /* Icons scale with font size */
+        width: 1.5rem;
+        height: 1.5rem;
+        display: flex;       /* Forces the icon container to center its own SVG */
+        align-items: center;
+        margin-top: 0;       /* Removes any inherited Bootstrap offsets */
+        top: 0;              /* Resets any relative positioning */
+    }
+
     .nav-item:first-of-type {
-        padding-top: 1rem;
+        padding-top: 0.5rem;
     }
 
     .nav-item:last-of-type {
@@ -57,26 +106,58 @@ body {
         background: none;
         border: none;
         border-radius: 4px;
-        height: 3rem;
+        display: flex;
+        height: 3.5rem;
+        gap: 1rem;
         align-items: center;
-        text-align: left;           /* Change to left for standard look */
-        padding: 0 1.5rem;          /* Adds 1.5rem padding to Left and Right */
+        padding: 0 1rem;
         width: 100%;
         transition: background-color 0.2s;
+        white-space: nowrap;
     }
 
-.nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.37);
-    color: white;
-}
+    .nav-item ::deep .nav-link label {
+        cursor: pointer;
+    }
 
-.nav-item ::deep .nav-link:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
-}
+    .nav-item ::deep a.active {
+        background-color: rgba(255,255,255,0.37);
+        color: white;
+    }
+
+    .nav-item ::deep .nav-link:hover {
+        background-color: rgba(255,255,255,0.2);
+        color: white;
+    }
 
 .nav-scrollable {
-    display: none;
+    position: absolute; /* Lifts it off the page layer */
+    top: 0;
+    left: 0;
+    width: 3.75rem; /* Collapsed width (icon only) */
+    transition: width 0.2s ease;
+    z-index: 1000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+    /* Show the brand text when the parent sidebar is hovered */
+    .nav-scrollable:hover .header-brand {
+        opacity: 1;
+    }
+
+    .nav-scrollable:hover .nav-item label {
+        opacity: 1;
+    }
+
+    .nav-scrollable:hover {
+        width: 250px; /* Expanded width */
+    }
+
+::element(.sidebar:hover) .nav-item label,
+::element(.sidebar:hover) .header-brand {
+    opacity: 1;
 }
 
 .navbar-toggler:checked ~ .nav-scrollable {

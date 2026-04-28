@@ -32,6 +32,11 @@ public record SearchParseResult
     /// Gets or sets the human-readable query parse.
     /// </summary>
     public string Preview { get; set; } = "Searching all records...";
+
+    /// <summary>
+    /// Gets a value indicating whether the query has a valid date filter (before/after tag).
+    /// </summary>
+    public bool HasDateFilter { get; private set; }
 }
 
 /// <summary>
@@ -359,7 +364,9 @@ public partial class SearchParserService
             // First part always provides the date, second part always provides the time
             baseDateTime = datePart.Date.Add(timePart.TimeOfDay);
         }
-        else // Otherwise, just let BaseDateTime handle it
+
+        // Otherwise, just let BaseDateTime handle it
+        else
         {
             if (ShiftDetails.TryGetValue(value.ToLower(), out (TimeSpan Start, double Hours) detail))
             {
@@ -667,6 +674,7 @@ public partial class SearchParserService
     /// Verifies that a value matches a certain type.
     /// </summary>
     /// <param name="type">A ValType (enum) representing the required type.</param>
+    /// <param name="key">The tag-identifying string.</param>
     /// <param name="value">The value for which to check the type.</param>
     /// <param name="error">The error message (in case of failure).</param>
     /// <returns>Whether the value matches the type specified.</returns>
