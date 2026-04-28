@@ -10,7 +10,7 @@
     </div>
 } else{
     @* If we have no input, a "no results" message is unhelpful *@
-    @if (string.IsNullOrWhiteSpace(State.commandInput) && State.AllCount == 0)
+    @if (string.IsNullOrWhiteSpace(State.CommandInput) && State.AllCount == 0)
     {
         <div class="text-center my-3 py-3 text-muted">
             <i class="bi bi-search" style="font-size: 3rem;"></i>
@@ -61,7 +61,7 @@
 @code {
     [CascadingParameter]
     public PowerSearchLogic State { get; set; } = default!;
-    
+
     protected override void OnInitialized()
     {
         // Listen for changes from the SearchBar so we can update highlights

@@ -1,33 +1,46 @@
-using Microsoft.AspNetCore.Components;
-using HiokiNL2SQLMark1.Logic;
-using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.AspNetCore.Components.Routing;
+// <copyright file="NavService.cs" company="Stanley Electric US Co. Inc.">
+// Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
+// </copyright>
 
 namespace HiokiNL2SQLMark1.Services;
 
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.Extensions.Primitives;
+
+using HiokiNL2SQLMark1.Logic;
+
 /// <summary>
+/// An implementation of <see cref="INavService"/> that wires the built-in NavigationManager LocationChanged event to the custom action.
 /// Builds a NavService using the specified NavigationManager.
-/// Wires the built-in NavigationManager LocationChanged to the custom action
 /// </summary>
 public class NavService(NavigationManager nav) : INavService, IDisposable
 {
-    private readonly NavigationManager _nav = nav;
-    public event Action<string>? OnLocationChanged;
-    private bool _isLocationChangedSubscribed = false;
+    private readonly NavigationManager navManager = nav;
+    private bool isLocationChangedSubscribed = false;
 
     /// <summary>
-    /// "Lazy subscription": because the NavigationManager doesn't actually exist at render time (we just reference it for the _nav field), we have to check it e
+    /// <inheritdoc/>
     /// </summary>
-    /// <returns></returns>
+    public event Action<string>? OnLocationChanged;
+
+    /// <summary>
+    /// "Lazy subscription": because the NavigationManager doesn't actually exist at render time (we just reference it for the nav field), we have to check the subscription every time we wish to use it.
+    /// </summary>
+    /// <returns>Whether <see cref="nav"/>'s subscription was successfully verified.</returns>
     public bool EnsureSubscribed()
     {
-        if (_isLocationChangedSubscribed) return true;
+        if (this.isLocationChangedSubscribed)
+        {
+            return true;
+        }
 
         try
         {
-            _nav.LocationChanged -= HandleLocationChanged; // Prevent double-subs
-            _nav.LocationChanged += HandleLocationChanged;
-            _isLocationChangedSubscribed = true;
+            this.navManager.LocationChanged -= this.HandleLocationChanged; // Prevent double-subs
+            this.navManager.LocationChanged += this.HandleLocationChanged;
+            this.isLocationChangedSubscribed = true;
             return true;
         }
         catch (InvalidOperationException)
@@ -35,29 +48,32 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
             return false;
         }
     }
-    
 
     /// <summary>
-    /// Encapsulates the specific URL structure for a trace
+    /// Encapsulates the specific URL structure for a trace.
     /// </summary>
-    /// <param name="barcode">The barcode to trace</param>
-    public void NavigateToBarcodeTrace(string barcode) {
-        if(EnsureSubscribed()) _nav.NavigateTo($"/?q=barcode:{barcode} in:all");
+    /// <param name="barcode">The barcode to trace.</param>
+    public void NavigateToBarcodeTrace(string barcode)
+    {
+        if (this.EnsureSubscribed())
+        {
+            this.navManager.NavigateTo($"/?q=barcode:{barcode} in:all");
+        }
     }
 
     /// <summary>
-    /// Updates the URL to match the page details
+    /// Updates the URL to match the page details.
     /// </summary>
-    /// <param name="query">The filters to add under the q? param</param>
-    /// <param name="page">The page number to add under the p? param</param>
-    /// <param name="pageSize">The page size to add under the ps? param</param>
-    /// <param name="sort">The sort column name to add under the s? param</param>
-    /// <param name="dir">The sort direction to add under the d? param</param>
-    /// <param name="replaceHistory">Whether to overwrite (or append) the new history frame</param>
-    public void UpdateSearchState(string query, int? page=null, int? pageSize=null, string? sort=null, string? dir=null, bool replaceHistory=false)
+    /// <param name="query">The filters to add under the q? param.</param>
+    /// <param name="page">The page number to add under the p? param.</param>
+    /// <param name="pageSize">The page size to add under the ps? param.</param>
+    /// <param name="sort">The sort column name to add under the s? param.</param>
+    /// <param name="dir">The sort direction to add under the d? param.</param>
+    /// <param name="replaceHistory">Whether to overwrite (or append) the new history frame.</param>
+    public void UpdateSearchState(string query, int? page = null, int? pageSize = null, string? sort = null, string? dir = null, bool replaceHistory = false)
     {
-        string uri = "/"; 
-    
+        string uri = "/";
+
         // For each parameter, if default, remove from URL, otherwise add/update it
         var parameters = new Dictionary<string, string?>
         {
@@ -65,25 +81,28 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
             { "p", (page.HasValue && page > 1) ? page.ToString() : null },
             { "ps", (pageSize.HasValue && pageSize != 50) ? pageSize.ToString() : null },
             { "s", string.IsNullOrWhiteSpace(sort) ? null : sort },
-            { "d", (string.IsNullOrEmpty(dir) || dir == "none") ? null : dir }
+            { "d", (string.IsNullOrEmpty(dir) || dir == "none") ? null : dir },
         };
 
         string newUri = QueryHelpers.AddQueryString(uri, parameters);
 
         // Only try navigation if subscribed
-        if (EnsureSubscribed()) _nav.NavigateTo(newUri, replace: replaceHistory);
+        if (this.EnsureSubscribed())
+        {
+            this.navManager.NavigateTo(newUri, replace: replaceHistory);
+        }
     }
 
     /// <summary>
-    /// Gets the q? parameter from the address (search bar contents)
+    /// Gets the q? parameter from the address (search bar contents).
     /// </summary>
-    /// <returns>The query of the current page</returns>
+    /// <returns>The query of the current page.</returns>
     public string GetCurrentQuery()
     {
-        if (EnsureSubscribed())
+        if (this.EnsureSubscribed())
         {
-            var uri = _nav.ToAbsoluteUri(_nav.Uri);
-            if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out var value))
+            Uri uri = this.navManager.ToAbsoluteUri(this.navManager.Uri);
+            if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("q", out StringValues value))
             {
                 return value.ToString();
             }
@@ -93,59 +112,64 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
     }
 
     /// <summary>
-    /// Gets all the parameters from the URL and returns them in one record
+    /// Gets all the parameters from the URL and returns them in one record.
     /// </summary>
-    /// <returns>A record represesnting the query, page number & size, and sort column & direction</returns>
+    /// <returns>A <see cref="UrlState"/> represesnting the query, page number & size, and sort column & direction.</returns>
     public UrlState GetFullStateFromUrl()
     {
-        if (EnsureSubscribed())
+        if (this.EnsureSubscribed())
         {
-            var uri = _nav.ToAbsoluteUri(_nav.Uri);
-            var q = QueryHelpers.ParseQuery(uri.Query);
+            Uri uri = this.navManager.ToAbsoluteUri(this.navManager.Uri);
+            Dictionary<string, StringValues> q = QueryHelpers.ParseQuery(uri.Query);
 
             return new UrlState(
-                Query: q.TryGetValue("q", out var query) ? query.ToString() : "",
-                Page: q.TryGetValue("p", out var p) && int.TryParse(p, out var pi) ? pi : null,
-                PageSize: q.TryGetValue("ps", out var ps) && int.TryParse(ps, out var psi) ? psi : null,
-                SortCol: q.TryGetValue("s", out var s) ? s.ToString() : null,
-                SortDir: q.TryGetValue("d", out var d) ? d.ToString() : null
-            );
+                query: q.TryGetValue("q", out StringValues query) ? query.ToString() : string.Empty,
+                page: q.TryGetValue("p", out StringValues p) && int.TryParse(p, out int pi) ? pi : null,
+                pageSize: q.TryGetValue("ps", out StringValues ps) && int.TryParse(ps, out int psi) ? psi : null,
+                sortCol: q.TryGetValue("s", out StringValues s) ? s.ToString() : null,
+                sortDir: q.TryGetValue("d", out StringValues d) ? d.ToString() : null);
         }
-        // NavigationManager not initialized yet - return default empty state
-        return new UrlState(Query: "", Page: null, PageSize: null, SortCol: null, SortDir: null);
-    }
 
-    /// <summary>
-    /// Hook for OnLocationChanged with the necessary signature for subscription
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e) 
-        => OnLocationChanged?.Invoke(e.Location);
+        // NavigationManager not initialized yet - return default empty state
+        return new UrlState(query: string.Empty, page: null, pageSize: null, sortCol: null, sortDir: null);
+    }
 
     /// <summary>
     /// Determines if the user is currently on the power search page.
     /// A trailing slash ("/") and the empty path are treated as equivalent.
     /// </summary>
-    /// <returns>Whether the current page is power search</returns>
+    /// <returns>Whether the current page is power search.</returns>
     public bool IsOnPowerSearchPage()
     {
-        if (!EnsureSubscribed()) return false;
-        var uri = _nav.ToAbsoluteUri(_nav.Uri);
-        // we only compare the path itself, the query string is irrelevant here
-        var path = uri.AbsolutePath.TrimEnd('/');
+        if (!this.EnsureSubscribed())
+        {
+            return false;
+        }
+
+        Uri uri = this.navManager.ToAbsoluteUri(this.navManager.Uri);
+
+        // Only compare the base path, the query string is irrelevant here
+        string path = uri.AbsolutePath.TrimEnd('/');
         return string.IsNullOrEmpty(path);
     }
 
     /// <summary>
-    /// Upon navigating away from this page, unsubscribe from the URL monitor
+    /// Upon navigating away from this page, unsubscribe from the URL monitor.
     /// </summary>
     public void Dispose()
     {
-        if (_isLocationChangedSubscribed)
+        if (this.isLocationChangedSubscribed)
         {
-            _nav.LocationChanged -= HandleLocationChanged;
-            _isLocationChangedSubscribed = false;
+            this.navManager.LocationChanged -= this.HandleLocationChanged;
+            this.isLocationChangedSubscribed = false;
         }
     }
+
+    /// <summary>
+    /// Hook for OnLocationChanged with the necessary signature for subscription.
+    /// </summary>
+    /// <param name="sender">The source of the location change.</param>
+    /// <param name="e">The event containing the location change information.</param>
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+        => this.OnLocationChanged?.Invoke(e.Location);
 }

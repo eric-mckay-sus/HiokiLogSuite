@@ -17,7 +17,7 @@ else
     <CascadingValue Value="State" IsFixed="true">
         <h1>Hioki 1220 ICT Power Search</h1>
 
-        <ErrorDisplay Messages="State.errorMessages" />
+        <ErrorDisplay Messages="State.ErrorMessages" />
 
         <div class="command-container mb-4">
             <SearchBar />
@@ -97,24 +97,24 @@ else
             // Log error or update UI state - async void must handle its own errors!
             Console.WriteLine($"Navigation error: {ex.Message}");
         }
-        
+
     }
 
     private async Task ApplyUrlState()
     {
         UrlState? urlState = NavService.GetFullStateFromUrl();
         // If there isn't a query from the URL, leave the search bar alone
-        if (!string.IsNullOrWhiteSpace(urlState.Query)) State.commandInput = urlState.Query;
-    
-        var activeTable = State.TableLogics.FirstOrDefault(t => 
+        if (!string.IsNullOrWhiteSpace(urlState.query)) State.CommandInput = urlState.query;
+
+        var activeTable = State.TableLogics.FirstOrDefault(t =>
         t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
 
         if (activeTable != null)
         {
-            activeTable.CurrentPage = urlState.Page ?? 1;
-            activeTable.PageSize = urlState.PageSize ?? 50;
-            activeTable.CurrentSortColumn = urlState.SortCol ?? "";
-            activeTable.SortDir = urlState.SortDir ?? "none";
+            activeTable.CurrentPage = urlState.page ?? 1;
+            activeTable.PageSize = urlState.pageSize ?? 50;
+            activeTable.CurrentSortColumn = urlState.sortCol ?? "";
+            activeTable.SortDir = urlState.sortDir ?? "none";
         }
 
         // Execute the search (passing true to keepPage ensures we use the URL's page number)

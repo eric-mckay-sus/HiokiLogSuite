@@ -64,12 +64,12 @@ public class LogTableLogicTests
     public void GetFilterStateHash_IsCaseAndOrderInsensitive()
     {
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        
-        var dict1 = new Dictionary<string, IFilter> { 
+
+        var dict1 = new Dictionary<string, IFilter> {
             { "barcode", new Filter<string?>("barcode", "A123") },
             { "result", new Filter<string?>("result", "PASS") }
         };
-        var dict2 = new Dictionary<string, IFilter> { 
+        var dict2 = new Dictionary<string, IFilter> {
             { "RESULT", new Filter<string?>("result", "pass") },
             { "barcode", new Filter<string?>("barcode", "a123") }
         };
@@ -98,7 +98,7 @@ public class LogTableLogicTests
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
         logic.CurrentPage = 10;
         // TotalPages must be high enough or it might be clamped (though logic doesn't clamp in RefreshData)
-        logic.TotalCount = 200; 
+        logic.TotalCount = 200;
 
         // Act
         await logic.RefreshData(keepPage: true);
@@ -126,7 +126,7 @@ public class LogTableLogicTests
         Assert.Single(logic.DataView);
         var actualValue = typeof(TestLogRecord).GetProperty(char.ToUpper(key[0]) + key[1..])? // Use reflection to get the correct attribute
                         .GetValue(logic.DataView[0]);
-    
+
         Assert.Equal(expectedMatch, actualValue);
     }
 
@@ -151,7 +151,7 @@ public class LogTableLogicTests
         Assert.Single(logic.DataView);
         var excludeValue = typeof(TestLogRecord).GetProperty(char.ToUpper(key[0]) + key[1..])? // Use reflection to get the correct attribute
                         .GetValue(logic.DataView[0]);
-    
+
         Assert.NotEqual(expectedNegativeMatch, excludeValue);
     }
 
@@ -202,7 +202,7 @@ public class LogTableLogicTests
     {
         // Arrange
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        
+
         // Fill all filters with "dirty" data to ensure ResetFilterState() is working
         logic.Filters["barcode"] = new Filter<string?>("barcode", "DIRTY");
         logic.Filters["result"] = new Filter<string?>("result", "DIRTY");
@@ -250,7 +250,7 @@ public class LogTableLogicTests
             new() { Group = 2, Time = new DateTime(2025, 1, 12) }
         };
         var logic = TestLogicFactory.CreateLogic(data);
-        
+
         // Don't toggle any sort
 
         // Act
@@ -271,7 +271,7 @@ public class LogTableLogicTests
             new() { Group = 2, Time = DateTime.Now }
         };
         var logic = TestLogicFactory.CreateLogic(data);
-        
+
         // Set state to Sort Descending on "Group"
         await logic.ToggleSort("Group"); // Asc
         await logic.ToggleSort("Group"); // Desc
@@ -305,12 +305,12 @@ public class LogTableLogicTests
         var data = Enumerable.Range(1, 15)
             .Select(i => new TestLogRecord { Id = i, Barcode = $"Item{i}", Time = new DateTime(2026, 1, 16-i) }) // day as 16-i to put item numbers in ascending order
             .ToList();
-        
+
         var logic = TestLogicFactory.CreateLogic(data);
         logic.PageSize = 5;
 
         // Initial load to establish TotalPages/TotalCount
-        await logic.RefreshData(); 
+        await logic.RefreshData();
         Assert.Equal(1, logic.CurrentPage);
         Assert.Equal("Item1", logic.DataView[0].Barcode);
 
@@ -331,7 +331,7 @@ public class LogTableLogicTests
         var data = new List<TestLogRecord> { new() { Id = 1 } };
         var logic = TestLogicFactory.CreateLogic(data);
         logic.PageSize = 5;
-        
+
         await logic.RefreshData(); // TotalPages will be 1
         logic.CurrentPage = 1;
 
@@ -391,33 +391,6 @@ public class LogTableLogicTests
     }
 
     [Fact]
-    public async Task Sorts_StillRefresh_WhenNavServiceNotPowerSearch()
-    {
-        // Arrange - fake nav service returning false for power search
-        var fakeNav = new FakeNavigationManager();
-        var navService = new NavService(fakeNav);
-        fakeNav.NavigateTo("http://localhost/group");
-
-        // Put two records in reverse alphabetical order
-        var data = new List<TestLogRecord> {
-            new() { Barcode = "B" },
-            new() { Barcode = "A" }
-        };
-        var logic = TestLogicFactory.CreateLogic(data, nav: navService);
-        logic.UpdatePSUrl = navService.UpdateSearchState; // normally wired by PowerSearchLogic
-
-        // initial load
-        await logic.RefreshData();
-        Assert.Equal("B", logic.DataView[0].Barcode);
-
-        // Act - toggle a sort (should sort ascending by Barcode)
-        await logic.ToggleSort("Barcode");
-
-        // Assert: data should now be re-ordered even though NavService said we're not
-        Assert.Equal("A", logic.DataView[0].Barcode);
-    }
-
-    [Fact]
     public void GetFilterStateHash_IncludesSortWithMultipleFilters()
     {
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
@@ -445,7 +418,7 @@ public class LogTableLogicTests
     {
         // Arrange - Scenario 1: Standard Log
         var logicStandard = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        
+
         // Act
         await logicStandard.InitializeCaches();
 
@@ -479,20 +452,20 @@ public class LogTableLogicTests
         Assert.Null(logic.Filters["result"].GetValue());
         Assert.Equal(1, logic.CurrentPage);
         // The DataView should remain until RefreshData is actually called
-        Assert.Single(logic.DataView); 
+        Assert.Single(logic.DataView);
     }
 
     [Fact]
     public async Task ClearFilters_ResetsStateAndReloadsDatabase()
     {
         // Arrange
-        var data = new List<TestLogRecord> 
-        { 
+        var data = new List<TestLogRecord>
+        {
             new() { Id = 1, Barcode = "A" },
             new() { Id = 2, Barcode = "B" }
         };
         var logic = TestLogicFactory.CreateLogic(data);
-        
+
         // Apply a filter that limits results
         logic.Filters["barcode"].SetValue("A");
         await logic.RefreshData();

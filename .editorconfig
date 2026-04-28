@@ -166,6 +166,9 @@ dotnet_diagnostic.SA1010.severity = none
 # SA1011: Closing square brackets should be spaced correctly
 dotnet_diagnostic.SA1011.severity = none
 
+# SA1314: Type parameter names should begin with T
+dotnet_diagnostic.SA1314.severity = none
+
 # Space preferences
 csharp_space_after_cast = false
 csharp_space_after_colon_in_inheritance_clause = true

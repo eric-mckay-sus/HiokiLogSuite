@@ -1,12 +1,17 @@
-using HiokiNL2SQLMark1.Components;
+// <copyright file="Program.cs" company="Stanley Electric US Co. Inc.">
+// Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
+// </copyright>
+
 using Microsoft.EntityFrameworkCore;
+
+using HiokiNL2SQLMark1.Components;
 using HiokiNL2SQLMark1;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection"); // from appsettings.json, no idea how this looks in production
+string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection"); // from appsettings.json, no idea how this looks in production
 
 builder.Services.AddDbContextFactory<LogDbContext>(options =>
     options.UseSqlServer(connectionString));
@@ -30,7 +35,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddBlazorBootstrap();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

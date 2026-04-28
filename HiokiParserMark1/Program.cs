@@ -280,7 +280,9 @@ public partial class Program // must be marked partial to allow compile-time com
             // Parse timesTested as an int
             string? line = reader.ReadLine();
             package.TimesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
-            if (package.TimesTested == 0) // if TimesTested is null, say which file, and skip it (timesTested is primary key)
+
+            // if TimesTested is 0, the parse was null, so say which file, and skip it (timesTested is primary key)
+            if (package.TimesTested == 0)
             {
                 Console.Error.WriteLine($"Error reading timesTested for {file}");
                 return;
@@ -291,7 +293,9 @@ public partial class Program // must be marked partial to allow compile-time com
             // Parse barcode
             line = reader.ReadLine();
             package.Barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
-            if (line == "UNKNOWN") // if Barcode is null, say which file, and skip it (barcode is primary key)
+
+            // If Barcode is null, say which file, and skip it (barcode is primary key)
+            if (line == "UNKNOWN")
             {
                 Console.Error.WriteLine($"Error reading barcode for {file}");
                 return;
@@ -591,7 +595,9 @@ public partial class Program // must be marked partial to allow compile-time com
             }
 
             string[] line = raw.Split(',');
-            if (line[0].StartsWith("Gr")) // found new group
+
+            // Found new group
+            if (line[0].StartsWith("Gr"))
             {
                 context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
                 continue;

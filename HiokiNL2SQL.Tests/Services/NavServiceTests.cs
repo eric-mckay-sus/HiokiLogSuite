@@ -83,11 +83,11 @@ public class NavServiceTests
         var state = _service.GetFullStateFromUrl();
 
         // Assert
-        Assert.Equal(expectedQ, state.Query);
-        Assert.Equal(expectedP, state.Page);
-        Assert.Equal(expectedPS, state.PageSize);
-        Assert.Equal(expectedS, state.SortCol);
-        Assert.Equal(expectedD, state.SortDir);
+        Assert.Equal(expectedQ, state.query);
+        Assert.Equal(expectedP, state.page);
+        Assert.Equal(expectedPS, state.pageSize);
+        Assert.Equal(expectedS, state.sortCol);
+        Assert.Equal(expectedD, state.sortDir);
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public class NavServiceTests
 
         // Assert
         // int.TryParse should fail and return the nulls specified in your logic
-        Assert.Null(state.Page);
-        Assert.Null(state.PageSize);
+        Assert.Null(state.page);
+        Assert.Null(state.pageSize);
     }
 
     [Fact]
@@ -116,10 +116,10 @@ public class NavServiceTests
         var state = _service.GetFullStateFromUrl();
 
         // Assert
-        Assert.Equal("findme", state.Query);
-        Assert.Equal(5, state.Page);
-        Assert.Equal("Date", state.SortCol);
-        Assert.Null(state.SortDir); // Not in URL
+        Assert.Equal("findme", state.query);
+        Assert.Equal(5, state.page);
+        Assert.Equal("Date", state.sortCol);
+        Assert.Null(state.sortDir); // Not in URL
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class NavServiceTests
         _fakeNav.NavigateTo("http://localhost/test-after-dispose");
 
         // Assert
-        Assert.Equal(0, callCount); 
+        Assert.Equal(0, callCount);
     }
 
     [Theory]
@@ -188,7 +188,7 @@ public class FakeNavigationManager : NavigationManager
         // NavigationManager handles the logic of joining base URIs and relative URIs
         var absoluteUri = ToAbsoluteUri(uri).ToString();
         Uri = absoluteUri;
-        
+
         // Trigger the event so the Service can react
         NotifyLocationChanged(false);
     }

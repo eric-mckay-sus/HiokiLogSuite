@@ -1,87 +1,118 @@
+// <copyright file="Filter.cs" company="Stanley Electric US Co. Inc.">
+// Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
+// </copyright>
+
 namespace HiokiNL2SQLMark1.Logic;
+
 /// <summary>
-/// Container for the value and polarity of a filter
+/// Container for the value and polarity of a filter.
 /// </summary>
-/// <typeparam name="T">One of string, int, or DateTime</typeparam>
-/// <param name="key">The key associated with the filter</param>
-/// <param name="value">The value used in filtering</param>
-/// <param name="isActive">Whether the filter is active</param>
-/// <param name="isNegated">Whether to filter out (or filter by)</param>
+/// <typeparam name="T">One of string, int, or DateTime.</typeparam>
 public class Filter<T> : IFilter
 {
-    public string Key { get; set; } // The name of this filter (for self-identification)
-    public Action? OnChanged { get; set; } // The action to perform when this filter is updated
-    public bool IsActive { get; set; } // Whether this filter is being used in the current query (thus its value should be used). Automatically updated on value change
-    private bool _isNegated; // Whether to filter by (or filter out). Internal property
-    public bool IsNegated { // Whether to filter by (or filter out). Methods for access & modification
-        get => _isNegated;
-        set 
-        {
-            _isNegated = value;
-            OnChanged?.Invoke();
-        }
-    } 
-    private T? _value; // The internal value held by the filter
-    public T? Value // The methods of accessing and modifying the filter's value
-    { 
-        get => _value;
-        set 
-        {
-            _value = value;
-            IsActive = !IsDefault(value);
-            OnChanged?.Invoke();
-        }
-    }
+    /// <summary>
+    /// Internal value governing whether to filter by (or filter out).
+    /// </summary>
+    private bool isNegated;
 
     /// <summary>
-    /// Builds a filter using its key, value, and negation status (activity status is automatically determined)
+    /// The internal value with the contents of the filter.
     /// </summary>
-    /// <param name="key">The name for the new filter</param>
-    /// <param name="value">The value for which to filter</param>
-    /// <param name="isNegated">The negation status of the new filter</param>
-    public Filter(string key, T? value, bool isNegated=false)
+    private T? value;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Filter{T}"/> class using its key, value, and negation status.
+    /// Activity status is automatically determined.
+    /// </summary>
+    /// <param name="key">The name for the new filter.</param>
+    /// <param name="value">The value for which to filter.</param>
+    /// <param name="isNegated">The negation status of the new filter.</param>
+    public Filter(string key, T? value, bool isNegated = false)
     {
-        Key = key;
-        IsNegated = isNegated;
-        Value = value;
+        this.Key = key;
+        this.IsNegated = isNegated;
+        this.Value = value;
     }
 
     /// <summary>
-    /// Gets the value of this filter as a nullable object
+    /// Gets or sets the name of this filter (for self-identification).
     /// </summary>
-    /// <returns>An object representing the generic type used by the value</returns>
-    public object? GetValue() => Value;
+    public string Key { get; set; }
 
     /// <summary>
-    /// Assigns a new value to this filter. Successfully triggers 
+    /// Gets or sets the action to perform when this filter is updated.
     /// </summary>
-    /// <param name="val">The value to assign to this filter</param>
-    public void SetValue(object? val) => Value = (T?)val;
+    public Action? OnChanged { get; set; }
 
     /// <summary>
-    /// Copies the state of another filter to this one
+    /// Gets or sets a value indicating whether this filter is being used in the current query (thus its value should be applied).
+    /// Automatically updated on <see cref="Value"/> change.
     /// </summary>
-    /// <param name="other">The IFilter instance to copy from</param>
+    public bool IsActive { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to filter by (or filter out).
+    /// </summary>
+    public bool IsNegated
+    {
+        get => this.isNegated;
+        set
+        {
+            this.isNegated = value;
+            this.OnChanged?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the filter's contents.
+    /// </summary>
+    public T? Value
+    {
+        get => this.value;
+        set
+        {
+            this.value = value;
+            this.IsActive = !IsDefault(value);
+            this.OnChanged?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Gets the value of this filter as a nullable object.
+    /// </summary>
+    /// <returns>An object representing the generic type used by the value.</returns>
+    public object? GetValue() => this.Value;
+
+    /// <summary>
+    /// Assigns a new value to this filter. Successfully triggers.
+    /// </summary>
+    /// <param name="val">The value to assign to this filter.</param>
+    public void SetValue(object? val) => this.Value = (T?)val;
+
+    /// <summary>
+    /// Copies the state of another filter to this one.
+    /// </summary>
+    /// <param name="other">The IFilter instance to copy from.</param>
     public void CopyFrom(IFilter other)
     {
-        IsNegated = other.IsNegated;
-        Value = (T?)other.GetValue(); // Have to use GetValue because we don't technically know the type of other.Value (working with an IFilter)
+        this.IsNegated = other.IsNegated;
+        this.Value = (T?)other.GetValue(); // Have to use GetValue because we don't technically know the type of other.Value (working with an IFilter)
     }
 
     /// <summary>
-    /// Sets this filter's value and negation
+    /// Sets this filter's value and negation.
     /// </summary>
     public void Reset()
     {
-        Value = default!;
-        IsNegated = false;
+        this.Value = default!;
+        this.IsNegated = false;
     }
 
     /// <summary>
-    /// Determine if the user wishes to use this filter
+    /// Determine if the user wishes to use this filter.
     /// </summary>
-    /// <param name="val">The value to check against default</param>
-    /// <returns>Whether the value is its default (i.e. deactivated, and thus should not be used in a query)</returns>
+    /// <param name="val">The value to check against default.</param>
+    /// <returns>Whether the value is its default (i.e. deactivated, and thus should not be used in a query).</returns>
     private static bool IsDefault(T? val) => val switch
     {
         null => true,
@@ -91,15 +122,46 @@ public class Filter<T> : IFilter
 }
 
 /// <summary>
-/// Interface to bypass the complications of Filter's generic type
+/// Interface to bypass the complications of Filter's generic type.
 /// </summary>
 public interface IFilter
 {
-    string Key { get; set; } // The filter's name
-    bool IsNegated { get; set; } // The filter's negation status
-    bool IsActive { get; } // The filter's activation state
-    object? GetValue(); // A method to get the value associated with this filter, as a nullable object
-    void SetValue(object? val); // A method to assign a new value to this filter
-    void CopyFrom(IFilter other); // Copy the contents of this filter to the input IFilter instance
-    void Reset(); // Deactivate this IFilter instance (value=null, isNegated=false)
+    /// <summary>
+    /// Gets or sets the name of this filter (for self-identification).
+    /// </summary>
+    string Key { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to filter by (or filter out).
+    /// In other words, the filter's negation status.
+    /// </summary>
+    bool IsNegated { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether this filter is being used in the current query (thus its value should be applied).
+    /// </summary>
+    bool IsActive { get; }
+
+    /// <summary>
+    /// Gets the contents of the filter.
+    /// </summary>
+    /// <returns>A nullable object representing the value held by the filter.</returns>
+    object? GetValue();
+
+    /// <summary>
+    /// Sets the contents of the filter.
+    /// </summary>
+    /// <param name="val">The value to assign.</param>
+    void SetValue(object? val);
+
+    /// <summary>
+    /// Sets the state of this filter to that of the input IFilter instance.
+    /// </summary>
+    /// <param name="other">The <see cref="IFilter"/> from which to copy the state.</param>
+    void CopyFrom(IFilter other);
+
+    /// <summary>
+    /// Deactivates this IFilter instance (value=null, isNegated=false).
+    /// </summary>
+    void Reset();
 }

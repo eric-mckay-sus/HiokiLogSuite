@@ -1,119 +1,170 @@
-using Microsoft.EntityFrameworkCore;
+// <copyright file="GroupTableLogic.cs" company="Stanley Electric US Co. Inc.">
+// Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
+// </copyright>
 
 namespace HiokiNL2SQLMark1.Logic;
+
+using Microsoft.EntityFrameworkCore;
+
 /// <summary>
-/// Model class for a group table. Inherits from LogTableLogic
+/// Model class for a group table. Inherits from LogTableLogic.
 /// </summary>
-/// <param name="dbFactory">Generates a new DB context per thread</param>
-/// <param name="js">To handle saving to CSV</param>
-/// <param name="navService">To navigate away for barcode "drill-down"</param>
-public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService js, INavService navService) : 
+/// <param name="dbFactory">Generates a new DB context per thread.</param>
+/// <param name="js">To handle saving to CSV.</param>
+/// <param name="navService">To navigate away for barcode "drill-down".</param>
+public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService js, INavService navService) :
     LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navService)
 {
-    public override string TableName => "group"; // This table's internal "type" as it would appear in currentType
-    public override string DisplayName => "Group Results"; // The label to apply to this table in the view
-    public HashSet<string> CompCache { get; set; } = []; // The list of component test results to choose from
-    public HashSet<string> ShortCache { get; set; } = []; // The list of short-circuit test results to choose from
-    public HashSet<string> OpenCache { get; set; } = []; // The list of open-circuit test results to choose from
-    public HashSet<string> MacroCache { get; set; } = []; // The list of macro test results to choose from
-    public HashSet<string> IcCache { get; set; } = []; // The list of IC test results to choose from
-    public HashSet<string> FunctionCache { get; set; } = []; // The list of functional test results to choose from
+    /// <summary>
+    /// Gets this table's internal "type" as it would appear in <see cref="PowerSearchLogic.CurrentType"/>.
+    /// </summary>
+    public override string TableName => "group";
 
     /// <summary>
-    /// Populates group-specific filters in parent's filter registry
+    /// Gets the label to apply to this table in the view.
     /// </summary>
-    protected override void InitializeFilters()
-    {
-        base.InitializeFilters();
-
-        Filters["comp"] = new Filter<string?>("comp", null) { OnChanged = NotifyStateChanged };
-        Filters["short"] = new Filter<string?>("short", null) { OnChanged = NotifyStateChanged };
-        Filters["open"] = new Filter<string?>("open", null) { OnChanged = NotifyStateChanged };
-        Filters["macro"] = new Filter<string?>("macro", null) { OnChanged = NotifyStateChanged };
-        Filters["ic"] = new Filter<string?>("ic", null) { OnChanged = NotifyStateChanged };
-        Filters["function"] = new Filter<string?>("function", null) { OnChanged = NotifyStateChanged };
-    }
+    public override string DisplayName => "Group Results";
 
     /// <summary>
-    /// Initialize the caches that hold group sub-test result types
+    /// Gets or sets the list of component test results to choose from.
     /// </summary>
-    /// <returns></returns>
+    public HashSet<string> CompCache { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the list of short-circuit test results to choose from.
+    /// </summary>
+    public HashSet<string> ShortCache { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the list of open-ciruit test results to choose from.
+    /// </summary>
+    public HashSet<string> OpenCache { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the list of macro test results to choose from.
+    /// </summary>
+    public HashSet<string> MacroCache { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the list of IC test results to choose from.
+    /// </summary>
+    public HashSet<string> IcCache { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the list of functional test results to choose from.
+    /// </summary>
+    public HashSet<string> FunctionCache { get; set; } = [];
+
+    /// <summary>
+    /// Initialize the caches that hold group sub-test result types.
+    /// </summary>
+    /// <returns>A Task representing that the caches have been initialized.</returns>
     public override async Task InitializeCaches()
     {
         // Hydration check
-        if (LastQueryHash != null && CompCache.Count != 0) return;
+        if (this.LastQueryHash != null && this.CompCache.Count != 0)
+        {
+            return;
+        }
 
         // Run parent's initializer for the result type cache
-        var baseTask = base.InitializeCaches();
+        Task baseTask = base.InitializeCaches();
 
-        var compTask = GetCacheSet("ComponentTest");
-        var shortTask = GetCacheSet("ShortTest");
-        var openTask = GetCacheSet("OpenTest");
-        var macroTask = GetCacheSet("MacroTest");
-        var icTask = GetCacheSet("IcTest");
-        var functionTask = GetCacheSet("FunctionTest");
+        Task<HashSet<string>> compTask = this.GetCacheSet("ComponentTest");
+        Task<HashSet<string>> shortTask = this.GetCacheSet("ShortTest");
+        Task<HashSet<string>> openTask = this.GetCacheSet("OpenTest");
+        Task<HashSet<string>> macroTask = this.GetCacheSet("MacroTest");
+        Task<HashSet<string>> icTask = this.GetCacheSet("IcTest");
+        Task<HashSet<string>> functionTask = this.GetCacheSet("FunctionTest");
 
         // Wait for everything to finish at once
         await Task.WhenAll(baseTask, compTask, shortTask, openTask, macroTask, icTask, functionTask);
 
         // Assign the results
-        CompCache = await compTask;
-        ShortCache = await shortTask;
-        OpenCache = await openTask;
-        MacroCache = await macroTask;
-        IcCache = await icTask;
-        FunctionCache = await functionTask;
+        this.CompCache = await compTask;
+        this.ShortCache = await shortTask;
+        this.OpenCache = await openTask;
+        this.MacroCache = await macroTask;
+        this.IcCache = await icTask;
+        this.FunctionCache = await functionTask;
     }
 
     /// <summary>
     /// Calls the base class to apply the generic filters, then applies the group-specific ones
-    /// Used to draft the WHERE clauses for the SQL query generated by EF Core
+    /// Used to draft the WHERE clauses for the SQL query generated by EF Core.
     /// </summary>
-    /// <param name="query">The query to which the filters will be applied</param>
-    /// <returns>The query, with all filters applied</returns>
+    /// <param name="query">The query to which the filters will be applied.</param>
+    /// <returns>The query, with all filters applied.</returns>
     public override IQueryable<GroupResult> ApplyFilters(IQueryable<GroupResult> query)
     {
         // Apply the base filters (Barcode, Date, etc.)
         query = base.ApplyFilters(query);
 
-        var filterComp = GetFilter<string?>("comp");
-        var filterShort = GetFilter<string?>("short");
-        var filterOpen = GetFilter<string?>("open");
-        var filterMacro = GetFilter<string?>("macro");
-        var filterIC = GetFilter<string?>("ic");
-        var filterFunction = GetFilter<string?>("function");
+        Filter<string?> filterComp = this.GetFilter<string?>("comp");
+        Filter<string?> filterShort = this.GetFilter<string?>("short");
+        Filter<string?> filterOpen = this.GetFilter<string?>("open");
+        Filter<string?> filterMacro = this.GetFilter<string?>("macro");
+        Filter<string?> filterIC = this.GetFilter<string?>("ic");
+        Filter<string?> filterFunction = this.GetFilter<string?>("function");
 
         // Apply Group-specific filters
-        if (filterComp.IsActive)
+        if (filterComp.IsActive && !string.IsNullOrWhiteSpace(filterComp.Value))
+        {
             query = filterComp.IsNegated
-                ? query.Where(g => !g.ComponentTest.Contains(filterComp.Value))
-                : query.Where(g => g.ComponentTest.Contains(filterComp.Value));
+                ? query.Where(g => g.ComponentTest != null && !g.ComponentTest.Contains(filterComp.Value))
+                : query.Where(g => g.ComponentTest != null && g.ComponentTest.Contains(filterComp.Value));
+        }
 
-        if (filterShort.IsActive)
+        if (filterShort.IsActive && !string.IsNullOrWhiteSpace(filterShort.Value))
+        {
             query = filterShort.IsNegated
-                ? query.Where(g => !g.ShortTest.Contains(filterShort.Value))
-                : query.Where(g => g.ShortTest.Contains(filterShort.Value));
+                ? query.Where(g => g.ShortTest != null && !g.ShortTest.Contains(filterShort.Value))
+                : query.Where(g => g.ShortTest != null && g.ShortTest.Contains(filterShort.Value));
+        }
 
-        if (filterOpen.IsActive)
+        if (filterOpen.IsActive && !string.IsNullOrWhiteSpace(filterOpen.Value))
+        {
             query = filterOpen.IsNegated
-                ? query.Where(g => !g.OpenTest.Contains(filterOpen.Value))
-                : query.Where(g => g.OpenTest.Contains(filterOpen.Value));
+                ? query.Where(g => g.OpenTest != null && !g.OpenTest.Contains(filterOpen.Value))
+                : query.Where(g => g.OpenTest != null && g.OpenTest.Contains(filterOpen.Value));
+        }
 
-        if (filterMacro.IsActive)
+        if (filterMacro.IsActive && !string.IsNullOrWhiteSpace(filterMacro.Value))
+        {
             query = filterMacro.IsNegated
-                ? query.Where(g => !g.MacroTest.Contains(filterMacro.Value))
-                : query.Where(g => g.MacroTest.Contains(filterMacro.Value));
+                ? query.Where(g => g.MacroTest != null && !g.MacroTest.Contains(filterMacro.Value))
+                : query.Where(g => g.MacroTest != null && g.MacroTest.Contains(filterMacro.Value));
+        }
 
-        if (filterIC.IsActive)
+        if (filterIC.IsActive && !string.IsNullOrWhiteSpace(filterIC.Value))
+        {
             query = filterIC.IsNegated
-                ? query.Where(g => !g.IcTest.Contains(filterIC.Value))
-                : query.Where(g => g.IcTest.Contains(filterIC.Value));
+                ? query.Where(g => g.IcTest != null && !g.IcTest.Contains(filterIC.Value))
+                : query.Where(g => g.IcTest != null && g.IcTest.Contains(filterIC.Value));
+        }
 
-        if (filterFunction.IsActive)
+        if (filterFunction.IsActive && !string.IsNullOrWhiteSpace(filterFunction.Value))
+        {
             query = filterFunction.IsNegated
-                ? query.Where(g => !g.FunctionTest.Contains(filterFunction.Value))
-                : query.Where(g => g.FunctionTest.Contains(filterFunction.Value));
+                ? query.Where(g => g.FunctionTest != null && !g.FunctionTest.Contains(filterFunction.Value))
+                : query.Where(g => g.FunctionTest != null && g.FunctionTest.Contains(filterFunction.Value));
+        }
 
         return query;
+    }
+
+    /// <summary>
+    /// Populates group-specific filters in parent's filter registry.
+    /// </summary>
+    protected override void InitializeFilters()
+    {
+        base.InitializeFilters();
+
+        this.Filters["comp"] = new Filter<string?>("comp", null) { OnChanged = this.NotifyStateChanged };
+        this.Filters["short"] = new Filter<string?>("short", null) { OnChanged = this.NotifyStateChanged };
+        this.Filters["open"] = new Filter<string?>("open", null) { OnChanged = this.NotifyStateChanged };
+        this.Filters["macro"] = new Filter<string?>("macro", null) { OnChanged = this.NotifyStateChanged };
+        this.Filters["ic"] = new Filter<string?>("ic", null) { OnChanged = this.NotifyStateChanged };
+        this.Filters["function"] = new Filter<string?>("function", null) { OnChanged = this.NotifyStateChanged };
     }
 }

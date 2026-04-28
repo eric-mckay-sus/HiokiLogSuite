@@ -1,11 +1,15 @@
+// <copyright file="LogDbContext.cs" company="Stanley Electric US Co. Inc.">
+// Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
+// </copyright>
+
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HiokiNL2SQLMark1;
 /// <summary>
-/// Represents the state of the database in a way friendly to EFCore
+/// Represents the state of the database in a way friendly to EFCore.
 /// </summary>
-/// <param name="options">The server details and login credentials</param>
+/// <param name="options">The server details and login credentials.</param>
 public class LogDbContext(DbContextOptions<LogDbContext> options) : DbContext(options)
 {
     // One set per table
@@ -15,7 +19,7 @@ public class LogDbContext(DbContextOptions<LogDbContext> options) : DbContext(op
 }
 
 /// <summary>
-/// The fields common between group, step, and FCT tables
+/// The fields common between group, step, and FCT tables.
 /// </summary>
 public interface IHiokiLog
 {
@@ -26,7 +30,7 @@ public interface IHiokiLog
 }
 
 /// <summary>
-/// The fields common between the step and FCT tables only
+/// The fields common between the step and FCT tables only.
 /// </summary>
 public interface IStepFCT : IHiokiLog
 {
@@ -52,7 +56,7 @@ public interface IGroupSubResults : IHiokiLog
 
 /// <summary>
 /// Represents one row of GroupResults in the DB
-/// NOTE: VERY SENSITIVE TO COL NAME CHANGES
+/// NOTE: VERY SENSITIVE TO COL NAME CHANGES.
 /// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group))]
 public class GroupResult : IHiokiLog
@@ -93,7 +97,7 @@ public class GroupResult : IHiokiLog
 
 /// <summary>
 /// Represents one row of StepResults in the DB
-/// NOTE: VERY SENSITIVE TO COL NAME CHANGES
+/// NOTE: VERY SENSITIVE TO COL NAME CHANGES.
 /// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
 public class StepResult : IStepFCT
@@ -103,7 +107,7 @@ public class StepResult : IStepFCT
 
     [Column("Time")]
     public DateTime? Time { get; set; }
-    
+
     [Column("Group")]
     public int? Group { get; set; }
 
@@ -155,7 +159,7 @@ public class StepResult : IStepFCT
 
 /// <summary>
 /// Represents one row of FctResults in the DB
-/// NOTE: VERY SENSITIVE TO COL NAME CHANGES
+/// NOTE: VERY SENSITIVE TO COL NAME CHANGES.
 /// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
 public class FctResult : IStepFCT
@@ -168,7 +172,7 @@ public class FctResult : IStepFCT
 
     [Column("Group")]
     public int? Group { get; set; }
-    
+
     [Column("Step")]
     public int? Step { get; set; }
 
