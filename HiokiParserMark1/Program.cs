@@ -73,50 +73,89 @@ public partial class Program // must be marked partial to allow compile-time com
     }
 
     /// <summary>
-    /// Entry point for the program. Parses every file in the specified file or folder and adds it to the database.
+    /// Entry point for the program. Delegates to <see cref="ExecuteAsync"/>, then shows the end-of-run message.
     /// </summary>
-    /// <param name="args"> The directory to search (must only contain files of the correct filetype and format).</param>
+    /// <param name="args">The directory to search (must only contain files of the correct filetype and format).</param>
     /// <returns>A Task representing that the batch is finished.</returns>
     public static async Task Main(string[] args)
     {
+        try
+        {
+            await ExecuteAsync(args);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error: {e.Message}");
+        }
+        finally
+        {
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
+        }
+    }
+
+    /// <summary>
+    /// Router to <see cref="ParseHioki"/> to handle single-file/batch operations.
+    /// </summary>
+    /// <param name="args">The command-line arguments, should hold just a filepath, or nothing.</param>
+    /// <returns>A Task representing completion/termination.</returns>
+    private static async Task ExecuteAsync(string[] args)
+    {
+        string path;
         if (args.Length == 0)
         {
-            Console.WriteLine("No file/folder argument detected. Please retry and supply path for file or folder to check.");
-            return;
+            Console.WriteLine("Please enter the path of the file or folder to parse for Hioki logs: ");
+            path = Console.ReadLine() ?? string.Empty;
+        }
+        else
+        {
+            path = args[0];
         }
 
+        // Console.ReadLine natively handles spaces, but if the user added them anyway, trim them
+        // The Unicode characters 200E and 200F appear when a user uses drag-drop, which is supported by most terminals
+        path = path.Trim().Trim('"', '\u200E', '\u200F');
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            path = Path.GetFullPath(path);
+        }
+
+        Console.WriteLine(path);
+
         bool isFolder;
-        if (Directory.Exists(args[0]))
+        if (Directory.Exists(path))
         {
             isFolder = true;
         }
-        else if (File.Exists(args[0]))
+        else if (File.Exists(path))
         {
             isFolder = false;
         }
         else
         {
-            Console.WriteLine($"The file/folder you specified ({args[0]}) could not be found. Please check your spelling and try again. The path may be relative to this program or absolute.");
+            Console.WriteLine($"The file/folder you specified ({path}) could not be found. Please check your spelling and try again. The path may be relative to this program or absolute.");
             return;
         }
 
         Console.Write("Connecting...");
-
-        await InitializeCaches();
+        using SqlConnection conn = new (GetConnectionString());
+        await conn.OpenAsync();
+        Console.WriteLine("Connected!");
+        await InitializeCaches(conn);
         Console.Write("Parsing...");
         if (isFolder)
         {
-            string[] files = Directory.GetFiles(args[0], "*.*", SearchOption.AllDirectories);
+            string[] files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories);
             foreach (string file in files)
             {
-                await ParseHioki(file);
+                await ParseHioki(file, conn);
             }
 
             Console.WriteLine($"Complete! {files.Length} files added to database");
         }
         else
         {
-            await ParseHioki(args[0]);
+            await ParseHioki(path, conn);
             Console.WriteLine("Complete!");
         }
     }
@@ -125,13 +164,8 @@ public partial class Program // must be marked partial to allow compile-time com
     /// Initializes caches for ResultType and TestMode to reduce DB queries.
     /// </summary>
     /// <returns>A Task representing that the caches are ready for use.</returns>
-    private static async Task InitializeCaches()
+    private static async Task InitializeCaches(SqlConnection connection)
     {
-        // This syntax for keyword "using" places the closing brace where the variable goes out of scope
-        using SqlConnection connection = new (GetConnectionString()); // when InitializeCaches() returns, connection knows it's finished
-        await connection.OpenAsync();
-        Console.WriteLine("Connected!");
-
         // Fill ResultTypeCache
         using (SqlCommand cmd = new ("SELECT id, resultType FROM pe3coop.dbo.ResultTypes", connection))
         using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
@@ -264,8 +298,9 @@ public partial class Program // must be marked partial to allow compile-time com
     /// then passes the context to the appropriate handler for the rest of the file to parse one entire Hioki log file and add it to the DB.
     /// </summary>
     /// <param name="file"> the file to parse. </param>
+    /// <param name="conn">The <see cref="SqlConnection"/> to use for this file.</param>
     /// <returns>A Task representing that the file has been parsed.</returns>
-    private static async Task ParseHioki(string file)
+    private static async Task ParseHioki(string file, SqlConnection conn)
     {
         try
         {
@@ -326,29 +361,28 @@ public partial class Program // must be marked partial to allow compile-time com
                 return;
             }
 
-            using SqlConnection connection = new (GetConnectionString()); // Create the connection to be used for the rest of the program
-            await connection.OpenAsync();
-            using SqlTransaction transaction = connection.BeginTransaction(); // Create the transaction to be used for the rest of the program
+            using SqlTransaction transaction = conn.BeginTransaction(); // Create the transaction to be used for this file
             try
             {
-                ParsingContext context = new (reader, connection, transaction, package); // Compile everything the parser needs to know into a context object
-                line = reader.ReadLine(); // This will tell us whether we're dealing with group or step section
-                while (!reader.EndOfStream)
+                ParsingContext context = new (reader, conn, transaction, package); // Compile everything the parser needs to know into a context object
+                line = await reader.ReadLineAsync(); // This will tell us whether we're dealing with group or step section
+                while (line != null)
                 {
                     if (string.IsNullOrWhiteSpace(line))
                     {
+                        line = await reader.ReadLineAsync();
                         continue;
                     }
 
                     if (line.Contains("-----  Group  -----"))
                     {
-                        reader.ReadLine(); // Cut the column name row
+                        await reader.ReadLineAsync(); // Cut the column name row
                         await ParseGroupFile(context);
                     }
                     else if (line.Contains("-----  Component  -----"))
                     {
-                        reader.ReadLine(); // Cut the column name row
-                        string? groupLine = reader.ReadLine(); // Get the line containing the group number
+                        await reader.ReadLineAsync(); // Cut the column name row
+                        string? groupLine = await reader.ReadLineAsync(); // Get the line containing the group number
                         string[]? groupParts = groupLine?.Split(',');
                         context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
                         await ParseStepFile(context);
