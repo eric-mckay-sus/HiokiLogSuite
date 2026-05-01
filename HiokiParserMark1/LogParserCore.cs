@@ -97,14 +97,17 @@ public class LogParserCore
     /// <returns>A Task representing the upload status.</returns>
     public async Task<UploadResult> ExecuteAsync(string? filename = null)
     {
+        this.output.ClearLogs(); // If this is another run on the same object, ensure the output provider is clean
         string path = Config.InputLocation;
         if (string.IsNullOrWhiteSpace(filename))
         {
+            // TODO eventually prompt for another file
             await this.Report($"No file specified. Defaulting to config file input location ({path})\n");
         }
         else if (!Path.Exists(path))
         {
-            await this.Report($"Path '{filename}' is not a valid directory or Excel file. Using Config default ({path}).\n", ReportLevel.WARNING);
+            // TODO eventually re-prompt with validation
+            await this.Report($"Path '{filename}' is not a valid directory or CSV file. Using Config default ({path}).\n", ReportLevel.WARNING);
         }
         else
         {
@@ -146,7 +149,8 @@ public class LogParserCore
             await this.Report("Parsing...");
             if (isFolder)
             {
-                string[] files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories);
+                string[] files = Directory.GetFiles(path, "*.csv", SearchOption.AllDirectories);
+                this.output.InitializeProgress(files.Length);
                 foreach (string file in files)
                 {
                     await this.ParseHioki(file, conn);
@@ -158,6 +162,7 @@ public class LogParserCore
             }
             else
             {
+                this.output.InitializeProgress(1); // In the single-file case, there is one file (trivial)
                 await this.ParseHioki(path, conn);
                 await this.Report("Complete!", ReportLevel.SUCCESS);
                 await this.output.ReportProgress(ProgressEvent.UploadComplete);
@@ -172,17 +177,23 @@ public class LogParserCore
     }
 
     /// <summary>
+    /// Parses one entire Hioki log file and adds it to the DB.
     /// Gets the barcode, test datetime, and number of times tested from the header common between step and group result files,
-    /// then passes the context to the appropriate handler for the rest of the file to parse one entire Hioki log file and add it to the DB.
+    /// then passes the context to the appropriate handler for the rest of the file.
     /// </summary>
-    /// <param name="file"> the file to parse. </param>
+    /// <param name="file">The file to parse.</param>
     /// <param name="conn">The <see cref="SqlConnection"/> to use for this file.</param>
     /// <returns>A Task representing that the file has been parsed.</returns>
-    private async Task<List<LogType>> ParseHioki(string file, SqlConnection conn)
+    private async Task ParseHioki(string file, SqlConnection conn)
     {
-        List<LogType> toReturn = [];
         await this.output.SetCurrentFile(file);
         await this.output.ReportProgress(ProgressEvent.FileStarted);
+        int rowsUploaded = 0;
+        bool hadErrors = false;
+        bool alreadyUploaded = false;
+
+        // new() is a really cool constructor that uses the implied class from the declaration (can pass arguments just the same)
+        CommonPackage package = new (); // in this case, package already knows it will be a CommonPackage from the left hand side, so new() can figure it out
 
         // If there is a file-related error (like the file being open in another process), there's nothing to be done
         try
@@ -190,8 +201,6 @@ public class LogParserCore
             // reader closes when ParseHioki() returns (at the end of the run)
             using StreamReader reader = new (file);
 
-            // new() is a really cool constructor that uses the implied class from the declaration (can pass arguments just the same)
-            CommonPackage package = new (); // in this case, package already knows it will be a CommonPackage from the left hand side, so new() can figure it out
             reader.ReadLine(); // cut "[Test Results]"
             reader.ReadLine(); // cut "File: filename"
 
@@ -199,11 +208,12 @@ public class LogParserCore
             string? line = reader.ReadLine();
             package.TimesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
 
-            // if TimesTested is 0, the parse was null, so say which file, and skip it (timesTested is primary key)
+            // if TimesTested is 0, the value found wasn't an integer, so say which file and skip it (timesTested is primary key)
             if (package.TimesTested == 0)
             {
                 await this.Report($"Error reading timesTested for {file}\n", ReportLevel.ERROR);
-                return [];
+                hadErrors = true;
+                return;
             }
 
             reader.ReadLine(); // cut "Lot No."
@@ -216,7 +226,8 @@ public class LogParserCore
             if (line == "UNKNOWN")
             {
                 await this.Report($"Error reading barcode for {file}\n", ReportLevel.ERROR);
-                return [];
+                hadErrors = true;
+                return;
             }
 
             // Parse testTime
@@ -235,13 +246,15 @@ public class LogParserCore
                 else
                 {
                     await this.Report($"Error: Could not parse date string '{fullDtStr}' in {file}\n", ReportLevel.ERROR);
-                    return [];
+                    hadErrors = true;
+                    return;
                 }
             }
             else
             {
                 await this.Report($"Error: Date/Time line malformed in {file}", ReportLevel.ERROR);
-                return [];
+                hadErrors = true;
+                return;
             }
 
             // If there is a parse error, roll back the transaction (i.e. file)
@@ -261,7 +274,7 @@ public class LogParserCore
                     if (line.Contains("-----  Group  -----"))
                     {
                         await reader.ReadLineAsync(); // Cut the column name row
-                        await this.ParseGroupFile(context);
+                        rowsUploaded += await this.ParseGroupFile(context);
                     }
                     else if (line.Contains("-----  Component  -----"))
                     {
@@ -269,7 +282,7 @@ public class LogParserCore
                         string? groupLine = await reader.ReadLineAsync(); // Get the line containing the group number
                         string[]? groupParts = groupLine?.Split(',');
                         context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
-                        await this.ParseStepFile(context); // FCT handled here
+                        rowsUploaded += await this.ParseStepFile(context); // FCT handled here
                     }
 
                     // In theory, there could be an FCT-specific callout for the new file format, but I don't know of that header.
@@ -279,12 +292,20 @@ public class LogParserCore
 
                 transaction.Commit();
                 await this.output.ReportProgress(ProgressEvent.FileCompleted);
-                return toReturn;
+                hadErrors = false;
+            }
+
+            // Because of the time-bound nature of test logs, when a duplicate row is encountered, the file is almost guaranteed to be a duplicate
+            catch (SqlException sqlEx) when (sqlEx.Number == 2627 || sqlEx.Number == 2601)
+            {
+                transaction.Rollback();
+                alreadyUploaded = true;
+                throw;
             }
             catch (Exception)
             {
                 transaction.Rollback();
-                return toReturn;
+                hadErrors = true;
                 throw;
             }
         }
@@ -292,19 +313,28 @@ public class LogParserCore
         {
             await this.Report("Error: You do not have permission to read this file: " + file + "\n)", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
-            return toReturn;
+            hadErrors = false;
         }
         catch (IOException ex)
         {
             await this.Report($"I/O Error: {ex.Message}", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
-            return toReturn;
+            hadErrors = true;
         }
         catch (Exception ex)
         {
             await this.Report($"Unexpected Error: {ex.Message}", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
-            return toReturn;
+            hadErrors = true;
+        }
+        finally
+        {
+            this.output.BatchResults.Add(new FileResult(
+                file: file,
+                barcode: package.Barcode,
+                alreadyUploaded: alreadyUploaded,
+                hadErrors: hadErrors,
+                rowsUploaded: rowsUploaded));
         }
     }
 
@@ -313,7 +343,7 @@ public class LogParserCore
     /// </summary>
     /// <param name="context"> the context required to parse a group file. </param>
     /// <returns>A Task representing that the group file has been parsed.</returns>
-    private async Task ParseGroupFile(ParsingContext context)
+    private async Task<int> ParseGroupFile(ParsingContext context)
     {
         // Create a DataTable to hold the data in memory
         DataTable table = new ();
@@ -380,10 +410,12 @@ public class LogParserCore
         try
         {
             await bulkCopy.WriteToServerAsync(table);
+            return table.Rows.Count;
         }
         catch (Exception ex)
         {
             await this.Report($"Bulk Copy Error: {ex.Message}", ReportLevel.ERROR);
+            throw; // Pass off to caller (ParseHioki)
         }
     }
 
@@ -392,7 +424,7 @@ public class LogParserCore
     /// </summary>
     /// <param name="context"> the context required to parse a step file. </param>
     /// <returns>A Task representing that the step file has been parsed.</returns>
-    private async Task ParseStepFile(ParsingContext context)
+    private async Task<int> ParseStepFile(ParsingContext context)
     {
         // Create a DataTable to hold the data in memory
         DataTable table = new ();
@@ -496,10 +528,12 @@ public class LogParserCore
         try
         {
             await bulkCopy.WriteToServerAsync(table);
+            return table.Rows.Count;
         }
         catch (Exception ex)
         {
             await this.Report($"Bulk Copy Error: {ex.Message}", ReportLevel.ERROR);
+            throw; // Pass off to caller (ParseHioki)
         }
     }
 
@@ -508,7 +542,7 @@ public class LogParserCore
     /// </summary>
     /// <param name="context"> the context required to parse the FCT section of a step file. </param>
     /// <returns>A Task representing that the FCT section has been parsed.</returns>
-    private async Task ParseFctSection(ParsingContext context)
+    private async Task<int> ParseFctSection(ParsingContext context)
     {
         DataTable table = new ();
         table.Columns.Add("barcode", typeof(string));
@@ -618,10 +652,12 @@ public class LogParserCore
         try
         {
             await bulkCopy.WriteToServerAsync(table);
+            return table.Rows.Count;
         }
         catch (Exception ex)
         {
             await this.Report($"Bulk Copy Error: {ex.Message}", ReportLevel.ERROR);
+            throw; // Pass off to caller (ParseStepFile, which passes to ParseHioki)
         }
     }
 

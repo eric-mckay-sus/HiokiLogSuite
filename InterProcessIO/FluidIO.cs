@@ -96,13 +96,12 @@ public enum UploadResult
 /// <summary>
 /// The data packet used by I/O classes to track a file with its upload status
 /// </summary>
-/// <param name="file">The file containing the model.</param>
-/// <param name="model">The model name (from C. Core).</param>
-/// <param name="alreadyUploaded">Whether these contents were already uploaded under this model name (so the file was detected as a duplicate)</param>
-/// <param name="hadDuplicates">Whether the model upload encountered duplicates.</param>
-/// <param name="hadErrors">Whether the model upload encountered other errors.</param>
-/// <param name="rowsUploaded">The number of rows uploaded for this model.</param>
-public record FileResult(string file, string model, bool alreadyUploaded, bool hadDuplicates, bool hadErrors, int rowsUploaded);
+/// <param name="file">The file containing the report info.</param>
+/// <param name="barcode">The barcode of the part(s) tested.</param>
+/// <param name="alreadyUploaded">Whether these contents were already uploaded under this barcode (so the file was detected as a duplicate)</param>
+/// <param name="hadErrors">Whether the upload encountered errors.</param>
+/// <param name="rowsUploaded">The number of rows uploaded for this file.</param>
+public record FileResult(string file, string barcode, bool alreadyUploaded, bool hadErrors, int rowsUploaded);
 
 /// <summary>
 /// Communicates the current state of a batch upload to the Blazor layer.
@@ -209,4 +208,15 @@ public interface IOutputProvider
     /// <param name="dt">The DataTable to display.</param>
     /// <returns>A Task representing the completion of the method.</returns>
     Task ShowPreview(DataTable dt);
+
+    /// <summary>
+    /// Initializes the progress tracker, if the implementation has one.
+    /// </summary>
+    /// <param name="totalFiles">The number of files with which to initialize the progress tracker.</param>
+    void InitializeProgress(int totalFiles);
+
+    /// <summary>
+    /// Empties the log container, if the implementation has one.
+    /// </summary>
+    void ClearLogs();
 }

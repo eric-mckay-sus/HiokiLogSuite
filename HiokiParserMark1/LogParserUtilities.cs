@@ -46,27 +46,6 @@ public partial class LogParserUtilities // must be marked partial to allow compi
     }
 
     /// <summary>
-    /// The distinct types of logs.
-    /// </summary>
-    public enum LogType
-    {
-        /// <summary>
-        /// Represents a group test log
-        /// </summary>
-        GROUP,
-
-        /// <summary>
-        /// Represents a step test log
-        /// </summary>
-        STEP,
-
-        /// <summary>
-        /// Represents a FCT log
-        /// </summary>
-        FCT,
-    }
-
-    /// <summary>
     /// Abstracts the three objects required for parsing plus one for the CommonPackage.
     /// </summary>
     public record ParsingContext(StreamReader reader, SqlConnection conn, SqlTransaction trans, CommonPackage data) // apparently you can put the constructor in the class definition

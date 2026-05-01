@@ -143,4 +143,21 @@ public class ConsoleReporter : IOutputProvider
 
         await this.ReportAsync(new (sb.ToString()));
     }
+
+    /// <summary>
+    /// Fulfills the requirement to implement <see cref="IOutputProvider.InitializeProgress"/>.
+    /// Does nothing, because <see cref="ConsoleReporter"/> does not track progress.
+    /// </summary>
+    /// <param name="totalFiles"><inheritdoc/></param>
+    public void InitializeProgress(int totalFiles)
+    {
+    }
+
+    /// <summary>
+    /// Fulfills the requirement to implement <see cref="IOutputProvider.ClearLogs"/>.
+    /// Does nothing, because <see cref="ConsoleReporter"/> does not hold logs internally.
+    /// </summary>
+    public void ClearLogs()
+    {
+    }
 }
