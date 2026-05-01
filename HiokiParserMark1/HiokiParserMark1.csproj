@@ -25,5 +25,8 @@
     </PackageReference>
     <AdditionalFiles Include="../stylecop.json" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InterProcessIO\InterProcessIO.csproj" />
+  </ItemGroup>
 
 </Project>
