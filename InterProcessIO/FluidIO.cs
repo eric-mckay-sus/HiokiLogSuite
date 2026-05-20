@@ -163,6 +163,14 @@ public interface IInputProvider
     /// <param name="prompt">The prompt requiring confirmation.</param>
     /// <returns>A Task containing a boolean representing whether the prompt was confirmed.</returns>
     Task<bool> GetConfirmAsync(Report prompt);
+
+    /// <summary>
+    /// Prompts for and awaits a file (not validated).
+    /// </summary>
+    /// <param name="prompt">The prompt requiring a file.</param>
+    /// <param name="previousError">The previous error that prompted this input, if applicable.</param>
+    /// <returns>A Task containing a nullable (in case of empty path) string representing the safe file path.</returns>
+    Task<string?> GetFileAsync(Report prompt, string? previousError = null);
 }
 
 /// <summary>

@@ -25,7 +25,7 @@ public class BlazorInputProvider : IInputProvider
     private TaskCompletionSource<bool>? confirmTcs;
 
     /// <summary>
-    /// The Blazor action to perform when GetInputAsync is called.
+    /// The Blazor action to perform when string input is requested.
     /// </summary>
     public event Action<Report, string?>? OnInputRequested;
 
@@ -57,6 +57,18 @@ public class BlazorInputProvider : IInputProvider
         this.confirmTcs = new TaskCompletionSource<bool>();
         this.OnConfirmationRequested?.Invoke(prompt);
         return this.confirmTcs.Task;
+    }
+
+    /// <summary>
+    /// <inheritdoc/>
+    /// It is recommended that Blazor use the browser's file selection tool rather than simply calling <see cref="GetInputAsync"/> from the event.
+    /// </summary>
+    /// <param name="prompt"><inheritdoc path="/param[@name='prompt']"/></param>
+    /// <param name="previousError"><inheritdoc path="/param[@name='previousError']"/></param>
+    /// <returns><inheritdoc/></returns>
+    public Task<string?> GetFileAsync(Report prompt, string? previousError = null)
+    {
+        throw new NotImplementedException("Check Authorized Reset projects");
     }
 
     /// <summary>

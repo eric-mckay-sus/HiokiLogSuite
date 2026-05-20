@@ -98,38 +98,35 @@ public class LogParserCore
     public async Task<UploadResult> ExecuteAsync(string? filename = null)
     {
         this.output.ClearLogs(); // If this is another run on the same object, ensure the output provider is clean
-        string path = Config.InputLocation;
-        if (string.IsNullOrWhiteSpace(filename))
-        {
-            // TODO eventually prompt for another file
-            await this.Report($"No file specified. Defaulting to config file input location ({path})\n");
-        }
-        else if (!Path.Exists(path))
-        {
-            // TODO eventually re-prompt with validation
-            await this.Report($"Path '{filename}' is not a valid directory or CSV file. Using Config default ({path}).\n", ReportLevel.WARNING);
-        }
-        else
-        {
-            path = filename;
-        }
+        string? potentialFilePath = null;
+        string filePath = string.Empty;
+        string? validationError = null;
 
-        // Console.ReadLine natively handles spaces, but if the user added them anyway, trim them
-        // The Unicode characters 200E and 200F appear when a user uses drag-drop, which is supported by most terminals
-        path = path.Trim().Trim('"', '\u200E', '\u200F');
-        if (!string.IsNullOrWhiteSpace(path))
+        while (string.IsNullOrEmpty(filePath))
         {
-            path = Path.GetFullPath(path);
+            potentialFilePath = await this.input.GetFileAsync(new ("Please select the file(s) you wish to upload."), validationError);
+            if (potentialFilePath == null)
+            {
+                validationError = $"No file specified. Please try again.";
+            }
+            else if (!Path.Exists(potentialFilePath))
+            {
+                validationError = $"Path '{filename}' is not a valid directory or CSV file. Please try again.";
+            }
+            else
+            {
+                filePath = potentialFilePath;
+            }
         }
 
         try
         {
             bool isFolder;
-            if (Directory.Exists(path))
+            if (Directory.Exists(filePath))
             {
                 isFolder = true;
             }
-            else if (File.Exists(path))
+            else if (File.Exists(filePath))
             {
                 isFolder = false;
             }
@@ -137,7 +134,7 @@ public class LogParserCore
             // Should never reach here unless file is somehow deleted during validation, but handle it for fewer potential errors
             else
             {
-                await this.Report($"Could not find {path}. Please verify the path is correct, then try again.\n", ReportLevel.ERROR);
+                await this.Report($"Could not find {potentialFilePath}. Please verify the path is correct, then try again.\n", ReportLevel.ERROR);
                 return UploadResult.ErroredOut;
             }
 
@@ -149,7 +146,7 @@ public class LogParserCore
             await this.Report("Parsing...");
             if (isFolder)
             {
-                string[] files = Directory.GetFiles(path, "*.csv", SearchOption.AllDirectories);
+                string[] files = Directory.GetFiles(filePath, "*.csv", SearchOption.AllDirectories);
                 this.output.InitializeProgress(files.Length);
                 foreach (string file in files)
                 {
@@ -163,7 +160,7 @@ public class LogParserCore
             else
             {
                 this.output.InitializeProgress(1); // In the single-file case, there is one file (trivial)
-                await this.ParseHioki(path, conn);
+                await this.ParseHioki(filePath, conn);
                 await this.Report("Complete!", ReportLevel.SUCCESS);
                 await this.output.ReportProgress(ProgressEvent.UploadComplete);
                 return UploadResult.Complete;
@@ -181,12 +178,12 @@ public class LogParserCore
     /// Gets the barcode, test datetime, and number of times tested from the header common between step and group result files,
     /// then passes the context to the appropriate handler for the rest of the file.
     /// </summary>
-    /// <param name="file">The file to parse.</param>
+    /// <param name="filePath">The file to parse.</param>
     /// <param name="conn">The <see cref="SqlConnection"/> to use for this file.</param>
     /// <returns>A Task representing that the file has been parsed.</returns>
-    private async Task ParseHioki(string file, SqlConnection conn)
+    private async Task ParseHioki(string filePath, SqlConnection conn)
     {
-        await this.output.SetCurrentFile(file);
+        await this.output.SetCurrentFile(filePath);
         await this.output.ReportProgress(ProgressEvent.FileStarted);
         int rowsUploaded = 0;
         bool hadErrors = false;
@@ -199,7 +196,7 @@ public class LogParserCore
         try
         {
             // reader closes when ParseHioki() returns (at the end of the run)
-            using StreamReader reader = new (file);
+            using StreamReader reader = new (filePath);
 
             reader.ReadLine(); // cut "[Test Results]"
             reader.ReadLine(); // cut "File: filename"
@@ -211,7 +208,7 @@ public class LogParserCore
             // if TimesTested is 0, the value found wasn't an integer, so say which file and skip it (timesTested is primary key)
             if (package.TimesTested == 0)
             {
-                await this.Report($"Error reading timesTested for {file}\n", ReportLevel.ERROR);
+                await this.Report($"Error reading timesTested for {filePath}\n", ReportLevel.ERROR);
                 hadErrors = true;
                 return;
             }
@@ -225,7 +222,7 @@ public class LogParserCore
             // If Barcode is null, say which file, and skip it (barcode is primary key)
             if (line == "UNKNOWN")
             {
-                await this.Report($"Error reading barcode for {file}\n", ReportLevel.ERROR);
+                await this.Report($"Error reading barcode for {filePath}\n", ReportLevel.ERROR);
                 hadErrors = true;
                 return;
             }
@@ -245,14 +242,14 @@ public class LogParserCore
                 }
                 else
                 {
-                    await this.Report($"Error: Could not parse date string '{fullDtStr}' in {file}\n", ReportLevel.ERROR);
+                    await this.Report($"Error: Could not parse date string '{fullDtStr}' in {filePath}\n", ReportLevel.ERROR);
                     hadErrors = true;
                     return;
                 }
             }
             else
             {
-                await this.Report($"Error: Date/Time line malformed in {file}", ReportLevel.ERROR);
+                await this.Report($"Error: Date/Time line malformed in {filePath}", ReportLevel.ERROR);
                 hadErrors = true;
                 return;
             }
@@ -311,7 +308,7 @@ public class LogParserCore
         }
         catch (UnauthorizedAccessException)
         {
-            await this.Report("Error: You do not have permission to read this file: " + file + "\n)", ReportLevel.ERROR);
+            await this.Report("Error: You do not have permission to read this file: " + filePath + "\n)", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
             hadErrors = false;
         }
@@ -330,7 +327,7 @@ public class LogParserCore
         finally
         {
             this.output.BatchResults.Add(new FileResult(
-                file: file,
+                file: filePath,
                 barcode: package.Barcode,
                 alreadyUploaded: alreadyUploaded,
                 hadErrors: hadErrors,
