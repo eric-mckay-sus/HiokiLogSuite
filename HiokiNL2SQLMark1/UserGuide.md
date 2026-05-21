@@ -6,7 +6,10 @@ Quick Start
 
 *Note: all images used in this file are referenced from the PowerPoint also in this directory. For an abbreviated guide, use the PowerPoint.*  
 
-Starting the program using `dotnet run` inside the project directory will start the app on `localhost:5224`. You can enter that into the address bar of any browser, and that should take you to the home page shown below.  
+As of 2026-05-21, the program lives at P:/PE III/Personal/Eric/Projects/+HiokiInterfaceExecutable
+![Run the .bat file before the .exe file](images/programRunOverview.png)
+![The .bat file contains information necessary for DB connection](images/batFile.png)
+![The .exe file will start the app on localhost:5000](images/exeFile.png)
 
 The left hand side of the page has tabs for navigation between the four pages: Group, Step, FCT, and Power Search. The group, step, and FCT pages are what are known as visual query builder pages (VQ pages) and provide a simpler interface at the cost of customizability and the "search all" feature. Please allow some loading time after navigating to a page for the first time as the browser loads the necessary table. Subsequent loads should be much faster, as they do not require more database queries. Refreshing the page un-loads the browser, so you can expect another slow load time after refreshing.  
 
