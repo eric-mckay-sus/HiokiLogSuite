@@ -22,6 +22,19 @@ public static class Program
     /// <param name="args">Command-line arguments supplied by the host.</param>
     public static void Main(string[] args)
     {
+        // Pre-check environment variables
+        try
+        {
+            Config.GetConnectionString();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
+            return;
+        }
+
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddDbContextFactory<LogDbContext>(options =>
