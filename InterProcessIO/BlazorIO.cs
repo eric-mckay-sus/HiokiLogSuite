@@ -19,6 +19,11 @@ public class BlazorInputProvider : IInputProvider
     private TaskCompletionSource<string>? inputTcs;
 
     /// <summary>
+    /// Stores a file result that was supplied before the parser requested a file path.
+    /// </summary>
+    private string? pendingFileResult;
+
+    /// <summary>
     /// Controls the completion state of a confirmation request.
     /// Blazor may control this as it sees fit without using a blocking call (thereby freezing itself bc Blazor is single-thread).
     /// </summary>
@@ -79,6 +84,13 @@ public class BlazorInputProvider : IInputProvider
     /// <returns><inheritdoc/></returns>
     public Task<string?> GetFilepathAsync(Report prompt, string? previousError = null)
     {
+        if (this.pendingFileResult is not null)
+        {
+            string? result = this.pendingFileResult;
+            this.pendingFileResult = null;
+            return Task.FromResult<string?>(result);
+        }
+
         this.fileTcs = new TaskCompletionSource<string?>();
         this.OnFileRequested?.Invoke(prompt, previousError);
         return this.fileTcs.Task;
@@ -100,7 +112,16 @@ public class BlazorInputProvider : IInputProvider
     /// Fills <see cref="fileTcs"/> with <paramref name="result"/>.
     /// </summary>
     /// <param name="result">The desired contents of <see cref="fileTcs"/>. </param>
-    public void SetFileResult(string? result) => this.fileTcs?.TrySetResult(result);
+    public void SetFileResult(string? result)
+    {
+        if (this.fileTcs is not null)
+        {
+            this.fileTcs.TrySetResult(result);
+            return;
+        }
+
+        this.pendingFileResult = result;
+    }
 }
 
 /// <summary>
