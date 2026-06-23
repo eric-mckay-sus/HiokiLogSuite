@@ -46,7 +46,7 @@ public class ConsoleInputProvider : IInputProvider
     /// <param name="prompt"><inheritdoc path="/param[@name='prompt']"/></param>
     /// <param name="previousError">Unused in this implementation.</param>
     /// <returns><inheritdoc/></returns>
-    public async Task<string?> GetFileAsync(Report prompt, string? previousError = null)
+    public async Task<string?> GetFilepathAsync(Report prompt, string? previousError = null)
     {
         string path = await this.GetInputAsync(prompt, previousError);
         if (string.IsNullOrWhiteSpace(path))

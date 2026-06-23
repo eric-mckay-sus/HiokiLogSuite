@@ -170,7 +170,7 @@ public interface IInputProvider
     /// <param name="prompt">The prompt requiring a file.</param>
     /// <param name="previousError">The previous error that prompted this input, if applicable.</param>
     /// <returns>A Task containing a nullable (in case of empty path) string representing the safe file path.</returns>
-    Task<string?> GetFileAsync(Report prompt, string? previousError = null);
+    Task<string?> GetFilepathAsync(Report prompt, string? previousError = null);
 }
 
 /// <summary>

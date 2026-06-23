@@ -104,7 +104,7 @@ public class LogParserCore
 
         while (string.IsNullOrEmpty(filePath))
         {
-            potentialFilePath = await this.input.GetFileAsync(new ("Please select the file(s) you wish to upload."), validationError);
+            potentialFilePath = await this.input.GetFilepathAsync(new ("Please select the file(s) you wish to upload."), validationError);
             if (potentialFilePath == null)
             {
                 validationError = $"No file specified. Please try again.";

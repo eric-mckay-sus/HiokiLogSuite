@@ -40,6 +40,11 @@ public static class Program
         builder.Services.AddDbContextFactory<LogDbContext>(options =>
             options.UseSqlServer(Config.GetConnectionString()));
 
+        builder.Services.AddTransient<BlazorInputProvider>();
+        builder.Services.AddTransient<IInputProvider>(sp => sp.GetRequiredService<BlazorInputProvider>());
+        builder.Services.AddTransient<BlazorReporter>();
+        builder.Services.AddTransient<IOutputProvider>(sp => sp.GetRequiredService<BlazorReporter>());
+
         // Logic for the visual query builders.
         builder.Services.AddScoped<GroupTableLogic>();
         builder.Services.AddScoped<StepTableLogic>();

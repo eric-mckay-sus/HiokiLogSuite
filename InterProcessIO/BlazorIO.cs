@@ -25,6 +25,12 @@ public class BlazorInputProvider : IInputProvider
     private TaskCompletionSource<bool>? confirmTcs;
 
     /// <summary>
+    /// Controls the completion state of a file request.
+    /// Blazor may control this as it sees fit without using a blocking call (thereby freezing itself bc Blazor is single-thread).
+    /// </summary>
+    private TaskCompletionSource<string?>? fileTcs;
+
+    /// <summary>
     /// The Blazor action to perform when string input is requested.
     /// </summary>
     public event Action<Report, string?>? OnInputRequested;
@@ -33,6 +39,11 @@ public class BlazorInputProvider : IInputProvider
     /// The Blazor action to perform when a simple yes/no confirmation is requested
     /// </summary>
     public event Action<Report>? OnConfirmationRequested;
+
+    /// <summary>
+    /// The Blazor action to perform when a file is requested
+    /// </summary>
+    public event Action<Report, string?>? OnFileRequested;
 
     /// <summary>
     /// <inheritdoc/>
@@ -66,9 +77,11 @@ public class BlazorInputProvider : IInputProvider
     /// <param name="prompt"><inheritdoc path="/param[@name='prompt']"/></param>
     /// <param name="previousError"><inheritdoc path="/param[@name='previousError']"/></param>
     /// <returns><inheritdoc/></returns>
-    public Task<string?> GetFileAsync(Report prompt, string? previousError = null)
+    public Task<string?> GetFilepathAsync(Report prompt, string? previousError = null)
     {
-        throw new NotImplementedException("Check Authorized Reset projects");
+        this.fileTcs = new TaskCompletionSource<string?>();
+        this.OnFileRequested?.Invoke(prompt, previousError);
+        return this.fileTcs.Task;
     }
 
     /// <summary>
@@ -82,6 +95,12 @@ public class BlazorInputProvider : IInputProvider
     /// </summary>
     /// <param name="result">The desired contents of <see cref="confirmTcs"/>. </param>
     public void SetConfirmResult(bool result) => this.confirmTcs?.TrySetResult(result);
+
+    /// <summary>
+    /// Fills <see cref="fileTcs"/> with <paramref name="result"/>.
+    /// </summary>
+    /// <param name="result">The desired contents of <see cref="fileTcs"/>. </param>
+    public void SetFileResult(string? result) => this.fileTcs?.TrySetResult(result);
 }
 
 /// <summary>
