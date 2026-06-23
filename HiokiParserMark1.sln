@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HiokiNL2SQLMark1", "HiokiNL
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HiokiNL2SQL.Tests", "HiokiNL2SQL.Tests\HiokiNL2SQL.Tests.csproj", "{D07E2AB2-D02A-4FA1-8D1D-4D3A585E9A19}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InterProcessIO", "InterProcessIO\InterProcessIO.csproj", "{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{D07E2AB2-D02A-4FA1-8D1D-4D3A585E9A19}.Release|x64.Build.0 = Release|Any CPU
 		{D07E2AB2-D02A-4FA1-8D1D-4D3A585E9A19}.Release|x86.ActiveCfg = Release|Any CPU
 		{D07E2AB2-D02A-4FA1-8D1D-4D3A585E9A19}.Release|x86.Build.0 = Release|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Debug|x64.Build.0 = Debug|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Debug|x86.Build.0 = Debug|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Release|x64.ActiveCfg = Release|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Release|x64.Build.0 = Release|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Release|x86.ActiveCfg = Release|Any CPU
+		{4C18977C-B58C-48EF-ACC4-ADA4BFEE5216}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

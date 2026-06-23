@@ -2,11 +2,10 @@
 // Copyright (c) 2026 Stanley Electric US Co. Inc. Licensed under the MIT License.
 // </copyright>
 
-#pragma warning disable SA1200 // Top-level code may not be in a namespace
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Data.SqlClient;
+namespace HiokiNL2SQLMark1;
 
-using HiokiNL2SQLMark1;
+using Microsoft.EntityFrameworkCore;
+
 using HiokiNL2SQLMark1.Components;
 using HiokiNL2SQLMark1.Logic;
 using HiokiNL2SQLMark1.Services;

@@ -1,41 +1,36 @@
-HiokiNL2SQLMark1
-================
+# HiokiNL2SQLMark1
 
-Overview
---------
-`HiokiNL2SQLMark1` is a Blazor-based application and supporting logic that turns user-friendly, natural-language-like queries into SQL against the Hioki log dataset. It also provides a UI for browsing and searching logs (pages such as Fct, Group, Step, and PowerSearch).
+A Blazor web application that converts natural-language queries into SQL and provides a UI for searching and browsing Hioki device logs.
 
-Architecture
-------------
-- Components: Blazor UI components live under `Components/Pages` and `Components/CommonComponents`.
-- Services: Application services are in `Services/` (for example, `SearchParserService.cs`, `NavService.cs`, `JSService.cs`).
-- Logic: Business logic and query translation live in `Logic/` (for example, `PowerSearchLogic.cs`, `LogTableLogic.cs`, `FctTableLogic.cs`).
-- Data: `LogDbContext.cs` and `LogTableBase.cs` show how data access and models are structured.
+## Functionality
 
-How it works (high level)
--------------------------
-1. User enters a search in the UI (PowerSearch or table filters).
-2. `SearchParserService` parses the input and uses the `Logic` layer to convert it into a SQL expression or LINQ query.
-3. The query is executed against the application's data layer (`LogDbContext`) and results are displayed in the UI components.
+- **Query translation**: Accepts user input (searches, filters) and translates them into SQL/LINQ queries
+- **UI pages**: Fct, Group, Step, and PowerSearch pages for browsing and filtering log data
+- **Data layer**: Connects to Hioki log database via Entity Framework (`LogDbContext`)
 
-Run locally
------------
-From the repo root run:
+## Architecture
+
+- `Components/Pages`: Blazor pages (Fct, Group, Step, PowerSearch)
+- `Components/CommonComponents`: Reusable UI components
+- `Services/`: Application services including `SearchParserService`, `NavService`, `JSService`
+- `Logic/`: Query translation and business logic (e.g., `PowerSearchLogic`, `LogTableLogic`)
+- `LogDbContext.cs`: Data models and database context
+
+## How it works
+
+1. User searches via the UI (PowerSearch or table filters)
+2. `SearchParserService` parses the input
+3. Logic layer converts it to a SQL/LINQ query
+4. Query executes against the database and results display in the UI
+
+## Run
 
 ```bash
 dotnet run --project HiokiNL2SQLMark1\HiokiNL2SQLMark1.csproj
 ```
 
-Configuration
--------------
-- `appsettings.json` and `appsettings.Development.json` in the project root contain runtime configuration (logging, connection strings, etc.).
-- Use the `Properties/launchSettings.json` for development launch configurations.
+## Configuration
 
-Testing
--------
-Unit and integration tests for the translation and logic live in the sibling project `HiokiNL2SQL.Tests`. Run `dotnet test` from the solution root to execute tests.
-
-Development notes
------------------
-- To add new parsing rules, extend `SearchParserService` and add the corresponding logic in `Logic/`.
-- Keep the UI components thin — put translation and data concerns in `Services`/`Logic`.
+- `appsettings.json`: Default settings
+- `appsettings.Development.json`: Development overrides
+- `Properties/launchSettings.json`: Launch configuration
