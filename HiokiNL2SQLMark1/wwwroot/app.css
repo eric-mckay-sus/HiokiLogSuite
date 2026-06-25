@@ -547,7 +547,10 @@ h1:focus {
 /* Style the label as the button */
 .upload-button {
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     padding: 8px 20px;
     cursor: pointer;
     background-color: hsl(211, 100%, 45%);
@@ -556,10 +559,24 @@ h1:focus {
     border-radius: 2px;
     font-weight: 600;
     transition: ease 0.2s;
-    gap: 6px;
+    gap: 0;
+    line-height: 1.1;
     z-index: 1;
     position: absolute;
     pointer-events: none;
+}
+
+.upload-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+}
+
+.upload-helper-text {
+    color: hsl(210, 7%, 80%);
+    display: block;
+    font-size: 0.9rem;
 }
 
 .progress{

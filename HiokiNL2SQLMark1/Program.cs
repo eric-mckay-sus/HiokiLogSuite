@@ -45,6 +45,12 @@ public static class Program
         builder.Services.AddTransient<BlazorReporter>();
         builder.Services.AddTransient<IOutputProvider>(sp => sp.GetRequiredService<BlazorReporter>());
 
+        // Allow large multi-file selection payloads from InputFile to pass over SignalR.
+        builder.Services.AddSignalR(options =>
+        {
+            options.MaximumReceiveMessageSize = 64 * 1024 * 1024;
+        });
+
         // Logic for the visual query builders.
         builder.Services.AddScoped<GroupTableLogic>();
         builder.Services.AddScoped<StepTableLogic>();

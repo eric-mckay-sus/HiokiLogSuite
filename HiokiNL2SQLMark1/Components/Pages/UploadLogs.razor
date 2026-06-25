@@ -12,7 +12,11 @@
 <div class="centered-container mb-3">
     <div class="upload-card @(isDragging ? "drag-active" : "")">
         <label for="fileInput" class="upload-button">
-            <i class="bi bi-cloud-arrow-up" style="font-size: 26px"></i> Choose CSV File
+            <span class="upload-button-content">
+                <Icon Name="IconName.CloudArrowUp" Size="IconSize.x2" />
+                <span>Choose CSV file</span>
+            </span>
+            <span class="upload-helper-text">(max 2000 files)</span>
         </label>
         <InputFile id="fileInput" OnChange="HandleFileChanged" accept=".csv" class="hidden-input-overlay" multiple
             @ondragenter="HandleDragEnter"

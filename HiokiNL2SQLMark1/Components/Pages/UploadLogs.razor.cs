@@ -88,7 +88,7 @@ public partial class UploadLogs : IDisposable
         this.selectedFiles = [];
 
         // Support multiple files securely
-        IReadOnlyList<IBrowserFile> files = e.GetMultipleFiles(maximumFileCount: 100);
+        IReadOnlyList<IBrowserFile> files = e.GetMultipleFiles(maximumFileCount: 2000);
 
         foreach (IBrowserFile file in files)
         {
@@ -160,7 +160,7 @@ public partial class UploadLogs : IDisposable
     /// Downloads <see cref="selectedFiles"/> at <see cref="UploadsFolderPath"/> and sets it as the file task completion source using <see cref="BlazorInputProvider.SetFileResult"/>.
     /// </summary>
     /// <returns>A Task representing that the file was downloaded and passed off successfully.</returns>
-    private async Task<bool> SaveSelectedFileAndSignalAsync()
+    private async Task<bool> SaveSelectedFiles()
     {
         Directory.CreateDirectory(this.UploadsFolderPath);
 
@@ -172,7 +172,7 @@ public partial class UploadLogs : IDisposable
             // Stream the file data from the element to the server (must use block using statement to close stream before the uploader tries to create a new one)
             using (FileStream stream = new (filePath, FileMode.Create))
             {
-                await file.OpenReadStream(1024 * 1024 * 10).CopyToAsync(stream); // max 10 MB per file
+                await file.OpenReadStream(1024 * 100).CopyToAsync(stream); // max 100 KB per file
             }
         }
 
@@ -199,9 +199,9 @@ public partial class UploadLogs : IDisposable
         try
         {
             this.Reporter.ClearLogs();
-            this.Reporter.InitializeProgress(1);
+            this.Reporter.InitializeProgress(this.selectedFiles.Count);
 
-            bool filesReady = await this.SaveSelectedFileAndSignalAsync(); // actually get the file (and pass to uploader via input provider)
+            bool filesReady = await this.SaveSelectedFiles(); // actually get the file (and pass to uploader via input provider)
             if (!filesReady)
             {
                 return;
