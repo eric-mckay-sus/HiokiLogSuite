@@ -464,3 +464,121 @@ h1:focus {
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     border-radius: 0.375rem;
 }
+
+/* The accordion wrapper (compressed by default) */
+.expandable-wrapper {
+    display: grid;
+    grid-template-rows: 0fr; /* Start collapsed */
+    transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s ease,
+                visibility 0.2s;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+
+    /* Anything applied directly will override these, but inherit no margins */
+    margin: 0;
+    padding: 0;
+}
+
+/* When collapsing (fade out immediately) */
+.expandable-wrapper:not(.is-expanded) {
+    transition:
+        grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s,
+        opacity 0.2s ease 0s;
+}
+
+/* Expands the wrapper to the size of its contents */
+.is-expanded {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    /* Delay the opacity so it starts partway through the height expansion */
+    transition-delay: 0s, 0.2s, 0s;
+}
+
+/* Describes the contents of the accordion */
+.expandable-content {
+    min-height: 0;
+    padding-bottom: 10px;
+}
+
+/* Visual container for the upload area */
+.upload-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border: 3px dashed #dee2e6;
+    border-radius: 25px;
+    padding: 2vh;
+    margin-bottom: 5px;
+    text-align: center;
+    width: 140vh;
+    height: 20vh;
+    transition: all 0.3s ease;
+}
+
+.upload-card:hover{
+    border-color:hsl(210, 75%, 70%);
+}
+
+.upload-card.drag-active {
+    border-color: #007bff;
+    background-color: hsl(211, 100%, 95%);
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+/* Make the actual input invisible but stretch it to fill the card */
+.hidden-input-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0; /* Invisible but clickable/droppable */
+    z-index: 2; /* Sits on top of the button */
+}
+
+/* Style the label as the button */
+.upload-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 20px;
+    cursor: pointer;
+    background-color: hsl(211, 100%, 45%);
+    font-size: 20px;
+    color: white;
+    border-radius: 2px;
+    font-weight: 600;
+    transition: ease 0.2s;
+    gap: 0;
+    line-height: 1.1;
+    z-index: 1;
+    position: absolute;
+    pointer-events: none;
+}
+
+.upload-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+}
+
+.upload-helper-text {
+    color: hsl(210, 7%, 80%);
+    display: block;
+    font-size: 0.9rem;
+}
+
+.progress{
+    color: hsl(210, 76%, 40%)
+}
