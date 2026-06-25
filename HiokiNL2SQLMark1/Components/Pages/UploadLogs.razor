@@ -181,18 +181,18 @@
                                 @Path.GetFileName(result.file)
                             </td>
                             <td>
-                                <span class="badge bg-secondary font-monospace">@result.barcode</span>
+                                <span class="badge bg-secondary font-monospace" style="font-size: 1rem;">@result.barcode</span>
                             </td>
                             <td>
                                 @if (result.alreadyUploaded)
                                 {
-                                    <span class="text-warning fw-semibold">
-                                        <Icon Name="IconName.SkipForward" /> Duplicate Skipped (Time bounds/Barcode already match DB records)
+                                    <span class="text-warning fw-semibold" style="font-size: 1rem;">
+                                        <Icon Name="IconName.SkipForwardFill" /> Duplicate Skipped (Time bounds/Barcode already match DB records)
                                     </span>
                                 }
                                 else if (result.hadErrors)
                                 {
-                                    <span class="text-danger fw-semibold">
+                                    <span class="text-danger fw-semibold" style="font-size: 1rem;">
                                         <Icon Name="IconName.XCircle" /> Format Error (Missing required column indices, invalid date configuration, or row properties cut short)
                                     </span>
                                 }
@@ -208,7 +208,7 @@
         <Alert Color="AlertColor.Success" Class="d-flex align-items-center shadow-sm">
             <Icon Name="IconName.CheckCircleFill" Class="me-3 fs-4" />
             <div>
-                <strong>Perfect Upload!</strong> All file packets parsed flawlessly. No formatting anomalies or structural duplicates were detected.
+                <strong>Perfect upload!</strong> All file packets parsed and uploaded successfully. No formatting anomalies or structural duplicates detected.
             </div>
         </Alert>
     }

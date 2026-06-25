@@ -4,7 +4,6 @@
 
 namespace HiokiNL2SQLMark1.Components.Pages;
 
-using BlazorBootstrap;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components;
 
@@ -175,6 +174,7 @@ public partial class UploadLogs : IDisposable
     private async Task<bool> SaveSelectedFiles()
     {
         Directory.CreateDirectory(this.UploadsFolderPath);
+        this.Reporter.BatchResults.Clear(); // if this is the second upload in the run, clear the last batch
 
         foreach (IBrowserFile file in this.selectedFiles)
         {
@@ -220,24 +220,7 @@ public partial class UploadLogs : IDisposable
             }
 
             LogParserCore uploader = new (this.InputProvider, this.Reporter);
-            UploadResult result = await uploader.ExecuteAsync(this.UploadsFolderPath);
-
-            if (result == UploadResult.Complete && !this.Reporter.Logs.Any(l => l.level == ReportLevel.ERROR))
-            {
-                // this.ToastService.Notify(new (ToastType.Success, $"\n'{this.selectedFile?.Name ?? "CSV"}' successfully uploaded."));
-            }
-            else if (result == UploadResult.Canceled)
-            {
-                // this.ToastService.Notify(new (ToastType.Secondary, "Upload canceled."));
-            }
-            else
-            {
-                // this.ToastService.Notify(new (ToastType.Danger, $"Upload failed."));
-            }
-        }
-        catch (Exception)
-        {
-            // this.ToastService.Notify(new (ToastType.Danger, $"Upload failed."));
+            await uploader.ExecuteAsync(this.UploadsFolderPath);
         }
         finally
         {
