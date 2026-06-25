@@ -1,12 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1;
-using HiokiNL2SQLMark1.Logic;
+using HiokiNL2SQL;
+using HiokiNL2SQL.Logic;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
 public class StepTableLogicTests
 {
-    public static readonly TheoryData<string, IFilter, string, object?> StepFilterData = 
+    public static readonly TheoryData<string, IFilter, string, object?> StepFilterData =
     new()
     {
         // Key, Filter Object, Property Name, Expected Value
@@ -21,7 +21,7 @@ public class StepTableLogicTests
         // Arrange
         var matchRecord = new StepResult();
         typeof(StepResult).GetProperty(propName)?.SetValue(matchRecord, value);
-        
+
         var otherRecord = new StepResult();
         // Set otherRecord to a different value to ensure filtering happens
         object otherValue = value is int i ? i + 1 : "DIFFERENT";
@@ -47,7 +47,7 @@ public class StepTableLogicTests
         // Arrange
         var matchRecord = new StepResult();
         typeof(StepResult).GetProperty(propName)?.SetValue(matchRecord, value);
-        
+
         var otherRecord = new StepResult();
         object otherValue = value is int i ? i + 1 : "REMAINING";
         typeof(StepResult).GetProperty(propName)?.SetValue(otherRecord, otherValue);
@@ -79,7 +79,7 @@ public class StepTableLogicTests
         logic.Filters["part"].SetValue("R1");
         logic.Filters["step"].SetValue(10);
         logic.Filters["mode"].SetValue("R-AC160");
-        logic.Filters["barcode"].SetValue("ABC"); 
+        logic.Filters["barcode"].SetValue("ABC");
 
         // Act
         logic.ResetFilterState();

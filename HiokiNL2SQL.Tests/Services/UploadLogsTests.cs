@@ -1,5 +1,5 @@
 using System.Reflection;
-using HiokiNL2SQLMark1.Components.Pages;
+using HiokiNL2SQL.Components.Pages;
 using InterProcessIO;
 
 namespace HiokiNL2SQL.Tests.Services;

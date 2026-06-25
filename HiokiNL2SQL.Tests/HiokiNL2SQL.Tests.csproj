@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\HiokiNL2SQLMark1\HiokiNL2SQLMark1.csproj" />
+    <ProjectReference Include="..\HiokiNL2SQL\HiokiNL2SQL.csproj" />
   </ItemGroup>
 
 </Project>

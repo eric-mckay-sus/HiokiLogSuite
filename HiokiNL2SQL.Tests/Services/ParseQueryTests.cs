@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1.Services;
-using HiokiNL2SQLMark1.Logic;
+using HiokiNL2SQL.Services;
+using HiokiNL2SQL.Logic;
 
 namespace HiokiNL2SQL.Tests.Services;
 [ExcludeFromCodeCoverage]
@@ -21,7 +21,7 @@ public class SearchParserTests
         Assert.Empty(result.ErrorMessages);
         Assert.Equal("group", result.CurrentType);
         // Ensure GeneratePreview was called for the default state
-        Assert.NotNull(result.Preview); 
+        Assert.NotNull(result.Preview);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class SearchParserTests
         // Assert
         Assert.Single(result.ErrorMessages);
         Assert.Contains(result.ErrorMessages, e => e.Contains(isKey ? $"Tag **{gap}** is missing a value." : $"Unrecognized filter without key: **{gap}**"));
-        
+
         // Verify valid tags were still parsed
         foreach (var filterPart in patternHits.Split(','))
         {
@@ -79,7 +79,7 @@ public class SearchParserTests
     // Scenario 1: User puts hyphen on value instead of key
     [InlineData("barcode:-A123", "barcode", "A123", true, "This search is now **-barcode:A123...**")]
     // Scenario 2: Literal hyphen in quotes should NOT trigger auto-negation
-    [InlineData("barcode:\"-A123\"", "barcode", "-A123", false, "")] 
+    [InlineData("barcode:\"-A123\"", "barcode", "-A123", false, "")]
     // Scenario 3: Double negation (hyphen on both) should probably just result in negation
     [InlineData("-barcode:-A123", "barcode", "A123", true, "This search is now **-barcode:A123...**")]
     public void ParseQuery_ShouldHandleHyphenOnValue(string input, string key, string expectedValue, bool expectedNegation, string expectedErrorSnippet)
@@ -168,7 +168,7 @@ public class SearchParserTests
         string input = "in:fct comp:UN-T";
 
         // Act
-        var result = _parser.ParseQuery(input, "all"); 
+        var result = _parser.ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("is not available when searching **fct**"));
@@ -192,7 +192,7 @@ public class SearchParserTests
     {
         // Arrange
         string input = "barcode:A100 barcode:B200";
-        
+
         // Act
         var result = _parser.ParseQuery(input, "all");
 
@@ -249,7 +249,7 @@ public class SearchParserTests
         var after = result.Filters["after"] as Filter<DateTime?>;
         var before = result.Filters["before"] as Filter<DateTime?>;
 
-        Assert.True(after.Value < before.Value); 
+        Assert.True(after.Value < before.Value);
         Assert.Contains(result.ErrorMessages, e => e.Contains("Your start date is after your end date"));
     }
 
@@ -265,7 +265,7 @@ public class SearchParserTests
     [Fact]
     public void ParseQuery_ShouldCatchMultipleDifferentErrors()
     {
-        // Arrange: 
+        // Arrange:
         // 1. Invalid 'in' target
         // 2. Unrecognized tag 'boom'
         // 3. SQL injection in 'barcode'
@@ -313,7 +313,7 @@ public class SearchParserTests
         Assert.Equal(2, result.ErrorMessages.Count);
         Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected"));
         Assert.Contains(result.ErrorMessages, e => e.Contains("**xyz** wasn't recognized"));
-        
+
         // Verify that logic still preserved the last valid value despite errors elsewhere
         Assert.Equal("A2", result.Filters["barcode"].GetValue());
     }

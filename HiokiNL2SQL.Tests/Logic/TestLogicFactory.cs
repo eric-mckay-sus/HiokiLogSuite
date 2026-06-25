@@ -1,14 +1,14 @@
 using Moq;
 using Microsoft.EntityFrameworkCore;
-using HiokiNL2SQLMark1.Logic;
-using HiokiNL2SQLMark1;
+using HiokiNL2SQL.Logic;
+using HiokiNL2SQL;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
 public static class TestLogicFactory
 {
-    public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSService? js = null, INavService? nav = null) 
+    public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSService? js = null, INavService? nav = null)
         where T : class, IHiokiLog
         where TLogic : LogTableLogic<T>
     {

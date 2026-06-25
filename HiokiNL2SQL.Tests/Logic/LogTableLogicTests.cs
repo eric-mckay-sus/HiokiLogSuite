@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1;
-using HiokiNL2SQLMark1.Logic;
-using HiokiNL2SQLMark1.Services;
+using HiokiNL2SQL;
+using HiokiNL2SQL.Logic;
+using HiokiNL2SQL.Services;
 using HiokiNL2SQL.Tests.Services;
 
 namespace HiokiNL2SQL.Tests.Logic;

@@ -1,6 +1,6 @@
 using Moq;
-using HiokiNL2SQLMark1.Logic;
-using HiokiNL2SQLMark1.Services;
+using HiokiNL2SQL.Logic;
+using HiokiNL2SQL.Services;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;

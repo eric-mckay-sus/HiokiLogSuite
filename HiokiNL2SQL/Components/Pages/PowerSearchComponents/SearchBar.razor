@@ -1,0 +1,94 @@
+@using HiokiNL2SQL.Services
+@implements IDisposable
+
+<div class="input-group mb-0">
+    <span class="input-group-text bg-dark text-white font-monospace"><i class="bi bi-chevron-right" style="font-size: 1.5rem;"></i></span>
+
+    <input type="text" id="searchBar" autocomplete="off"
+        class="form-control form-control-lg font-monospace"
+        value="@State.CommandInput"
+        @oninput="HandleInput"
+        @onkeydown="HandleKeyDown"
+        placeholder="Search in @(State.CurrentType.ToUpper())..." />
+        @* placeholder="in:group barcode:A100 result:FAIL after:2024-01-01" /> *@
+
+    <span class="input-group-text clear-addon">
+        @if (!string.IsNullOrEmpty(State.CommandInput))
+        {
+            <button type="button" class="btn-close" aria-label="Clear"
+                    @onclick="State.ClearSearchBar"
+                    style="font-size: 0.8rem;"></button>
+        }
+    </span>
+    <button class="btn btn-primary px-4 d-flex align-items-center"
+            @onclick="async () => await State.ExecutePowerSearch()">
+            <i class="bi bi-arrow-right" style="font-size: 1.5rem;"></i></button>
+</div>
+<div class="d-flex gap-2 mt-0 mb-2 filter-row">
+    @foreach(string type in SearchParserService.AvailableTypes){
+        <button
+            class="btn btn-sm @(State.CurrentType == type ? "btn-primary" : "btn-outline-secondary")"
+            title="Switch to @type @(type=="all" ? "tables" : "table")"
+            @onclick='() => State.SetType(type)'>@(char.ToUpper(type[0]) + type[1..])
+        </button>
+    }
+    <div class="ms-auto d-flex flex-column align-items-center inclusive-exclusive tab" style="line-height: 1;">
+        <div class="btn-group btn-group-sm" role="group" title="Select how date boundaries are calculated">
+            <input type="radio" class="btn-check" name="incl" id="incl_on" autocomplete="off"
+                checked="@State.IsInclusive"
+                @onchange="() => State.SetInclusivity(true)">
+            <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_on">Inclusive [ ]</label>
+
+            <input type="radio" class="btn-check" name="incl" id="incl_off" autocomplete="off"
+                checked="@(!State.IsInclusive)"
+                @onchange="() => State.SetInclusivity(false)">
+            <label class="btn btn-outline-primary d-inline-flex align-items-center" for="incl_off">Exclusive ( )</label>
+        </div>
+        <span class="text-muted small mb-0" style="font-size:0.7rem; letter-spacing:0.05rem; display:block;">Date filter mode</span>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
+
+    /// <summary>
+    /// When this component loads, continuously watch the query for filter changes
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        State.OnRefreshRequested += HandleRefreshRequested;
+    }
+
+    private void HandleRefreshRequested() => InvokeAsync(StateHasChanged);
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        string? newValue = e.Value?.ToString();
+
+        // Update the string in the Logic class
+        State.CommandInput = newValue ?? string.Empty;
+
+        // Trigger the debounce timer located in the Logic class
+        // Since the timer logic uses pure strings/ints, it stays in Logic
+        State.RestartDebounceTimer();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            // Stop the timer and execute immediately
+            State.DebounceTimer?.Stop();
+            await State.ExecutePowerSearch();
+        }
+    }
+
+    /// <summary>
+    /// When this component closes, inform the location manager
+    /// </summary>
+    public void Dispose()
+    {
+        State.OnRefreshRequested -= HandleRefreshRequested;
+    }
+}
