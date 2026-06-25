@@ -52,21 +52,35 @@ else
 
     protected override void OnInitialized()
     {
+        State.OnRefreshRequested -= HandleRefreshRequested;
         State.OnRefreshRequested += HandleRefreshRequested;
+        NavService.OnLocationChanged -= HandleLocationChanged;
         NavService.OnLocationChanged += HandleLocationChanged;
+    }
+
+    /// <summary>
+    /// Signature and pattern in order to implement IDisposable.
+    /// Note: GC stands for garbage collector, which internally calls Dispose(false). By calling Dispose(true) here, we effectively circumvent that with the manual disposal.
+    /// </summary>
+    public void Dispose(){
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
     /// When this page closes, inform the viewmodel and location manager, then kill the timer thread
     /// </summary>
-    public void Dispose()
+    /// <param name="disposing">Whether to actually dispose. This is a help for the garbage collector.</param>
+    private void Dispose(bool disposing)
     {
-        if (State != null) {
-            State.OnRefreshRequested -= HandleRefreshRequested;
-            State.DebounceTimer?.Stop();
-            State.DebounceTimer?.Dispose();
+        if (disposing){
+            if (State != null) {
+                State.OnRefreshRequested -= HandleRefreshRequested;
+                State.DebounceTimer?.Stop();
+                State.DebounceTimer?.Dispose();
+            }
+            NavService.OnLocationChanged -= HandleLocationChanged;
         }
-        NavService.OnLocationChanged -= HandleLocationChanged;
     }
 
     /// <summary>

@@ -15,7 +15,7 @@ using HiokiNL2SQL.Logic;
 /// An implementation of <see cref="INavService"/> that wires the built-in NavigationManager LocationChanged event to the custom action.
 /// Builds a NavService using the specified NavigationManager.
 /// </summary>
-public class NavService(NavigationManager nav) : INavService, IDisposable
+public sealed class NavService(NavigationManager nav) : INavService, IDisposable
 {
     private readonly NavigationManager navManager = nav;
     private bool isLocationChangedSubscribed = false;
@@ -154,11 +154,22 @@ public class NavService(NavigationManager nav) : INavService, IDisposable
     }
 
     /// <summary>
-    /// Upon navigating away from this page, unsubscribe from the URL monitor.
+    /// Signature and pattern in order to implement IDisposable.
+    /// Note: GC stands for garbage collector, which internally calls Dispose(false). By calling Dispose(true) here, we effectively circumvent that with the manual disposal.
     /// </summary>
     public void Dispose()
     {
-        if (this.isLocationChangedSubscribed)
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Upon navigating away from this page, unsubscribe from the URL monitor.
+    /// </summary>
+    /// <param name="disposing">Whether to actually dispose. This is a help for the garbage collector.</param>
+    public void Dispose(bool disposing)
+    {
+        if (disposing && this.isLocationChangedSubscribed)
         {
             this.navManager.LocationChanged -= this.HandleLocationChanged;
             this.isLocationChangedSubscribed = false;

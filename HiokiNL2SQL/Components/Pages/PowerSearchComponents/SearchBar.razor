@@ -57,6 +57,7 @@
     /// </summary>
     protected override void OnInitialized()
     {
+        State.OnRefreshRequested -= HandleRefreshRequested;
         State.OnRefreshRequested += HandleRefreshRequested;
     }
 
@@ -85,10 +86,24 @@
     }
 
     /// <summary>
-    /// When this component closes, inform the location manager
+    /// Signature and pattern in order to implement IDisposable.
+    /// Note: GC stands for garbage collector, which internally calls Dispose(false). By calling Dispose(true) here, we effectively circumvent that with the manual disposal.
     /// </summary>
     public void Dispose()
     {
-        State.OnRefreshRequested -= HandleRefreshRequested;
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// When this component unloads, unbind the refresh handler.
+    /// </summary>
+    /// <param name="disposing">Whether to actually dispose. This is a help for the garbage collector.</param>
+    protected void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            State.OnRefreshRequested -= HandleRefreshRequested;
+        }
     }
 }
