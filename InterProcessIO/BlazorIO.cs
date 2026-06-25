@@ -177,10 +177,10 @@ public class BlazorReporter : IOutputProvider
     /// </summary>
     /// <param name="totalFiles">The number of files in this batch.</param>
     public void InitializeProgress(int totalFiles)
-{
-    this.Progress = new BatchProgress { TotalFiles = totalFiles };
-    this.OnNotify?.Invoke();
-}
+    {
+        this.Progress = new BatchProgress { TotalFiles = totalFiles };
+        this.OnNotify?.Invoke();
+    }
 
     /// <summary>
     /// Clears the logs so old data does not persist.

@@ -61,6 +61,7 @@ public partial class UploadLogs : IDisposable
             this.InputProvider.OnInputRequested -= this.HandleInputRequested;
             this.InputProvider.OnFileRequested -= this.HandleFileRequested;
             this.InputProvider.OnConfirmationRequested -= this.HandleConfirmationRequested;
+            this.Reporter.OnNotify -= this.HandleReporterChanged;
         }
     }
 
@@ -76,6 +77,9 @@ public partial class UploadLogs : IDisposable
         this.InputProvider.OnFileRequested += this.HandleFileRequested;
         this.InputProvider.OnConfirmationRequested -= this.HandleConfirmationRequested;
         this.InputProvider.OnConfirmationRequested += this.HandleConfirmationRequested;
+
+        this.Reporter.OnNotify -= this.HandleReporterChanged;
+        this.Reporter.OnNotify += this.HandleReporterChanged;
     }
 
     /// <summary>
@@ -153,6 +157,14 @@ public partial class UploadLogs : IDisposable
             return;
         }
 
+        this.InvokeAsync(this.StateHasChanged);
+    }
+
+    /// <summary>
+    /// Forces the component to re-render when the reporter signals a progress or state update.
+    /// </summary>
+    private void HandleReporterChanged()
+    {
         this.InvokeAsync(this.StateHasChanged);
     }
 
