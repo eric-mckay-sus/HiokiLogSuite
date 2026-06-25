@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="HiokiNL2SQL.Tests/HiokiNL2SQL.Tests.csproj" />
+  <Project Path="HiokiNL2SQLMark1/HiokiNL2SQLMark1.csproj" />
+  <Project Path="HiokiParserMark1/HiokiParserMark1.csproj" />
+  <Project Path="InterProcessIO/InterProcessIO.csproj" />
+</Solution>
