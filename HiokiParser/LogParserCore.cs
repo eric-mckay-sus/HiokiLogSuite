@@ -165,17 +165,16 @@ public class LogParserCore
                 }
 
                 await this.Report($"Complete! {files.Length} files added to database.\n", ReportLevel.SUCCESS);
-                await this.output.ReportProgress(ProgressEvent.UploadComplete);
-                return UploadResult.Complete;
             }
             else
             {
                 this.output.InitializeProgress(1); // In the single-file case, there is one file (trivial)
                 await this.ParseHioki(filePath, conn);
                 await this.Report("Complete!", ReportLevel.SUCCESS);
-                await this.output.ReportProgress(ProgressEvent.UploadComplete);
-                return UploadResult.Complete;
             }
+
+            await this.output.ReportProgress(ProgressEvent.UploadComplete);
+            return UploadResult.Complete;
         }
         catch (Exception e)
         {
@@ -197,123 +196,40 @@ public class LogParserCore
         await this.output.SetCurrentFile(filePath);
         await this.output.ReportProgress(ProgressEvent.FileStarted);
         int rowsUploaded = 0;
-        bool hadErrors = false;
-        bool alreadyUploaded = false;
 
-        // new() is a really cool constructor that uses the implied class from the declaration (can pass arguments just the same)
-        CommonPackage package = new (); // in this case, package already knows it will be a CommonPackage from the left hand side, so new() can figure it out
+        CommonPackage package = new ();
+        LogParseResult parseResult = default;
 
         // If there is a file-related error (like the file being open in another process), there's nothing to be done
         try
         {
-            // reader closes when ParseHioki() returns (at the end of the run)
             using StreamReader reader = new (filePath);
 
-            await reader.ReadLineAsync(); // cut "[Test Results]"
-            await reader.ReadLineAsync(); // cut "File: filename"
-
-            // Parse timesTested as an int
-            string? line = await reader.ReadLineAsync();
-            package.TimesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
-
-            // if TimesTested is 0, the value found wasn't an integer, so say which file and skip it (timesTested is primary key)
-            if (package.TimesTested == 0)
-            {
-                await this.Report($"Error reading timesTested for {filePath}\n", ReportLevel.ERROR);
-                hadErrors = true;
-                return;
-            }
-
-            await reader.ReadLineAsync(); // cut "Lot No."
-
-            // Parse barcode
-            line = await reader.ReadLineAsync();
-            package.Barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
-
-            // If Barcode is null, say which file, and skip it (barcode is primary key)
-            if (line == "UNKNOWN")
-            {
-                await this.Report($"Error reading barcode for {filePath}\n", ReportLevel.ERROR);
-                hadErrors = true;
-                return;
-            }
-
-            // Parse testTime
-            line = await reader.ReadLineAsync();
-            string[]? dateParts = line?.Split(',');
-
-            if (dateParts != null && dateParts.Length >= 3)
-            {
-                // concatenate date & time
-                string fullDtStr = dateParts[1].Trim() + " " + dateParts[2].Trim();
-
-                if (DateTime.TryParse(fullDtStr, CultureInfo.CurrentCulture, out DateTime dt))
-                {
-                    package.TestTime = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, DateTimeKind.Local);
-                }
-                else
-                {
-                    await this.Report($"Error: Could not parse date string '{fullDtStr}' in {filePath}\n", ReportLevel.ERROR);
-                    hadErrors = true;
-                    return;
-                }
-            }
-            else
-            {
-                await this.Report($"Error: Date/Time line malformed in {filePath}", ReportLevel.ERROR);
-                hadErrors = true;
-                return;
-            }
+            parseResult = await this.ParseCommonHeader(reader, package, filePath);
 
             // If there is a parse error, roll back the transaction (i.e. file)
             using SqlTransaction transaction = (SqlTransaction)await conn.BeginTransactionAsync(); // Create the transaction to be used for this file
             try
             {
                 ParsingContext context = new (reader, conn, transaction, package); // Compile everything the parser needs to know into a context object
-                line = await reader.ReadLineAsync(); // This will tell us whether we're dealing with group or step section
-                while (line != null)
-                {
-                    if (string.IsNullOrWhiteSpace(line))
-                    {
-                        line = await reader.ReadLineAsync();
-                        continue;
-                    }
+                rowsUploaded = await this.ParseHiokiDispatchLoop(context);
 
-                    if (line.Contains("-----  Group  -----"))
-                    {
-                        await reader.ReadLineAsync(); // Cut the column name row
-                        rowsUploaded += await this.ParseGroupFile(context);
-                    }
-                    else if (line.Contains("-----  Component  -----"))
-                    {
-                        await reader.ReadLineAsync(); // Cut the column name row
-                        string? groupLine = await reader.ReadLineAsync(); // Get the line containing the group number
-                        string[]? groupParts = groupLine?.Split(',');
-                        context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
-                        rowsUploaded += await this.ParseStepFile(context); // FCT handled here
-                    }
-
-                    // In theory, there could be an FCT-specific callout for the new file format, but I don't know of that header.
-                    // As for now, it is silently skipped (as are any other headers that don't change the section).
-                    line = await reader.ReadLineAsync();
-                }
-
-                await transaction.CommitAsync();
+                await (parseResult.Flagged ? transaction.RollbackAsync() : transaction.CommitAsync());
                 await this.output.ReportProgress(ProgressEvent.FileCompleted);
-                hadErrors = false;
             }
 
-            // Because of the time-bound nature of test logs, when a duplicate row is encountered, the file is almost guaranteed to be a duplicate
+            // Because of the time-bound nature of test logs, when a duplicate row is encountered, the entire file is almost guaranteed to be a duplicate
+            // This theoretically could be verified before attempting insertion, but the SQL server is optimized for duplicate checking, so we let it generate an exception
             catch (SqlException sqlEx) when (sqlEx.Number == 2627 || sqlEx.Number == 2601)
             {
                 await transaction.RollbackAsync();
-                alreadyUploaded = true;
+                parseResult |= new LogParseResult { alreadyUploaded = true };
                 throw;
             }
             catch (Exception)
             {
                 await transaction.RollbackAsync();
-                hadErrors = true;
+                parseResult |= new LogParseResult { hasMiscError = true };
                 throw;
             }
         }
@@ -321,29 +237,136 @@ public class LogParserCore
         {
             await this.Report("Error: You do not have permission to read this file: " + filePath + "\n)", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
-            hadErrors = false;
         }
         catch (IOException ex)
         {
             await this.Report($"I/O Error: {ex.Message}", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
-            hadErrors = true;
+            parseResult |= new LogParseResult { hasMiscError = true };
         }
         catch (Exception ex)
         {
             await this.Report($"Unexpected Error: {ex.Message}", ReportLevel.ERROR);
             await this.output.ReportProgress(ProgressEvent.FileSkipped);
-            hadErrors = true;
+            parseResult |= new LogParseResult { hasMiscError = true };
         }
         finally
         {
             this.output.BatchResults.Add(new FileResult(
                 file: filePath,
                 barcode: package.Barcode,
-                alreadyUploaded: alreadyUploaded,
-                hadErrors: hadErrors,
+                alreadyUploaded: parseResult.AlreadyUploaded,
+                hadErrors: parseResult.HasMiscError,
                 rowsUploaded: rowsUploaded));
         }
+    }
+
+    /// <summary>
+    /// Parses the header at the top of the file. Its data will be applied to every row.
+    /// </summary>
+    /// <param name="reader">The StreamReader to harvest the header information.</param>
+    /// <param name="package">The CommonPackage in which to record the common data.</param>
+    /// <param name="filePath">The file name (for more specific reporting).</param>
+    /// <returns>A LogParseResult describing the success of the header parse.</returns>
+    private async Task<LogParseResult> ParseCommonHeader(StreamReader reader, CommonPackage package, string filePath)
+    {
+        LogParseResult parseResult = default;
+
+        await reader.ReadLineAsync(); // cut "[Test Results]"
+        await reader.ReadLineAsync(); // cut "File: filename"
+
+        // Parse timesTested as an int
+        string? line = await reader.ReadLineAsync();
+        package.TimesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
+
+        // if TimesTested is 0, the value found wasn't an integer, so say which file and skip it (timesTested is primary key)
+        if (package.TimesTested == 0)
+        {
+            await this.Report($"Error reading timesTested for {filePath}\n", ReportLevel.ERROR);
+            parseResult |= new LogParseResult { hasFormatError = true };
+            return parseResult;
+        }
+
+        await reader.ReadLineAsync(); // cut "Lot No."
+
+        // Parse barcode
+        line = await reader.ReadLineAsync();
+        package.Barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
+
+        // If Barcode is null, say which file, and skip it (barcode is primary key)
+        if (package.Barcode.Equals("UNKNOWN"))
+        {
+            await this.Report($"Error reading barcode for {filePath}\n", ReportLevel.ERROR);
+            parseResult |= new LogParseResult { hasFormatError = true };
+            return parseResult;
+        }
+
+        // Parse testTime
+        line = await reader.ReadLineAsync();
+        string[]? dateParts = line?.Split(',');
+
+        if (dateParts != null && dateParts.Length >= 3)
+        {
+            // concatenate date & time
+            string fullDtStr = dateParts[1].Trim() + " " + dateParts[2].Trim();
+
+            if (DateTime.TryParse(fullDtStr, CultureInfo.CurrentCulture, out DateTime dt))
+            {
+                package.TestTime = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, DateTimeKind.Local);
+            }
+            else
+            {
+                await this.Report($"Error: Could not parse date string '{fullDtStr}' in {filePath}\n", ReportLevel.ERROR);
+                parseResult |= new LogParseResult { hasFormatError = true };
+            }
+        }
+        else
+        {
+            await this.Report($"Error: Date/Time line malformed in {filePath}", ReportLevel.ERROR);
+            parseResult |= new LogParseResult { hasFormatError = true };
+        }
+
+        return parseResult;
+    }
+
+    /// <summary>
+    /// Handles the dispatch loop for delegating parsing to the specialized methods.
+    /// </summary>
+    /// <param name="context">The ParsingContext object to pass to the dispatched method.</param>
+    /// <returns>The number of rows uploaded by the dispatched method.</returns>
+    private async Task<int> ParseHiokiDispatchLoop(ParsingContext context)
+    {
+        StreamReader reader = context.Reader;
+        int rowsUploaded = 0;
+        string? line = await reader.ReadLineAsync(); // This will tell us whether we're dealing with group or step section
+        while (line != null)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                line = await reader.ReadLineAsync();
+                continue;
+            }
+
+            if (line.Contains("-----  Group  -----"))
+            {
+                await reader.ReadLineAsync(); // Cut the column name row
+                rowsUploaded += await this.ParseGroupFile(context);
+            }
+            else if (line.Contains("-----  Component  -----"))
+            {
+                await reader.ReadLineAsync(); // Cut the column name row
+                string? groupLine = await reader.ReadLineAsync(); // Get the line containing the group number
+                string[]? groupParts = groupLine?.Split(',');
+                context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
+                rowsUploaded += await this.ParseStepFile(context); // FCT handled here
+            }
+
+            // In theory, there could be an FCT-specific callout for the new file format, but I don't know of that header.
+            // As for now, it is silently skipped (as are any other headers that don't change the section).
+            line = await reader.ReadLineAsync();
+        }
+
+        return rowsUploaded;
     }
 
     /// <summary>

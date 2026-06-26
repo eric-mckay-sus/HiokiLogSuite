@@ -6,6 +6,53 @@ namespace InterProcessIO;
 using System.Data;
 
 /// <summary>
+/// Contains the results of an attempted batch/file parse.
+/// The readonly modifier makes this immutable to avoid accidentally clobbering a ParseResult (e.g. by misusing pass-by-value behavior).
+/// </summary>
+public readonly record struct LogParseResult(bool hasDuplicate = false, bool hasFormatError = false, bool hasMiscError = false, bool alreadyUploaded = false)
+{
+    /// <summary>
+    /// Gets a value indicating whether the batch/file contained a duplicate (internally or with an entry already in the DB).
+    /// </summary>
+    public bool HasDuplicate { get; } = hasDuplicate;
+
+    /// <summary>
+    /// Gets a value indicating whether the batch/file contained a duplicate (internally or with an entry already in the DB).
+    /// </summary>
+    public bool HasFormatError { get; } = hasFormatError;
+
+    /// <summary>
+    /// Gets a value indicating whether the batch/file contained some other kind of error (e.g. file access).
+    /// </summary>
+    public bool HasMiscError { get; } = hasMiscError;
+
+    /// <summary>
+    /// Gets a value indicating whether every row that was parsed has already been uploaded under the current model.
+    /// </summary>
+    public bool AlreadyUploaded { get; } = alreadyUploaded;
+
+    /// <summary>
+    /// Gets a value indicating whether a parse was flagged with an issue, thus any DB interaction should be rolled back.
+    /// </summary>
+    public bool Flagged => this.HasDuplicate || this.HasFormatError || this.HasMiscError || this.AlreadyUploaded;
+
+    /// <summary>
+    /// Overload the | operator to enable using <see cref="LogParseResult"/> as a bitmask for OR.
+    /// </summary>
+    /// <param name="left">The left hand side of the OR operator.</param>
+    /// <param name="right">The right hand side of the OR operator.</param>
+    /// <returns>A new ParseResult with the binary OR of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    public static LogParseResult operator |(LogParseResult left, LogParseResult right)
+    {
+        return new LogParseResult(
+            left.HasDuplicate || right.HasDuplicate,
+            left.HasFormatError || right.HasFormatError,
+            left.HasMiscError || right.HasMiscError,
+            left.AlreadyUploaded || right.AlreadyUploaded);
+    }
+}
+
+/// <summary>
 /// Represents a report's metadata.
 /// </summary>
 public enum ReportLevel
