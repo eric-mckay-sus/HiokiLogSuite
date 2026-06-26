@@ -9,6 +9,7 @@ using Microsoft.Data.SqlClient;
 
 using static LogParserUtilities;
 using InterProcessIO;
+using System.Globalization;
 
 /// <summary>
 /// Lays out the core log parsing routine: Specify the file/folder, batch as necessary, process individual files, consume each line.
@@ -17,6 +18,16 @@ using InterProcessIO;
 /// </summary>
 public class LogParserCore
 {
+    // Each <colName>ColName field encapsulates a string literal that is read frequently, thus has a noticeable initialization/garbage collection impact.
+    // Defining them here for future access is like having r0 in Assembly so there's always a zero on hand.
+    private static readonly string BarcodeColName = "barcode";
+    private static readonly string GroupNumColName = "groupNum";
+    private static readonly string StepNumColName = "stepNum";
+    private static readonly string TestTimeColName = "testTime";
+    private static readonly string TimesTestedColName = "timesTested";
+    private static readonly string AllResultColName = "allResult";
+    private static readonly string MeasUnitColName = "measurementUnit";
+
     /// <summary>
     /// Determines where user input comes from.
     /// </summary>
@@ -198,11 +209,11 @@ public class LogParserCore
             // reader closes when ParseHioki() returns (at the end of the run)
             using StreamReader reader = new (filePath);
 
-            reader.ReadLine(); // cut "[Test Results]"
-            reader.ReadLine(); // cut "File: filename"
+            await reader.ReadLineAsync(); // cut "[Test Results]"
+            await reader.ReadLineAsync(); // cut "File: filename"
 
             // Parse timesTested as an int
-            string? line = reader.ReadLine();
+            string? line = await reader.ReadLineAsync();
             package.TimesTested = int.TryParse(line?.Split(',')[1], out int tt) ? tt : 0;
 
             // if TimesTested is 0, the value found wasn't an integer, so say which file and skip it (timesTested is primary key)
@@ -213,10 +224,10 @@ public class LogParserCore
                 return;
             }
 
-            reader.ReadLine(); // cut "Lot No."
+            await reader.ReadLineAsync(); // cut "Lot No."
 
             // Parse barcode
-            line = reader.ReadLine();
+            line = await reader.ReadLineAsync();
             package.Barcode = line?.Split(',')[1].Trim() ?? "UNKNOWN";
 
             // If Barcode is null, say which file, and skip it (barcode is primary key)
@@ -228,7 +239,7 @@ public class LogParserCore
             }
 
             // Parse testTime
-            line = reader.ReadLine();
+            line = await reader.ReadLineAsync();
             string[]? dateParts = line?.Split(',');
 
             if (dateParts != null && dateParts.Length >= 3)
@@ -236,9 +247,9 @@ public class LogParserCore
                 // concatenate date & time
                 string fullDtStr = dateParts[1].Trim() + " " + dateParts[2].Trim();
 
-                if (DateTime.TryParse(fullDtStr, out DateTime dt))
+                if (DateTime.TryParse(fullDtStr, CultureInfo.CurrentCulture, out DateTime dt))
                 {
-                    package.TestTime = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
+                    package.TestTime = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, DateTimeKind.Local);
                 }
                 else
                 {
@@ -255,7 +266,7 @@ public class LogParserCore
             }
 
             // If there is a parse error, roll back the transaction (i.e. file)
-            using SqlTransaction transaction = conn.BeginTransaction(); // Create the transaction to be used for this file
+            using SqlTransaction transaction = (SqlTransaction)await conn.BeginTransactionAsync(); // Create the transaction to be used for this file
             try
             {
                 ParsingContext context = new (reader, conn, transaction, package); // Compile everything the parser needs to know into a context object
@@ -287,7 +298,7 @@ public class LogParserCore
                     line = await reader.ReadLineAsync();
                 }
 
-                transaction.Commit();
+                await transaction.CommitAsync();
                 await this.output.ReportProgress(ProgressEvent.FileCompleted);
                 hadErrors = false;
             }
@@ -295,13 +306,13 @@ public class LogParserCore
             // Because of the time-bound nature of test logs, when a duplicate row is encountered, the file is almost guaranteed to be a duplicate
             catch (SqlException sqlEx) when (sqlEx.Number == 2627 || sqlEx.Number == 2601)
             {
-                transaction.Rollback();
+                await transaction.RollbackAsync();
                 alreadyUploaded = true;
                 throw;
             }
             catch (Exception)
             {
-                transaction.Rollback();
+                await transaction.RollbackAsync();
                 hadErrors = true;
                 throw;
             }
@@ -344,11 +355,11 @@ public class LogParserCore
     {
         // Create a DataTable to hold the data in memory
         DataTable table = new ();
-        table.Columns.Add("barcode", typeof(string));
-        table.Columns.Add("testTime", typeof(DateTime));
+        table.Columns.Add(BarcodeColName, typeof(string));
+        table.Columns.Add(TestTimeColName, typeof(DateTime));
         table.Columns.Add("groupNumber", typeof(int));
-        table.Columns.Add("timesTested", typeof(int));
-        table.Columns.Add("allResult", typeof(byte)); // Maps to tinyint
+        table.Columns.Add(TimesTestedColName, typeof(int));
+        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
         table.Columns.Add("componentTest", typeof(byte));
         table.Columns.Add("shortTest", typeof(byte));
         table.Columns.Add("openTest", typeof(byte));
@@ -376,13 +387,13 @@ public class LogParserCore
                 DataRow row = table.NewRow();
 
                 // Load the common parameters first
-                row["barcode"] = context.Data.Barcode;
-                row["testTime"] = context.Data.TestTime;
+                row[BarcodeColName] = context.Data.Barcode;
+                row[TestTimeColName] = context.Data.TestTime;
                 row["groupNumber"] = int.Parse(split[1].Trim()); // Group number requires an explicit cast because it's not yet the correct type
-                row["timesTested"] = context.Data.TimesTested;
+                row[TimesTestedColName] = context.Data.TimesTested;
 
                 // GetCachedId returns a byte, so no cast needed
-                row["allResult"] = await GetCachedId(split[0].Trim(), true, context);
+                row[AllResultColName] = await GetCachedId(split[0].Trim(), true, context);
                 row["componentTest"] = await GetCachedId(split[2].Trim(), true, context);
                 row["shortTest"] = await GetCachedId(split[3].Trim(), true, context);
                 row["openTest"] = await GetCachedId(split[4].Trim(), true, context);
@@ -425,12 +436,12 @@ public class LogParserCore
     {
         // Create a DataTable to hold the data in memory
         DataTable table = new ();
-        table.Columns.Add("barcode", typeof(string));
-        table.Columns.Add("testTime", typeof(DateTime));
-        table.Columns.Add("groupNum", typeof(int));
-        table.Columns.Add("stepNum", typeof(int));
-        table.Columns.Add("timesTested", typeof(int));
-        table.Columns.Add("allResult", typeof(byte)); // Maps to tinyint
+        table.Columns.Add(BarcodeColName, typeof(string));
+        table.Columns.Add(TestTimeColName, typeof(DateTime));
+        table.Columns.Add(GroupNumColName, typeof(int));
+        table.Columns.Add(StepNumColName, typeof(int));
+        table.Columns.Add(TimesTestedColName, typeof(int));
+        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
         table.Columns.Add("partName", typeof(string));
         table.Columns.Add("hPin", typeof(string));
         table.Columns.Add("lPin", typeof(string));
@@ -439,7 +450,7 @@ public class LogParserCore
         table.Columns.Add("rangeNum", typeof(int));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
-        table.Columns.Add("measurementUnit", typeof(char));
+        table.Columns.Add(MeasUnitColName, typeof(char));
         table.Columns.Add("act", typeof(double));
         table.Columns.Add("ref", typeof(double));
         table.Columns.Add("meas", typeof(double));
@@ -490,12 +501,12 @@ public class LogParserCore
 
             // Add a row to the DataTable
             DataRow row = table.NewRow();
-            row["barcode"] = context.Data.Barcode;
-            row["testTime"] = context.Data.TestTime;
-            row["groupNum"] = context.Data.Group;
-            row["stepNum"] = int.Parse(line[1].Trim());
-            row["timesTested"] = context.Data.TimesTested;
-            row["allResult"] = resultId;
+            row[BarcodeColName] = context.Data.Barcode;
+            row[TestTimeColName] = context.Data.TestTime;
+            row[GroupNumColName] = context.Data.Group;
+            row[StepNumColName] = int.Parse(line[1].Trim());
+            row[TimesTestedColName] = context.Data.TimesTested;
+            row[AllResultColName] = resultId;
             row["partName"] = line[2].Trim();
             row["hPin"] = line[3].Trim();
             row["lPin"] = line[4].Trim();
@@ -504,7 +515,7 @@ public class LogParserCore
             row["rangeNum"] = int.Parse(line[7].Trim());
             row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
             row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
-            row["measurementUnit"] = unit ?? (object)DBNull.Value;
+            row[MeasUnitColName] = unit ?? (object)DBNull.Value;
             row["act"] = act.HasValue ? act.Value : DBNull.Value;
             row["ref"] = refVal.HasValue ? refVal.Value : DBNull.Value;
             row["meas"] = meas.HasValue ? meas.Value : DBNull.Value;
@@ -542,11 +553,11 @@ public class LogParserCore
     private async Task<int> ParseFctSection(ParsingContext context)
     {
         DataTable table = new ();
-        table.Columns.Add("barcode", typeof(string));
-        table.Columns.Add("testTime", typeof(DateTime));
-        table.Columns.Add("groupNum", typeof(int));
-        table.Columns.Add("stepNum", typeof(int));
-        table.Columns.Add("allResult", typeof(byte)); // Maps to tinyint
+        table.Columns.Add(BarcodeColName, typeof(string));
+        table.Columns.Add(TestTimeColName, typeof(DateTime));
+        table.Columns.Add(GroupNumColName, typeof(int));
+        table.Columns.Add(StepNumColName, typeof(int));
+        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
         table.Columns.Add("measGrp", typeof(int));
         table.Columns.Add("comment", typeof(string));
         table.Columns.Add("pos", typeof(string));
@@ -557,7 +568,7 @@ public class LogParserCore
         table.Columns.Add("meas", typeof(double));
         table.Columns.Add("hLim", typeof(double));
         table.Columns.Add("lLim", typeof(double));
-        table.Columns.Add("measurementUnit", typeof(char));
+        table.Columns.Add(MeasUnitColName, typeof(char));
         table.Columns.Add("id1", typeof(string));
         table.Columns.Add("id2", typeof(string));
         table.Columns.Add("id3", typeof(string));
@@ -604,11 +615,11 @@ public class LogParserCore
 
             // Create a new row in the internal DataTable
             DataRow row = table.NewRow();
-            row["barcode"] = context.Data.Barcode;
-            row["testTime"] = context.Data.TestTime;
-            row["groupNum"] = context.Data.Group;
-            row["stepNum"] = int.Parse(line[1].Trim());
-            row["allResult"] = resultId;
+            row[BarcodeColName] = context.Data.Barcode;
+            row[TestTimeColName] = context.Data.TestTime;
+            row[GroupNumColName] = context.Data.Group;
+            row[StepNumColName] = int.Parse(line[1].Trim());
+            row[AllResultColName] = resultId;
             row["measGrp"] = int.Parse(line[2].Trim());
             row["comment"] = line[3].Trim();
             row["pos"] = line[4].Trim();
@@ -619,7 +630,7 @@ public class LogParserCore
             row["meas"] = HexOrSciToDouble(line[9]);
             row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
             row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
-            row["measurementUnit"] = unit ?? (object)DBNull.Value;
+            row[MeasUnitColName] = unit ?? (object)DBNull.Value;
             row["id1"] = line[12].Trim();
             row["id2"] = line[13].Trim();
             row["id3"] = line[14].Trim();

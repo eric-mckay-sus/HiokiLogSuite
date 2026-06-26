@@ -13,7 +13,7 @@ using System.Text.RegularExpressions;
 /// Parses Hioki 1220-50 output files (group and step), and saves it to a remote database
 /// The 'barcode' is harvested directly from the file and may not correspond to the actual barcode.
 /// </summary>
-public partial class LogParserUtilities // must be marked partial to allow compile-time compilation of regex
+public static partial class LogParserUtilities // must be marked partial to allow compile-time compilation of regex
 {
     private static readonly Regex ValueUnitRegex = ValueUnitSeparator(); // matches scientific notation with an optional unit
     private static readonly ConcurrentDictionary<string, byte> ResultTypeCache = new (); // the cache used to store result types with their respective indices
