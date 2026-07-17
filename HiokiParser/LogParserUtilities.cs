@@ -6,6 +6,7 @@ namespace HiokiParser;
 
 using Microsoft.Data.SqlClient;
 using System.Collections.Concurrent;
+using System.Data;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -18,6 +19,44 @@ public static partial class LogParserUtilities // must be marked partial to allo
     private static readonly Regex ValueUnitRegex = ValueUnitSeparator(); // matches scientific notation with an optional unit
     private static readonly ConcurrentDictionary<string, byte> ResultTypeCache = new (); // the cache used to store result types with their respective indices
     private static readonly ConcurrentDictionary<string, byte> TestModeCache = new (); // the cache used to store test modes with their respective indices
+
+    // Each <colName>ColName field encapsulates a string literal that is read frequently, thus has a noticeable initialization/garbage collection impact.
+    // Defining them here for future access is like having r0 in Assembly so there's always a zero on hand.
+
+    /// <summary>
+    /// Gets the name of the barcode column.
+    /// </summary>
+    public static string BarcodeColName { get; } = "barcode";
+
+    /// <summary>
+    /// Gets the name of the group number column.
+    /// </summary>
+    public static string GroupNumColName { get; } = "groupNum";
+
+    /// <summary>
+    /// Gets the name of the step number column.
+    /// </summary>
+    public static string StepNumColName { get; } = "stepNum";
+
+    /// <summary>
+    /// Gets the name of the test time column.
+    /// </summary>
+    public static string TestTimeColName { get; } = "testTime";
+
+    /// <summary>
+    /// Gets the name of the times tested column.
+    /// </summary>
+    public static string TimesTestedColName { get; } = "timesTested";
+
+    /// <summary>
+    /// Gets the name of the overall result column.
+    /// </summary>
+    public static string AllResultColName { get; } = "allResult";
+
+    /// <summary>
+    /// Gets the name of the measurement unit column.
+    /// </summary>
+    public static string MeasUnitColName { get; } = "measurementUnit";
 
     /// <summary>
     /// A DTO that abstracts the four fields common between group files and step files to reduce the arguments passed through.
@@ -35,7 +74,7 @@ public static partial class LogParserUtilities // must be marked partial to allo
         public DateTime TestTime { get; set; }
 
         /// <summary>
-        /// Gets or setsthe number of times this product has been tested.
+        /// Gets or sets the number of times this product has been tested.
         /// </summary>
         public int TimesTested { get; set; }
 
@@ -69,6 +108,27 @@ public static partial class LogParserUtilities // must be marked partial to allo
         /// Gets the <see cref="CommonPackage"/>  associated with the current file.
         /// </summary>
         public CommonPackage Data { get; } = data;
+    }
+
+    /// <summary>
+    /// Denotes the different types of sections possible in a Hioki log file.
+    /// </summary>
+    public enum SectionType
+    {
+        /// <summary>
+        /// Represents the group section
+        /// </summary>
+        Group,
+
+        /// <summary>
+        /// Represents the step section
+        /// </summary>
+        Step,
+
+        /// <summary>
+        /// Represents the FCT section
+        /// </summary>
+        Fct,
     }
 
     /// <summary>
@@ -203,6 +263,73 @@ public static partial class LogParserUtilities // must be marked partial to allo
 
         // Otherwise, exit immediately. The unit is irrelevant without a value.
         return (null, null);
+    }
+
+    /// <summary>
+    /// Creates a datatable for the contents of the specified <paramref name="section"/>.
+    /// </summary>
+    /// <param name="section">The log file section for which to create a datatable.</param>
+    /// <returns>A new DataTable object suitable for holding the contents of the specified <paramref name="section"/>.</returns>
+    public static DataTable CreateSectionDataTable(SectionType section)
+    {
+        DataTable table = new ();
+        table.Columns.Add(BarcodeColName, typeof(string));
+        table.Columns.Add(TestTimeColName, typeof(DateTime));
+        table.Columns.Add(GroupNumColName, typeof(int));
+        table.Columns.Add(TimesTestedColName, typeof(int));
+        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
+        switch (section)
+        {
+            case SectionType.Group:
+                table.Columns.Add("componentTest", typeof(byte));
+                table.Columns.Add("shortTest", typeof(byte));
+                table.Columns.Add("openTest", typeof(byte));
+                table.Columns.Add("icTest", typeof(byte));
+                table.Columns.Add("macroTest", typeof(byte));
+                table.Columns.Add("functionTest", typeof(byte));
+                break;
+            case SectionType.Step:
+                table.Columns.Add("partName", typeof(string));
+                table.Columns.Add("hPin", typeof(string));
+                table.Columns.Add("lPin", typeof(string));
+                table.Columns.Add("pos", typeof(string));
+                table.Columns.Add("mode", typeof(byte)); // Maps to tinyint
+                table.Columns.Add("rangeNum", typeof(int));
+                table.Columns.Add("hLim", typeof(double));
+                table.Columns.Add("lLim", typeof(double));
+                table.Columns.Add(MeasUnitColName, typeof(char));
+                table.Columns.Add("act", typeof(double));
+                table.Columns.Add("ref", typeof(double));
+                table.Columns.Add("meas", typeof(double));
+                break;
+            case SectionType.Fct:
+                table.Columns.Add("measGrp", typeof(int));
+                table.Columns.Add("comment", typeof(string));
+                table.Columns.Add("pos", typeof(string));
+                table.Columns.Add("mode", typeof(byte)); // Maps to tinyint
+                table.Columns.Add("hPin", typeof(string));
+                table.Columns.Add("lPin", typeof(string));
+                table.Columns.Add("ref", typeof(double));
+                table.Columns.Add("meas", typeof(double));
+                table.Columns.Add("hLim", typeof(double));
+                table.Columns.Add("lLim", typeof(double));
+                table.Columns.Add(MeasUnitColName, typeof(char));
+                table.Columns.Add("id1", typeof(string));
+                table.Columns.Add("id2", typeof(string));
+                table.Columns.Add("id3", typeof(string));
+                table.Columns.Add("id4", typeof(string));
+                table.Columns.Add("inputVol", typeof(double));
+                table.Columns.Add("commStd", typeof(string));
+                table.Columns.Add("executeMode", typeof(string));
+                table.Columns.Add("devAddress", typeof(string));
+                table.Columns.Add("sendAddress", typeof(string));
+                table.Columns.Add("writeRefData", typeof(string));
+                table.Columns.Add("receiveData", typeof(string));
+                table.Columns.Add("ifResponse", typeof(string));
+                break;
+        }
+
+        return table;
     }
 
     [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>[^,]*?)\s*$", RegexOptions.Compiled)]

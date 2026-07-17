@@ -18,16 +18,6 @@ using System.Globalization;
 /// </summary>
 public class LogParserCore
 {
-    // Each <colName>ColName field encapsulates a string literal that is read frequently, thus has a noticeable initialization/garbage collection impact.
-    // Defining them here for future access is like having r0 in Assembly so there's always a zero on hand.
-    private static readonly string BarcodeColName = "barcode";
-    private static readonly string GroupNumColName = "groupNum";
-    private static readonly string StepNumColName = "stepNum";
-    private static readonly string TestTimeColName = "testTime";
-    private static readonly string TimesTestedColName = "timesTested";
-    private static readonly string AllResultColName = "allResult";
-    private static readonly string MeasUnitColName = "measurementUnit";
-
     /// <summary>
     /// Determines where user input comes from.
     /// </summary>
@@ -377,18 +367,7 @@ public class LogParserCore
     private async Task<int> ParseGroupFile(ParsingContext context)
     {
         // Create a DataTable to hold the data in memory
-        DataTable table = new ();
-        table.Columns.Add(BarcodeColName, typeof(string));
-        table.Columns.Add(TestTimeColName, typeof(DateTime));
-        table.Columns.Add("groupNumber", typeof(int));
-        table.Columns.Add(TimesTestedColName, typeof(int));
-        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
-        table.Columns.Add("componentTest", typeof(byte));
-        table.Columns.Add("shortTest", typeof(byte));
-        table.Columns.Add("openTest", typeof(byte));
-        table.Columns.Add("icTest", typeof(byte));
-        table.Columns.Add("macroTest", typeof(byte));
-        table.Columns.Add("functionTest", typeof(byte));
+        DataTable table = CreateSectionDataTable(SectionType.Group);
 
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
@@ -412,7 +391,7 @@ public class LogParserCore
                 // Load the common parameters first
                 row[BarcodeColName] = context.Data.Barcode;
                 row[TestTimeColName] = context.Data.TestTime;
-                row["groupNumber"] = int.Parse(split[1].Trim()); // Group number requires an explicit cast because it's not yet the correct type
+                row[GroupNumColName] = int.Parse(split[1].Trim()); // Group number requires an explicit cast because it's not yet the correct type
                 row[TimesTestedColName] = context.Data.TimesTested;
 
                 // GetCachedId returns a byte, so no cast needed
@@ -458,25 +437,7 @@ public class LogParserCore
     private async Task<int> ParseStepFile(ParsingContext context)
     {
         // Create a DataTable to hold the data in memory
-        DataTable table = new ();
-        table.Columns.Add(BarcodeColName, typeof(string));
-        table.Columns.Add(TestTimeColName, typeof(DateTime));
-        table.Columns.Add(GroupNumColName, typeof(int));
-        table.Columns.Add(StepNumColName, typeof(int));
-        table.Columns.Add(TimesTestedColName, typeof(int));
-        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
-        table.Columns.Add("partName", typeof(string));
-        table.Columns.Add("hPin", typeof(string));
-        table.Columns.Add("lPin", typeof(string));
-        table.Columns.Add("pos", typeof(string));
-        table.Columns.Add("mode", typeof(byte)); // Maps to tinyint
-        table.Columns.Add("rangeNum", typeof(int));
-        table.Columns.Add("hLim", typeof(double));
-        table.Columns.Add("lLim", typeof(double));
-        table.Columns.Add(MeasUnitColName, typeof(char));
-        table.Columns.Add("act", typeof(double));
-        table.Columns.Add("ref", typeof(double));
-        table.Columns.Add("meas", typeof(double));
+        DataTable table = CreateSectionDataTable(SectionType.Step);
 
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
@@ -575,35 +536,7 @@ public class LogParserCore
     /// <returns>A Task representing that the FCT section has been parsed.</returns>
     private async Task<int> ParseFctSection(ParsingContext context)
     {
-        DataTable table = new ();
-        table.Columns.Add(BarcodeColName, typeof(string));
-        table.Columns.Add(TestTimeColName, typeof(DateTime));
-        table.Columns.Add(GroupNumColName, typeof(int));
-        table.Columns.Add(StepNumColName, typeof(int));
-        table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
-        table.Columns.Add("measGrp", typeof(int));
-        table.Columns.Add("comment", typeof(string));
-        table.Columns.Add("pos", typeof(string));
-        table.Columns.Add("mode", typeof(byte)); // Maps to tinyint
-        table.Columns.Add("hPin", typeof(string));
-        table.Columns.Add("lPin", typeof(string));
-        table.Columns.Add("ref", typeof(double));
-        table.Columns.Add("meas", typeof(double));
-        table.Columns.Add("hLim", typeof(double));
-        table.Columns.Add("lLim", typeof(double));
-        table.Columns.Add(MeasUnitColName, typeof(char));
-        table.Columns.Add("id1", typeof(string));
-        table.Columns.Add("id2", typeof(string));
-        table.Columns.Add("id3", typeof(string));
-        table.Columns.Add("id4", typeof(string));
-        table.Columns.Add("inputVol", typeof(double));
-        table.Columns.Add("commStd", typeof(string));
-        table.Columns.Add("executeMode", typeof(string));
-        table.Columns.Add("devAddress", typeof(string));
-        table.Columns.Add("sendAddress", typeof(string));
-        table.Columns.Add("writeRefData", typeof(string));
-        table.Columns.Add("receiveData", typeof(string));
-        table.Columns.Add("ifResponse", typeof(string));
+        DataTable table = CreateSectionDataTable(SectionType.Fct);
 
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
