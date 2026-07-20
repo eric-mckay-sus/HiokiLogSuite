@@ -276,11 +276,11 @@ public static partial class LogParserUtilities // must be marked partial to allo
         table.Columns.Add(BarcodeColName, typeof(string));
         table.Columns.Add(TestTimeColName, typeof(DateTime));
         table.Columns.Add(GroupNumColName, typeof(int));
-        table.Columns.Add(TimesTestedColName, typeof(int));
         table.Columns.Add(AllResultColName, typeof(byte)); // Maps to tinyint
         switch (section)
         {
             case SectionType.Group:
+                table.Columns.Add(TimesTestedColName, typeof(int));
                 table.Columns.Add("componentTest", typeof(byte));
                 table.Columns.Add("shortTest", typeof(byte));
                 table.Columns.Add("openTest", typeof(byte));
@@ -289,6 +289,8 @@ public static partial class LogParserUtilities // must be marked partial to allo
                 table.Columns.Add("functionTest", typeof(byte));
                 break;
             case SectionType.Step:
+                table.Columns.Add(TimesTestedColName, typeof(int));
+                table.Columns.Add(StepNumColName, typeof(int));
                 table.Columns.Add("partName", typeof(string));
                 table.Columns.Add("hPin", typeof(string));
                 table.Columns.Add("lPin", typeof(string));
@@ -303,6 +305,7 @@ public static partial class LogParserUtilities // must be marked partial to allo
                 table.Columns.Add("meas", typeof(double));
                 break;
             case SectionType.Fct:
+                table.Columns.Add(StepNumColName, typeof(int));
                 table.Columns.Add("measGrp", typeof(int));
                 table.Columns.Add("comment", typeof(string));
                 table.Columns.Add("pos", typeof(string));

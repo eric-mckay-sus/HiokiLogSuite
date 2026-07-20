@@ -99,26 +99,7 @@ public class LogParserCore
     public async Task<UploadResult> ExecuteAsync(string? filename = null)
     {
         this.output.ClearLogs(); // If this is another run on the same object, ensure the output provider is clean
-        string? potentialFilePath = null;
-        string filePath = string.Empty;
-        string? validationError = null;
-
-        while (string.IsNullOrEmpty(filePath))
-        {
-            potentialFilePath = await this.input.GetFilepathAsync(new ("Please select the file(s) you wish to upload."), validationError);
-            if (potentialFilePath == null)
-            {
-                validationError = $"No file specified. Please try again.";
-            }
-            else if (!Path.Exists(potentialFilePath))
-            {
-                validationError = $"Path '{filename}' is not a valid directory or CSV file. Please try again.";
-            }
-            else
-            {
-                filePath = potentialFilePath;
-            }
-        }
+        string filePath = await this.PromptForFile(filename);
 
         try
         {
@@ -135,7 +116,7 @@ public class LogParserCore
             // Should never reach here unless file is somehow deleted during validation, but handle it for fewer potential errors
             else
             {
-                await this.Report($"Could not find {potentialFilePath}. Please verify the path is correct, then try again.\n", ReportLevel.ERROR);
+                await this.Report($"Could not find {filePath}. Please verify the path is correct, then try again.\n", ReportLevel.ERROR);
                 return UploadResult.ErroredOut;
             }
 
@@ -171,6 +152,47 @@ public class LogParserCore
             await this.Report($"Fatal error: {e.Message}", ReportLevel.ERROR);
             return UploadResult.ErroredOut;
         }
+    }
+
+    /// <summary>
+    /// Validates <paramref name="potentialFilePath"/> and (re-)prompts as necessary for the path to the target file or directory.
+    /// </summary>
+    /// <param name="potentialFilePath">The filename specified on the command line, if applicable.</param>
+    /// <returns>A Task containing the validated file path.</returns>
+    private async Task<string> PromptForFile(string? potentialFilePath)
+    {
+        string filePath = string.Empty;
+        string? validationError = null;
+
+        while (string.IsNullOrEmpty(filePath))
+        {
+            if (string.IsNullOrEmpty(potentialFilePath))
+            {
+                potentialFilePath = await this.input.GetFilepathAsync(new ("Please select the file(s) you wish to upload."), validationError);
+            }
+
+            validationError = null;
+            if (potentialFilePath == null)
+            {
+                validationError = $"No file specified. Please try again.";
+            }
+            else if (!Path.Exists(potentialFilePath))
+            {
+                validationError = $"Path '{potentialFilePath}' is not a valid directory or CSV file. Please try again.";
+            }
+            else if (File.Exists(potentialFilePath) && !Path.GetExtension(potentialFilePath).Equals(".csv"))
+            {
+                validationError = $"Path '{potentialFilePath} is not a CSV. Please provide a directory or CSV file.";
+            }
+            else
+            {
+                filePath = potentialFilePath;
+            }
+
+            potentialFilePath = null;
+        }
+
+        return filePath;
     }
 
     /// <summary>

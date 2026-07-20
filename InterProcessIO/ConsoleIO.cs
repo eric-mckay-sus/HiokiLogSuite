@@ -20,6 +20,11 @@ public class ConsoleInputProvider : IInputProvider
     /// <returns>A Task containing the command line input.</returns>
     public async Task<string> GetInputAsync(Report prompt, string? previousError = null)
     {
+        if (!string.IsNullOrEmpty(previousError))
+        {
+            Console.WriteLine(new Report(previousError, ReportLevel.ERROR).ToAnsiString());
+        }
+
         Console.WriteLine(prompt.ToAnsiString());
         Console.Write('\t');
         return await Task.Run(() => Console.ReadLine() ?? string.Empty);
@@ -55,12 +60,8 @@ public class ConsoleInputProvider : IInputProvider
         }
 
         path = path.Trim().Trim('"', '\u200E', '\u200F'); // match default console path cleaning
-        if (!File.Exists(path))
-        {
-            return null; // caller's validation loop will re-prompt (but no way of seeing input path)
-        }
 
-        return Path.GetFileName(path);
+        return Path.GetFullPath(path);
     }
 }
 
