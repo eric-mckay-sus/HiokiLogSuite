@@ -154,6 +154,117 @@ public class LogParserCore
         }
     }
 
+    private static async Task<bool> ProcessGroupRow(string raw, ParsingContext context, DataTable table)
+    {
+        if (raw.Contains("[EOT]"))
+        {
+            return false; // If we find EOT, that means the group section is complete
+        }
+
+        string[] split = raw.Split(",");
+        if (split != null)
+        {
+            // If the row is too short, skip it
+            if (split.Length < 8)
+            {
+                return true;
+            }
+
+            DataRow row = table.NewRow();
+
+            // Load the common parameters first
+            row[BarcodeColName] = context.Data.Barcode;
+            row[TestTimeColName] = context.Data.TestTime;
+            row[GroupNumColName] = int.Parse(split[1].Trim()); // Group number requires an explicit cast because it's not yet the correct type
+            row[TimesTestedColName] = context.Data.TimesTested;
+
+            // GetCachedId returns a byte, so no cast needed
+            row[AllResultColName] = await GetCachedId(split[0].Trim(), true, context);
+            row["componentTest"] = await GetCachedId(split[2].Trim(), true, context);
+            row["shortTest"] = await GetCachedId(split[3].Trim(), true, context);
+            row["openTest"] = await GetCachedId(split[4].Trim(), true, context);
+            row["icTest"] = await GetCachedId(split[5].Trim(), true, context);
+            row["macroTest"] = await GetCachedId(split[6].Trim(), true, context);
+            row["functionTest"] = await GetCachedId(split[7].Trim(), true, context);
+
+            table.Rows.Add(row);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Processes one row of the current file that has been identified as an FCT result.
+    /// </summary>
+    /// <param name="raw">The current row.</param>
+    /// <param name="context">The context required to parse an FCT row.</param>
+    /// <param name="table">The DataTable to insert the parsed data into.</param>
+    /// <returns>A value indicating whether parsing should continue.</returns>
+    private static async Task<bool> ProcessFctRow(string raw, ParsingContext context, DataTable table)
+    {
+        if (raw.Contains("[EOT]"))
+        {
+            return false; // If we see EOT, the FCT section is finished
+        }
+
+        string[] line = raw.Split(',');
+
+        // Found new group
+        if (line[0].StartsWith("Gr"))
+        {
+            context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
+            return true;
+        }
+
+        if (line[0].Contains("Rslt"))
+        {
+            return true; // found header
+        }
+
+        // Check the caches
+        byte resultId = await GetCachedId(line[0].Trim(), true, context);
+        byte modeId = await GetCachedId(line[5].Trim(), false, context);
+
+        // The discard operator "_" says to ignore the unit (because we already have it)
+        (double? hLim, string? unit) = CleanFloatValue(line[10]);
+        (double? lLim, string? _) = CleanFloatValue(line[11]);
+        (double? inputVol, string? _) = CleanFloatValue(line[16]);
+
+        // Create a new row in the internal DataTable
+        DataRow row = table.NewRow();
+        row[BarcodeColName] = context.Data.Barcode;
+        row[TestTimeColName] = context.Data.TestTime;
+        row[GroupNumColName] = context.Data.Group;
+        row[StepNumColName] = int.Parse(line[1].Trim());
+        row[AllResultColName] = resultId;
+        row["measGrp"] = int.Parse(line[2].Trim());
+        row["comment"] = line[3].Trim();
+        row["pos"] = line[4].Trim();
+        row["mode"] = modeId;
+        row["hPin"] = line[6].Trim();
+        row["lPin"] = line[7].Trim();
+        row["ref"] = HexOrSciToDouble(line[8]);
+        row["meas"] = HexOrSciToDouble(line[9]);
+        row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
+        row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
+        row[MeasUnitColName] = unit ?? (object)DBNull.Value;
+        row["id1"] = line[12].Trim();
+        row["id2"] = line[13].Trim();
+        row["id3"] = line[14].Trim();
+        row["id4"] = line[15].Trim();
+        row["inputVol"] = inputVol.HasValue ? inputVol.Value : DBNull.Value;
+        row["commStd"] = line[17].Trim();
+        row["executeMode"] = line[18].Trim();
+        row["devAddress"] = line[19].Trim();
+        row["sendAddress"] = line[20].Trim();
+        row["writeRefData"] = line[21].Trim();
+        row["receiveData"] = line[22].Trim();
+        row["ifResponse"] = line[23].Trim();
+
+        table.Rows.Add(row);
+        return true;
+    }
+
     /// <summary>
     /// Validates <paramref name="potentialFilePath"/> and (re-)prompts as necessary for the path to the target file or directory.
     /// </summary>
@@ -384,7 +495,7 @@ public class LogParserCore
     /// <summary>
     /// Helper function for ParseHioki (handles group files). Picks up at the beginning of the group-specific content and creates a new entry in the database for every entry in the file.
     /// </summary>
-    /// <param name="context"> the context required to parse a group file. </param>
+    /// <param name="context">The context required to parse a group file.</param>
     /// <returns>A Task representing that the group file has been parsed.</returns>
     private async Task<int> ParseGroupFile(ParsingContext context)
     {
@@ -394,59 +505,21 @@ public class LogParserCore
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            if (raw.Contains("[EOT]"))
+            bool shouldContinue = await ProcessGroupRow(raw, context, table);
+            if (!shouldContinue)
             {
-                break; // If we find EOT, that means the group section is complete
+                break;
             }
-
-            string[] split = raw.Split(",");
-            if (split != null)
-            {
-                // If the row is too short, skip it
-                if (split.Length < 8)
-                {
-                    continue;
-                }
-
-                DataRow row = table.NewRow();
-
-                // Load the common parameters first
-                row[BarcodeColName] = context.Data.Barcode;
-                row[TestTimeColName] = context.Data.TestTime;
-                row[GroupNumColName] = int.Parse(split[1].Trim()); // Group number requires an explicit cast because it's not yet the correct type
-                row[TimesTestedColName] = context.Data.TimesTested;
-
-                // GetCachedId returns a byte, so no cast needed
-                row[AllResultColName] = await GetCachedId(split[0].Trim(), true, context);
-                row["componentTest"] = await GetCachedId(split[2].Trim(), true, context);
-                row["shortTest"] = await GetCachedId(split[3].Trim(), true, context);
-                row["openTest"] = await GetCachedId(split[4].Trim(), true, context);
-                row["icTest"] = await GetCachedId(split[5].Trim(), true, context);
-                row["macroTest"] = await GetCachedId(split[6].Trim(), true, context);
-                row["functionTest"] = await GetCachedId(split[7].Trim(), true, context);
-
-                table.Rows.Add(row);
-            }
-        }
-
-        // Perform the Bulk Copy with special "using" and "new"
-        using SqlBulkCopy bulkCopy = new (context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
-        bulkCopy.DestinationTableName = "pe3coop.dbo.GroupResults";
-
-        // Map the DataTable columns to the Database columns
-        foreach (DataColumn column in table.Columns)
-        {
-            bulkCopy.ColumnMappings.Add(column.ColumnName, column.ColumnName);
         }
 
         try
         {
-            await bulkCopy.WriteToServerAsync(table);
+            await BulkInsertDataTable(table, SectionType.Group, context);
             return table.Rows.Count;
         }
         catch (Exception ex)
         {
-            await this.Report($"Bulk Copy Error: {ex.Message}", ReportLevel.ERROR);
+            await this.Report(ex.Message, ReportLevel.ERROR);
             throw; // Pass off to caller (ParseHioki)
         }
     }
@@ -464,89 +537,21 @@ public class LogParserCore
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            // If the line is empty, skip it
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                continue;
-            }
-
-            // If we see EOT, the step results are finished
-            if (raw.Contains("[EOT]"))
+            bool shouldContinue = await this.ProcessStepRow(raw, context, table);
+            if (!shouldContinue)
             {
                 break;
             }
-
-            string[] line = raw.Split(',');
-            if (line[0].StartsWith("Gr"))
-            {
-                context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
-                continue;
-            }
-
-            if (line[0].Contains("-----  FCT  -----"))
-            {
-                await this.ParseFctSection(context);
-                break;
-            }
-
-            if (line.Length < 13)
-            {
-                continue;
-            }
-
-            // Get result ID from cache
-            byte resultId = await GetCachedId(line[0].Trim(), true, context);
-            byte modeId = await GetCachedId(line[6].Trim(), false, context);
-
-            // The discard operator "_" says to ignore the unit (because we already have it)
-            (double? hLim, string? unit) = CleanFloatValue(line[8]);
-            (double? lLim, string? _) = CleanFloatValue(line[9]);
-            (double? act, string? _) = CleanFloatValue(line[10]);
-            (double? refVal, string? _) = CleanFloatValue(line[11]);
-            (double? meas, string? _) = CleanFloatValue(line[12]);
-
-            // Add a row to the DataTable
-            DataRow row = table.NewRow();
-            row[BarcodeColName] = context.Data.Barcode;
-            row[TestTimeColName] = context.Data.TestTime;
-            row[GroupNumColName] = context.Data.Group;
-            row[StepNumColName] = int.Parse(line[1].Trim());
-            row[TimesTestedColName] = context.Data.TimesTested;
-            row[AllResultColName] = resultId;
-            row["partName"] = line[2].Trim();
-            row["hPin"] = line[3].Trim();
-            row["lPin"] = line[4].Trim();
-            row["pos"] = line[5].Trim();
-            row["mode"] = modeId;
-            row["rangeNum"] = int.Parse(line[7].Trim());
-            row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
-            row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
-            row[MeasUnitColName] = unit ?? (object)DBNull.Value;
-            row["act"] = act.HasValue ? act.Value : DBNull.Value;
-            row["ref"] = refVal.HasValue ? refVal.Value : DBNull.Value;
-            row["meas"] = meas.HasValue ? meas.Value : DBNull.Value;
-
-            table.Rows.Add(row);
-        }
-
-        // Perform the Bulk Copy with special "using" and "new"
-        using SqlBulkCopy bulkCopy = new (context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
-        bulkCopy.DestinationTableName = "pe3coop.dbo.StepResults";
-
-        // Map the DataTable columns to the Database columns
-        foreach (DataColumn column in table.Columns)
-        {
-            bulkCopy.ColumnMappings.Add(column.ColumnName, column.ColumnName);
         }
 
         try
         {
-            await bulkCopy.WriteToServerAsync(table);
+            await BulkInsertDataTable(table, SectionType.Step, context);
             return table.Rows.Count;
         }
         catch (Exception ex)
         {
-            await this.Report($"Bulk Copy Error: {ex.Message}", ReportLevel.ERROR);
+            await this.Report(ex.Message, ReportLevel.ERROR);
             throw; // Pass off to caller (ParseHioki)
         }
     }
@@ -563,88 +568,98 @@ public class LogParserCore
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            if (raw.Contains("[EOT]"))
+            bool shouldContinue = await ProcessFctRow(raw, context, table);
+            if (!shouldContinue)
             {
-                break; // If we see EOT, the FCT section is finished
+                break;
             }
-
-            string[] line = raw.Split(',');
-
-            // Found new group
-            if (line[0].StartsWith("Gr"))
-            {
-                context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
-                continue;
-            }
-
-            if (line[0].Contains("Rslt"))
-            {
-                continue; // found header
-            }
-
-            // Check the caches
-            byte resultId = await GetCachedId(line[0].Trim(), true, context);
-            byte modeId = await GetCachedId(line[5].Trim(), false, context);
-
-            // The discard operator "_" says to ignore the unit (because we already have it)
-            (double? hLim, string? unit) = CleanFloatValue(line[10]);
-            (double? lLim, string? _) = CleanFloatValue(line[11]);
-            (double? inputVol, string? _) = CleanFloatValue(line[16]);
-
-            // Create a new row in the internal DataTable
-            DataRow row = table.NewRow();
-            row[BarcodeColName] = context.Data.Barcode;
-            row[TestTimeColName] = context.Data.TestTime;
-            row[GroupNumColName] = context.Data.Group;
-            row[StepNumColName] = int.Parse(line[1].Trim());
-            row[AllResultColName] = resultId;
-            row["measGrp"] = int.Parse(line[2].Trim());
-            row["comment"] = line[3].Trim();
-            row["pos"] = line[4].Trim();
-            row["mode"] = modeId;
-            row["hPin"] = line[6].Trim();
-            row["lPin"] = line[7].Trim();
-            row["ref"] = HexOrSciToDouble(line[8]);
-            row["meas"] = HexOrSciToDouble(line[9]);
-            row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
-            row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
-            row[MeasUnitColName] = unit ?? (object)DBNull.Value;
-            row["id1"] = line[12].Trim();
-            row["id2"] = line[13].Trim();
-            row["id3"] = line[14].Trim();
-            row["id4"] = line[15].Trim();
-            row["inputVol"] = inputVol.HasValue ? inputVol.Value : DBNull.Value;
-            row["commStd"] = line[17].Trim();
-            row["executeMode"] = line[18].Trim();
-            row["devAddress"] = line[19].Trim();
-            row["sendAddress"] = line[20].Trim();
-            row["writeRefData"] = line[21].Trim();
-            row["receiveData"] = line[22].Trim();
-            row["ifResponse"] = line[23].Trim();
-
-            table.Rows.Add(row);
-        }
-
-        // Once the table's full, prepare the DB insert
-        using SqlBulkCopy bulkCopy = new (context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
-        bulkCopy.DestinationTableName = "pe3coop.dbo.FCTResults";
-
-        // Map the DataTable columns to the DB columns in case there's a discrepancy (technically unnecessary but this protects the code in case DB structure changes)
-        foreach (DataColumn column in table.Columns)
-        {
-            bulkCopy.ColumnMappings.Add(column.ColumnName, column.ColumnName);
         }
 
         try
         {
-            await bulkCopy.WriteToServerAsync(table);
+            await BulkInsertDataTable(table, SectionType.Fct, context);
             return table.Rows.Count;
         }
         catch (Exception ex)
         {
-            await this.Report($"Bulk Copy Error: {ex.Message}", ReportLevel.ERROR);
+            await this.Report(ex.Message, ReportLevel.ERROR);
             throw; // Pass off to caller (ParseStepFile, which passes to ParseHioki)
         }
+    }
+
+    /// <summary>
+    /// Processes one row of the current file that has been identified as an step result.
+    /// </summary>
+    /// <param name="raw">The current row.</param>
+    /// <param name="context">The context required to parse an step row.</param>
+    /// <param name="table">The DataTable to insert the parsed data into.</param>
+    /// <returns>A value indicating whether parsing should continue.</returns>
+    private async Task<bool> ProcessStepRow(string raw, ParsingContext context, DataTable table)
+    {
+        // If the line is empty, skip it
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return true;
+        }
+
+        // If we see EOT, the step results are finished
+        if (raw.Contains("[EOT]"))
+        {
+            return false;
+        }
+
+        string[] line = raw.Split(',');
+        if (line[0].StartsWith("Gr"))
+        {
+            context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
+            return true;
+        }
+
+        if (line[0].Contains("-----  FCT  -----"))
+        {
+            await this.ParseFctSection(context);
+            return false;
+        }
+
+        if (line.Length < 13)
+        {
+            return true;
+        }
+
+        // Get result ID from cache
+        byte resultId = await GetCachedId(line[0].Trim(), true, context);
+        byte modeId = await GetCachedId(line[6].Trim(), false, context);
+
+        // The discard operator "_" says to ignore the unit (because we already have it)
+        (double? hLim, string? unit) = CleanFloatValue(line[8]);
+        (double? lLim, string? _) = CleanFloatValue(line[9]);
+        (double? act, string? _) = CleanFloatValue(line[10]);
+        (double? refVal, string? _) = CleanFloatValue(line[11]);
+        (double? meas, string? _) = CleanFloatValue(line[12]);
+
+        // Add a row to the DataTable
+        DataRow row = table.NewRow();
+        row[BarcodeColName] = context.Data.Barcode;
+        row[TestTimeColName] = context.Data.TestTime;
+        row[GroupNumColName] = context.Data.Group;
+        row[StepNumColName] = int.Parse(line[1].Trim());
+        row[TimesTestedColName] = context.Data.TimesTested;
+        row[AllResultColName] = resultId;
+        row["partName"] = line[2].Trim();
+        row["hPin"] = line[3].Trim();
+        row["lPin"] = line[4].Trim();
+        row["pos"] = line[5].Trim();
+        row["mode"] = modeId;
+        row["rangeNum"] = int.Parse(line[7].Trim());
+        row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
+        row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
+        row[MeasUnitColName] = unit ?? (object)DBNull.Value;
+        row["act"] = act.HasValue ? act.Value : DBNull.Value;
+        row["ref"] = refVal.HasValue ? refVal.Value : DBNull.Value;
+        row["meas"] = meas.HasValue ? meas.Value : DBNull.Value;
+
+        table.Rows.Add(row);
+        return true;
     }
 
     /// <summary>

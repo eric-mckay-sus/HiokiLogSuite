@@ -14,11 +14,35 @@ using System.Text.RegularExpressions;
 /// Parses Hioki 1220-50 output files (group and step), and saves it to a remote database
 /// The 'barcode' is harvested directly from the file and may not correspond to the actual barcode.
 /// </summary>
-public static partial class LogParserUtilities // must be marked partial to allow compile-time compilation of regex
+/// <remarks>
+/// This class must be marked partial to allow compile-time compilation of regex.
+/// </remarks>
+public static partial class LogParserUtilities
 {
-    private static readonly Regex ValueUnitRegex = ValueUnitSeparator(); // matches scientific notation with an optional unit
-    private static readonly ConcurrentDictionary<string, byte> ResultTypeCache = new (); // the cache used to store result types with their respective indices
-    private static readonly ConcurrentDictionary<string, byte> TestModeCache = new (); // the cache used to store test modes with their respective indices
+    /// <summary>
+    /// Matches scientific notation with an optional unit.
+    /// </summary>
+    private static readonly Regex ValueUnitRegex = ValueUnitSeparator();
+
+    /// <summary>
+    /// The cache used to store result types with their respective indices. Must be concurrent to support writing new entries in async context.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, byte> ResultTypeCache = new ();
+
+    /// <summary>
+    /// The cache used to store test modes with their respective indices. Must be concurrent to support writing new entries in async context.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, byte> TestModeCache = new ();
+
+    /// <summary>
+    /// Maps section types to their insert tables.
+    /// </summary>
+    private static readonly Dictionary<SectionType, string> SectionToTableName = new ()
+    {
+        [SectionType.Group] = "pe3coop.dbo.GroupResults",
+        [SectionType.Step] = "pe3coop.dbo.StepResults",
+        [SectionType.Fct] = "pe3coop.dbo.FctResults",
+    };
 
     // Each <colName>ColName field encapsulates a string literal that is read frequently, thus has a noticeable initialization/garbage collection impact.
     // Defining them here for future access is like having r0 in Assembly so there's always a zero on hand.
@@ -87,7 +111,7 @@ public static partial class LogParserUtilities // must be marked partial to allo
     /// <summary>
     /// Abstracts the three objects required for parsing plus one for the CommonPackage.
     /// </summary>
-    public record ParsingContext(StreamReader reader, SqlConnection conn, SqlTransaction trans, CommonPackage data) // apparently you can put the constructor in the class definition
+    public record ParsingContext(StreamReader reader, SqlConnection conn, SqlTransaction trans, CommonPackage data)
     {
         /// <summary>
         /// Gets the reader that scans through the file.
@@ -333,6 +357,35 @@ public static partial class LogParserUtilities // must be marked partial to allo
         }
 
         return table;
+    }
+
+    /// <summary>
+    /// Attempts to insert the contents of <paramref name="table"/> to the table responsible for this <paramref name="section"/>.
+    /// </summary>
+    /// <param name="table">The DataTable containing the records to insert.</param>
+    /// <param name="section">The type of results in <paramref name="table"/>.</param>
+    /// <param name="context">The parsing context.</param>
+    /// <returns>A Task representing that the insertion was attempted.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="section"/> is not assigned an insert table in <see cref="SectionToTableName"/>.</exception>
+    /// <exception cref="SqlException">Thrown when the <see cref="SqlBulkCopy.WriteToServerAsync(DataRow[])"/> call fails.</exception>
+    public static async Task BulkInsertDataTable(DataTable table, SectionType section, ParsingContext context)
+    {
+        using SqlBulkCopy bulkCopy = new (context.Connection, SqlBulkCopyOptions.CheckConstraints, context.Transaction);
+        if (SectionToTableName.TryGetValue(section, out string? tableName))
+        {
+            bulkCopy.DestinationTableName = tableName;
+        }
+        else
+        {
+            throw new ArgumentException($"Section type {section} does not have a mapped insert table");
+        }
+
+        foreach (DataColumn column in table.Columns)
+        {
+            bulkCopy.ColumnMappings.Add(column.ColumnName, column.ColumnName);
+        }
+
+        await bulkCopy.WriteToServerAsync(table); // May encounter a SQL-related exception, but we can't report it here.
     }
 
     [GeneratedRegex(@"^\s*(?<value>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(?<unit>[^,]*?)\s*$", RegexOptions.Compiled)]
