@@ -154,10 +154,24 @@ public class LogParserCore
         }
     }
 
+    /// <summary>
+    /// Processes one row of the current file that has been identified as an group result.
+    /// </summary>
+    /// <param name="raw">The current row.</param>
+    /// <param name="context">The context required to parse an group row.</param>
+    /// <param name="table">The DataTable to insert the parsed data into.</param>
+    /// <returns>A value indicating whether parsing should continue.</returns>
     private static async Task<bool> ProcessGroupRow(string raw, ParsingContext context, DataTable table)
     {
         if (raw.Contains("[EOT]"))
         {
+            context.CurrentSection = null;
+            return false; // If we find EOT, that means the group section is complete
+        }
+
+        if (raw.Contains(StepHeader))
+        {
+            context.CurrentSection = SectionType.Step;
             return false; // If we find EOT, that means the group section is complete
         }
 
@@ -190,6 +204,82 @@ public class LogParserCore
             table.Rows.Add(row);
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Processes one row of the current file that has been identified as an step result.
+    /// </summary>
+    /// <param name="raw">The current row.</param>
+    /// <param name="context">The context required to parse an step row.</param>
+    /// <param name="table">The DataTable to insert the parsed data into.</param>
+    /// <returns>A value indicating whether parsing should continue.</returns>
+    private static async Task<bool> ProcessStepRow(string raw, ParsingContext context, DataTable table)
+    {
+        // If the line is empty, skip it
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return true;
+        }
+
+        // If we see EOT or FCT, the step results are finished
+        if (raw.Contains("[EOT]"))
+        {
+            context.CurrentSection = null;
+            return false;
+        }
+
+        if (raw.Contains(FctHeader))
+        {
+            context.CurrentSection = SectionType.Fct;
+            return false;
+        }
+
+        string[] line = raw.Split(',');
+        if (line[0].StartsWith("Gr"))
+        {
+            context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
+            return true;
+        }
+
+        if (line.Length < 13)
+        {
+            return true;
+        }
+
+        // Get result ID from cache
+        byte resultId = await GetCachedId(line[0].Trim(), true, context);
+        byte modeId = await GetCachedId(line[6].Trim(), false, context);
+
+        // The discard operator "_" says to ignore the unit (because we already have it)
+        (double? hLim, string? unit) = CleanFloatValue(line[8]);
+        (double? lLim, string? _) = CleanFloatValue(line[9]);
+        (double? act, string? _) = CleanFloatValue(line[10]);
+        (double? refVal, string? _) = CleanFloatValue(line[11]);
+        (double? meas, string? _) = CleanFloatValue(line[12]);
+
+        // Add a row to the DataTable
+        DataRow row = table.NewRow();
+        row[BarcodeColName] = context.Data.Barcode;
+        row[TestTimeColName] = context.Data.TestTime;
+        row[GroupNumColName] = context.Data.Group;
+        row[StepNumColName] = int.Parse(line[1].Trim());
+        row[TimesTestedColName] = context.Data.TimesTested;
+        row[AllResultColName] = resultId;
+        row["partName"] = line[2].Trim();
+        row["hPin"] = line[3].Trim();
+        row["lPin"] = line[4].Trim();
+        row["pos"] = line[5].Trim();
+        row["mode"] = modeId;
+        row["rangeNum"] = int.Parse(line[7].Trim());
+        row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
+        row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
+        row[MeasUnitColName] = unit ?? (object)DBNull.Value;
+        row["act"] = act.HasValue ? act.Value : DBNull.Value;
+        row["ref"] = refVal.HasValue ? refVal.Value : DBNull.Value;
+        row["meas"] = meas.HasValue ? meas.Value : DBNull.Value;
+
+        table.Rows.Add(row);
         return true;
     }
 
@@ -470,18 +560,20 @@ public class LogParserCore
                 continue;
             }
 
-            if (line.Contains("-----  Group  -----"))
+            if (context.CurrentSection.Equals(SectionType.Group) || line.Contains(GroupHeader))
             {
                 await reader.ReadLineAsync(); // Cut the column name row
-                rowsUploaded += await this.ParseGroupFile(context);
+                rowsUploaded += await this.ParseGroupSection(context);
             }
-            else if (line.Contains("-----  Component  -----"))
+            else if (context.CurrentSection.Equals(SectionType.Step) || line.Contains(StepHeader))
             {
                 await reader.ReadLineAsync(); // Cut the column name row
-                string? groupLine = await reader.ReadLineAsync(); // Get the line containing the group number
-                string[]? groupParts = groupLine?.Split(',');
-                context.Data.Group = (groupParts?.Length > 1 && int.TryParse(groupParts[1].Trim(), out int g)) ? g : 0;
-                rowsUploaded += await this.ParseStepFile(context); // FCT handled here
+                rowsUploaded += await this.ParseStepSection(context);
+            }
+            else if (context.CurrentSection.Equals(SectionType.Fct) || line.Contains(FctHeader))
+            {
+                await reader.ReadLineAsync(); // Cut the column name row
+                rowsUploaded += await this.ParseFctSection(context);
             }
 
             // In theory, there could be an FCT-specific callout for the new file format, but I don't know of that header.
@@ -497,78 +589,41 @@ public class LogParserCore
     /// </summary>
     /// <param name="context">The context required to parse a group file.</param>
     /// <returns>A Task representing that the group file has been parsed.</returns>
-    private async Task<int> ParseGroupFile(ParsingContext context)
-    {
-        // Create a DataTable to hold the data in memory
-        DataTable table = CreateSectionDataTable(SectionType.Group);
-
-        string? raw;
-        while ((raw = await context.Reader.ReadLineAsync()) != null)
-        {
-            bool shouldContinue = await ProcessGroupRow(raw, context, table);
-            if (!shouldContinue)
-            {
-                break;
-            }
-        }
-
-        try
-        {
-            await BulkInsertDataTable(table, SectionType.Group, context);
-            return table.Rows.Count;
-        }
-        catch (Exception ex)
-        {
-            await this.Report(ex.Message, ReportLevel.ERROR);
-            throw; // Pass off to caller (ParseHioki)
-        }
-    }
+    private Task<int> ParseGroupSection(ParsingContext context)
+        => this.ParseSectionInternal(context, SectionType.Group, ProcessGroupRow);
 
     /// <summary>
     /// Helper function for ParseHioki (handles step files). Picks up at the beginning of the step-specific content and creates a new entry in the database for every entry in the file.
     /// </summary>
-    /// <param name="context"> the context required to parse a step file. </param>
+    /// <param name="context">The context required to parse a step file.</param>
     /// <returns>A Task representing that the step file has been parsed.</returns>
-    private async Task<int> ParseStepFile(ParsingContext context)
-    {
-        // Create a DataTable to hold the data in memory
-        DataTable table = CreateSectionDataTable(SectionType.Step);
-
-        string? raw;
-        while ((raw = await context.Reader.ReadLineAsync()) != null)
-        {
-            bool shouldContinue = await this.ProcessStepRow(raw, context, table);
-            if (!shouldContinue)
-            {
-                break;
-            }
-        }
-
-        try
-        {
-            await BulkInsertDataTable(table, SectionType.Step, context);
-            return table.Rows.Count;
-        }
-        catch (Exception ex)
-        {
-            await this.Report(ex.Message, ReportLevel.ERROR);
-            throw; // Pass off to caller (ParseHioki)
-        }
-    }
+    private Task<int> ParseStepSection(ParsingContext context)
+        => this.ParseSectionInternal(context, SectionType.Step, ProcessStepRow);
 
     /// <summary>
-    /// Helper function for ParseStepResults (handles the FCT section). Picks up at the beginning of the FCT-specific content and creates a new entry in the database for every entry in the file.
+    /// Helper function for ParseHioki (handles the FCT section). Picks up at the beginning of the FCT-specific content and creates a new entry in the database for every entry in the file.
     /// </summary>
-    /// <param name="context"> the context required to parse the FCT section of a step file. </param>
+    /// <param name="context">The context required to parse the FCT section of a step file.</param>
     /// <returns>A Task representing that the FCT section has been parsed.</returns>
-    private async Task<int> ParseFctSection(ParsingContext context)
+    private Task<int> ParseFctSection(ParsingContext context)
+        => this.ParseSectionInternal(context, SectionType.Fct, ProcessFctRow);
+
+    /// <summary>
+    /// Section parse structure and router. All three sections call this method with their individual section type and row processing delegate.
+    /// This method executes <paramref name="processRow"/> on each row until it returns false, then inserts the contents of the produced DataTable to the DB table for this section.
+    /// </summary>
+    /// <param name="context">The context required to parse the specified <paramref name="section"/> of this file.</param>
+    /// <param name="section">The section of this file to parse.</param>
+    /// <param name="processRow">The method to apply to each relevant row. Returns a value indicating whether to continue parsing.</param>
+    /// <returns>The number of rows successfully uploaded to the DB.</returns>
+    private async Task<int> ParseSectionInternal(ParsingContext context, SectionType section, Func<string, ParsingContext, DataTable, Task<bool>> processRow)
     {
-        DataTable table = CreateSectionDataTable(SectionType.Fct);
+        DataTable table = CreateSectionDataTable(section);
 
         string? raw;
         while ((raw = await context.Reader.ReadLineAsync()) != null)
         {
-            bool shouldContinue = await ProcessFctRow(raw, context, table);
+            bool shouldContinue = await processRow(raw, context, table);
             if (!shouldContinue)
             {
                 break;
@@ -577,89 +632,14 @@ public class LogParserCore
 
         try
         {
-            await BulkInsertDataTable(table, SectionType.Fct, context);
+            await BulkInsertDataTable(table, section, context);
             return table.Rows.Count;
         }
         catch (Exception ex)
         {
             await this.Report(ex.Message, ReportLevel.ERROR);
-            throw; // Pass off to caller (ParseStepFile, which passes to ParseHioki)
+            throw; // Pass off to caller for higher handling
         }
-    }
-
-    /// <summary>
-    /// Processes one row of the current file that has been identified as an step result.
-    /// </summary>
-    /// <param name="raw">The current row.</param>
-    /// <param name="context">The context required to parse an step row.</param>
-    /// <param name="table">The DataTable to insert the parsed data into.</param>
-    /// <returns>A value indicating whether parsing should continue.</returns>
-    private async Task<bool> ProcessStepRow(string raw, ParsingContext context, DataTable table)
-    {
-        // If the line is empty, skip it
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return true;
-        }
-
-        // If we see EOT, the step results are finished
-        if (raw.Contains("[EOT]"))
-        {
-            return false;
-        }
-
-        string[] line = raw.Split(',');
-        if (line[0].StartsWith("Gr"))
-        {
-            context.Data.Group = int.TryParse(line[1].Trim(), out int tt) ? tt : 0;
-            return true;
-        }
-
-        if (line[0].Contains("-----  FCT  -----"))
-        {
-            await this.ParseFctSection(context);
-            return false;
-        }
-
-        if (line.Length < 13)
-        {
-            return true;
-        }
-
-        // Get result ID from cache
-        byte resultId = await GetCachedId(line[0].Trim(), true, context);
-        byte modeId = await GetCachedId(line[6].Trim(), false, context);
-
-        // The discard operator "_" says to ignore the unit (because we already have it)
-        (double? hLim, string? unit) = CleanFloatValue(line[8]);
-        (double? lLim, string? _) = CleanFloatValue(line[9]);
-        (double? act, string? _) = CleanFloatValue(line[10]);
-        (double? refVal, string? _) = CleanFloatValue(line[11]);
-        (double? meas, string? _) = CleanFloatValue(line[12]);
-
-        // Add a row to the DataTable
-        DataRow row = table.NewRow();
-        row[BarcodeColName] = context.Data.Barcode;
-        row[TestTimeColName] = context.Data.TestTime;
-        row[GroupNumColName] = context.Data.Group;
-        row[StepNumColName] = int.Parse(line[1].Trim());
-        row[TimesTestedColName] = context.Data.TimesTested;
-        row[AllResultColName] = resultId;
-        row["partName"] = line[2].Trim();
-        row["hPin"] = line[3].Trim();
-        row["lPin"] = line[4].Trim();
-        row["pos"] = line[5].Trim();
-        row["mode"] = modeId;
-        row["rangeNum"] = int.Parse(line[7].Trim());
-        row["hLim"] = hLim.HasValue ? hLim.Value : DBNull.Value;
-        row["lLim"] = lLim.HasValue ? lLim.Value : DBNull.Value;
-        row[MeasUnitColName] = unit ?? (object)DBNull.Value;
-        row["act"] = act.HasValue ? act.Value : DBNull.Value;
-        row["ref"] = refVal.HasValue ? refVal.Value : DBNull.Value;
-        row["meas"] = meas.HasValue ? meas.Value : DBNull.Value;
-
-        table.Rows.Add(row);
-        return true;
     }
 
     /// <summary>

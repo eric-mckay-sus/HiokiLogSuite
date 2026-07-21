@@ -44,6 +44,21 @@ public static partial class LogParserUtilities
         [SectionType.Fct] = "pe3coop.dbo.FctResults",
     };
 
+    /// <summary>
+    /// Gets the header text for the <see cref="SectionType.Group"/> section.
+    /// </summary>
+    public static string GroupHeader { get; } = "-----  Group  -----";
+
+    /// <summary>
+    /// Gets the header text for the <see cref="SectionType.Step"/> section.
+    /// </summary>
+    public static string StepHeader { get; } = "-----  Component  -----";
+
+    /// <summary>
+    /// Gets the header text for the <see cref="SectionType.Fct"/> section.
+    /// </summary>
+    public static string FctHeader { get; } = "-----  FCT  -----";
+
     // Each <colName>ColName field encapsulates a string literal that is read frequently, thus has a noticeable initialization/garbage collection impact.
     // Defining them here for future access is like having r0 in Assembly so there's always a zero on hand.
 
@@ -132,6 +147,11 @@ public static partial class LogParserUtilities
         /// Gets the <see cref="CommonPackage"/>  associated with the current file.
         /// </summary>
         public CommonPackage Data { get; } = data;
+
+        /// <summary>
+        /// Gets or sets the current section of the file.
+        /// </summary>
+        public SectionType? CurrentSection { get; set; }
     }
 
     /// <summary>
