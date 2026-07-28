@@ -226,23 +226,12 @@ public static partial class LogParserUtilities
             return existingId;
         }
 
-        // If it's not there, insert a new one
-        string tableName = isResultType ? "pe3coop.dbo.ResultTypes" : "pe3coop.dbo.TestModes";
-        string columnName = isResultType ? "resultType" : "testMode";
-
-        string insertSql = $@"
-        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-        BEGIN TRAN
-            IF NOT EXISTS (SELECT 1 FROM {tableName} WHERE {columnName} = @val)
-            BEGIN
-                INSERT INTO {tableName} ({columnName}) VALUES (@val);
-            END
-            SELECT id FROM {tableName} WHERE {columnName} = @val;
-        COMMIT TRAN";
-
-        using SqlCommand command = new (insertSql, context.Connection);
+        using SqlCommand command = new ("dbo.GetOrAddCachedId", context.Connection);
+        command.CommandType = CommandType.StoredProcedure;
         command.Transaction = context.Transaction;
-        command.Parameters.AddWithValue("@val", toCheck);
+
+        command.Parameters.Add(new SqlParameter("@IsResultType", SqlDbType.Bit) { Value = isResultType });
+        command.Parameters.Add(new SqlParameter("@Val", SqlDbType.NVarChar, 255) { Value = toCheck });
 
         var result = await command.ExecuteScalarAsync();
         if (result == null || result == DBNull.Value)
