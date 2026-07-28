@@ -29,7 +29,7 @@ public static class TestLogicFactory
                             if (log.Time == default) log.Time = DateTime.Now;
                             if (log.Group == default) log.Group = new Random().Next(1, 100000);
                         }
-                        if (item is IStepFCT sf)
+                        if (item is IStepFct sf)
                         {
                             if (sf.Step == default) sf.Step = new Random().Next(1, 100000);
                         }

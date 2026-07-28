@@ -4,6 +4,7 @@
 
 namespace HiokiNL2SQL.Services;
 
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 using HiokiNL2SQL.Logic;
@@ -36,7 +37,7 @@ public record SearchParseResult
     /// <summary>
     /// Gets a value indicating whether the query has a valid date filter (before/after tag).
     /// </summary>
-    public bool HasDateFilter { get; private set; }
+    public bool HasDateFilter { get; }
 }
 
 /// <summary>
@@ -82,54 +83,33 @@ public partial class SearchParserService
     public static readonly string[] AvailableTypes = ["all", "group", "step", "fct"];
 
     /// <summary>
-    /// Dictionary to associate each shift with its start time and duration.
+    /// The pattern (regular expression) used to identify the 'in' tag, with attempted (disallowed) optional negation of either key or value.
     /// </summary>
-    public static readonly Dictionary<string, (TimeSpan Start, double Hours)> ShiftDetails = new ()
-    {
-        {
-            "shift1", (new TimeSpan(7, 0, 0), 8.5)
-        },
-        {
-            "shift2", (new TimeSpan(15, 30, 0), 7.0)
-        },
-        {
-            "shift3", (new TimeSpan(-1, -30, 0), 8.5)
-        },
-    };
+    private const string InPattern = @"(-?)in\s*:\s*(-?\w+)";
 
     /// <summary>
     /// The core set of tags available when searching all tables.
     /// </summary>
-    public static readonly HashSet<string> UniversalTags = new (StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> UniversalTags = new (StringComparer.OrdinalIgnoreCase)
         { "in", "barcode", "group", "before", "after", "result" };
 
     /// <summary>
     /// The set of tags exclusive to the group table.
     /// </summary>
-    public static readonly HashSet<string> GroupTags = new (StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> GroupTags = new (StringComparer.OrdinalIgnoreCase)
         { "comp", "short", "open", "macro", "ic", "function" };
 
     /// <summary>
     /// The set of tags exclusive to the step table.
     /// </summary>
-    public static readonly HashSet<string> StepTags = new (StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> StepTags = new (StringComparer.OrdinalIgnoreCase)
         { "step", "mode", "part" };
 
     /// <summary>
     /// The set of tags exclusive to the FCT table.
     /// </summary>
-    public static readonly HashSet<string> FctTags = new (StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> FctTags = new (StringComparer.OrdinalIgnoreCase)
         { "step", "mode" };
-
-    /// <summary>
-    /// All tags available across the system (union of above sets).
-    /// </summary>
-    public static readonly HashSet<string> AllTags = CombineAllTags();
-
-    /// <summary>
-    /// The pattern (regular expression) used to identify the 'in' tag, with attempted (disallowed) optional negation of either key or value.
-    /// </summary>
-    private const string InPattern = @"(-?)in\s*:\s*(-?\w+)";
 
     /// <summary>
     /// Regex to find key:value pairs. -? detects optional negation, \w+ detects the key text, \s* surrounding the colon detects whitespace,
@@ -189,6 +169,27 @@ public partial class SearchParserService
         { "mode", "Filter by test mode" },
         { "part", "Search by part name" },
     };
+
+    /// <summary>
+    /// Gets the dictionary that associates each shift with its start time and duration.
+    /// </summary>
+    public static Dictionary<string, (TimeSpan Start, double Hours)> ShiftDetails { get; } = new ()
+    {
+        {
+            "shift1", (new TimeSpan(7, 0, 0), 8.5)
+        },
+        {
+            "shift2", (new TimeSpan(15, 30, 0), 7.0)
+        },
+        {
+            "shift3", (new TimeSpan(-1, -30, 0), 8.5)
+        },
+    };
+
+    /// <summary>
+    /// Gets the set of all tags available across the system (union of above sets).
+    /// </summary>
+    public static HashSet<string> AllTags { get; } = CombineAllTags();
 
     /// <summary>
     /// Dynamically gets the tooltip based on what tables in which a key is valid.
@@ -540,13 +541,10 @@ public partial class SearchParserService
             }
 
             // Validate if value matches the datatype required by the key
-            if (TagTypeMap.TryGetValue(cleanKey, out ValType expectedType))
+            if (TagTypeMap.TryGetValue(cleanKey, out ValType expectedType) && !IsValidValue(expectedType, cleanKey, value, out string errorMessage))
             {
-                if (!IsValidValue(expectedType, cleanKey, value, out string errorMessage))
-                {
-                    result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
-                    return;
-                }
+                result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
+                return;
             }
 
             // Validate if key is supported by the selected table
@@ -574,24 +572,7 @@ public partial class SearchParserService
         }
 
         // Verify that the start date is actually before the end date
-        if (result.Filters.TryGetValue("before", out IFilter? before) && result.Filters.TryGetValue("after", out IFilter? after))
-        {
-            // Cast to DateTime filters and proceed
-            if (before is Filter<DateTime?> b && after is Filter<DateTime?> a)
-            {
-                // Compare the typed values directly
-                if (a.Value.HasValue && b.Value.HasValue)
-                {
-                    if (a.Value > b.Value)
-                    {
-                        result.ErrorMessages.Add($"Your start date is after your end date. This search is now **after:{b.Value:yyyy-MM-dd} before:{a.Value:yyyy-MM-dd}...**");
-
-                        // Swap the values inside the filter objects in the dictionary
-                        (b.Value, a.Value) = (a.Value, b.Value);
-                    }
-                }
-            }
-        }
+        SwapDatesIfInverted(result);
 
         // Check if there is any unparsed input (that didn't match the pattern)
         if (lastIndex < rawInput.Length)
@@ -606,6 +587,31 @@ public partial class SearchParserService
 
         result.Preview = GeneratePreview(result.CurrentType, result.Filters);
         return result;
+    }
+
+    /// <summary>
+    /// Swaps the "before" and "after" filters if "before" occurs before "after".
+    /// </summary>
+    /// <param name="result">The parse result containing the filters.</param>
+    private static void SwapDatesIfInverted(SearchParseResult result)
+    {
+        // Safely retrieve and cast the filters in a single guard clause
+        if (!result.Filters.TryGetValue("before", out IFilter? beforeFilter) ||
+            !result.Filters.TryGetValue("after", out IFilter? afterFilter) ||
+            beforeFilter is not Filter<DateTime?> b ||
+            afterFilter is not Filter<DateTime?> a)
+        {
+            return;
+        }
+
+        // Check if both have values and are inverted
+        if (a.Value.HasValue && b.Value.HasValue && a.Value > b.Value)
+        {
+            // Swap the values inside the filter objects in the dictionary
+            (b.Value, a.Value) = (a.Value, b.Value);
+
+            result.ErrorMessages.Add($"Your start date is after your end date. This search is now **after:{a.Value:yyyy-MM-dd} before:{b.Value:yyyy-MM-dd}...**");
+        }
     }
 
     private static HashSet<string> CombineAllTags()
@@ -743,7 +749,7 @@ public partial class SearchParserService
             "shift1" => GetShiftStartOnDay(ShiftDetails["shift1"].Start),
             "shift2" => GetShiftStartOnDay(ShiftDetails["shift2"].Start),
             "shift3" => GetShiftStartOnDay(ShiftDetails["shift3"].Start),
-            _ => DateTime.TryParse(alias, out DateTime p) ? p : DateTime.MinValue // If it's not an alias, hopefully it's already a datetime, but default to min value
+            _ => DateTime.TryParse(alias, CultureInfo.CurrentCulture, out DateTime p) ? p : DateTime.MinValue // If it's not an alias, hopefully it's already a datetime, but default to min value
         };
 
         // If the shift hasn't started yet today, it refers to yesterday's instance

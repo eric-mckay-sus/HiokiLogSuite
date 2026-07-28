@@ -547,7 +547,7 @@ public class LogTableLogic<T> : ILogTableLogic
         // Fill the final result cache for all tables
         this.ResultCache = await this.GetCacheSet("Result");
 
-        if (typeof(IStepFCT).IsAssignableFrom(typeof(T)))
+        if (typeof(IStepFct).IsAssignableFrom(typeof(T)))
         {
             this.ModeCache = await this.GetCacheSet("Mode");
         }

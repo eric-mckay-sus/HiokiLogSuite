@@ -16,7 +16,7 @@ public class TestLogRecord : IHiokiLog
 }
 
 [ExcludeFromCodeCoverage]
-public class TestStepFct : TestLogRecord, IStepFCT
+public class TestStepFct : TestLogRecord, IStepFct
 {
     public int? Step { get; set; }
     public string? Position { get; set; }

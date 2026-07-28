@@ -60,7 +60,7 @@ public interface IHiokiLog
 /// <summary>
 /// The fields common between the step and FCT tables only.
 /// </summary>
-public interface IStepFCT : IHiokiLog
+public interface IStepFct : IHiokiLog
 {
     /// <summary>
     /// Gets or sets the step number for a step/FCT log.
@@ -144,7 +144,7 @@ public interface IGroupSubResults : IHiokiLog
 /// NOTE: VERY SENSITIVE TO COL NAME CHANGES.
 /// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group))]
-public class GroupResult : IHiokiLog, IGroupSubResults
+public class GroupResult : IGroupSubResults
 {
     /// <summary>
     /// Gets or sets the barcode for a <see cref="GroupResult"/>.
@@ -218,7 +218,7 @@ public class GroupResult : IHiokiLog, IGroupSubResults
 /// NOTE: VERY SENSITIVE TO COL NAME CHANGES.
 /// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
-public class StepResult : IStepFCT
+public class StepResult : IStepFct
 {
     /// <summary>
     /// Gets or sets the barcode for a <see cref="StepResult"/>.
@@ -334,7 +334,7 @@ public class StepResult : IStepFCT
 /// NOTE: VERY SENSITIVE TO COL NAME CHANGES.
 /// </summary>
 [PrimaryKey(nameof(Barcode), nameof(Time), nameof(Group), nameof(Step))]
-public class FctResult : IStepFCT
+public class FctResult : IStepFct
 {
     /// <summary>
     /// Gets or sets the barcode for an <see cref="FctResult"/>.
