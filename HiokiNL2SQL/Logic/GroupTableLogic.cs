@@ -5,6 +5,7 @@
 namespace HiokiNL2SQL.Logic;
 
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 /// <summary>
 /// Model class for a group table. Inherits from LogTableLogic.
@@ -107,50 +108,31 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
         Filter<string?> filterIC = this.GetFilter<string?>("ic");
         Filter<string?> filterFunction = this.GetFilter<string?>("function");
 
-        // Apply Group-specific filters
-        if (filterComp.IsActive && !string.IsNullOrWhiteSpace(filterComp.Value))
-        {
-            query = filterComp.IsNegated
-                ? query.Where(g => g.ComponentTest != null && !g.ComponentTest.Contains(filterComp.Value))
-                : query.Where(g => g.ComponentTest != null && g.ComponentTest.Contains(filterComp.Value));
-        }
-
-        if (filterShort.IsActive && !string.IsNullOrWhiteSpace(filterShort.Value))
-        {
-            query = filterShort.IsNegated
-                ? query.Where(g => g.ShortTest != null && !g.ShortTest.Contains(filterShort.Value))
-                : query.Where(g => g.ShortTest != null && g.ShortTest.Contains(filterShort.Value));
-        }
-
-        if (filterOpen.IsActive && !string.IsNullOrWhiteSpace(filterOpen.Value))
-        {
-            query = filterOpen.IsNegated
-                ? query.Where(g => g.OpenTest != null && !g.OpenTest.Contains(filterOpen.Value))
-                : query.Where(g => g.OpenTest != null && g.OpenTest.Contains(filterOpen.Value));
-        }
-
-        if (filterMacro.IsActive && !string.IsNullOrWhiteSpace(filterMacro.Value))
-        {
-            query = filterMacro.IsNegated
-                ? query.Where(g => g.MacroTest != null && !g.MacroTest.Contains(filterMacro.Value))
-                : query.Where(g => g.MacroTest != null && g.MacroTest.Contains(filterMacro.Value));
-        }
-
-        if (filterIC.IsActive && !string.IsNullOrWhiteSpace(filterIC.Value))
-        {
-            query = filterIC.IsNegated
-                ? query.Where(g => g.IcTest != null && !g.IcTest.Contains(filterIC.Value))
-                : query.Where(g => g.IcTest != null && g.IcTest.Contains(filterIC.Value));
-        }
-
-        if (filterFunction.IsActive && !string.IsNullOrWhiteSpace(filterFunction.Value))
-        {
-            query = filterFunction.IsNegated
-                ? query.Where(g => g.FunctionTest != null && !g.FunctionTest.Contains(filterFunction.Value))
-                : query.Where(g => g.FunctionTest != null && g.FunctionTest.Contains(filterFunction.Value));
-        }
-
-        return query;
+        return query
+            .ApplyFilterIfActive(
+                filterComp,
+                g => g.ComponentTest != null && !g.ComponentTest.Contains(filterComp.Value!),
+                g => g.ComponentTest != null && g.ComponentTest.Contains(filterComp.Value!))
+            .ApplyFilterIfActive(
+                filterShort,
+                g => g.ShortTest != null && !g.ShortTest.Contains(filterShort.Value!),
+                g => g.ShortTest != null && g.ShortTest.Contains(filterShort.Value!))
+            .ApplyFilterIfActive(
+                filterOpen,
+                g => g.OpenTest != null && !g.OpenTest.Contains(filterOpen.Value!),
+                g => g.OpenTest != null && g.OpenTest.Contains(filterOpen.Value!))
+            .ApplyFilterIfActive(
+                filterMacro,
+                g => g.MacroTest != null && !g.MacroTest.Contains(filterMacro.Value!),
+                g => g.MacroTest != null && g.MacroTest.Contains(filterMacro.Value!))
+            .ApplyFilterIfActive(
+                filterIC,
+                g => g.IcTest != null && !g.IcTest.Contains(filterIC.Value!),
+                g => g.IcTest != null && g.IcTest.Contains(filterIC.Value!))
+            .ApplyFilterIfActive(
+                filterFunction,
+                g => g.FunctionTest != null && !g.FunctionTest.Contains(filterFunction.Value!),
+                g => g.FunctionTest != null && g.FunctionTest.Contains(filterFunction.Value!));
     }
 
     /// <summary>

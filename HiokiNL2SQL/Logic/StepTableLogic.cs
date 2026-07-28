@@ -37,32 +37,22 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServic
         query = base.ApplyFilters(query);
 
         Filter<int?> filterStep = this.GetFilter<int?>("step");
-        Filter<string> filterPartName = this.GetFilter<string>("part");
+        Filter<string?> filterPartName = this.GetFilter<string?>("part");
         Filter<string?> filterMode = this.GetFilter<string?>("mode");
 
-        // Apply Step-specific filters
-        if (filterStep.IsActive && filterStep.Value is int stepVal)
-        {
-            query = filterStep.IsNegated
-                ? query = query.Where(s => s.Step != filterStep.Value)
-                : query = query.Where(s => s.Step == filterStep.Value);
-        }
-
-        if (filterPartName.IsActive && !string.IsNullOrWhiteSpace(filterPartName.Value))
-        {
-            query = filterPartName.IsNegated
-                ? query.Where(s => s.PartName != null && !s.PartName.Contains(filterPartName.Value))
-                : query.Where(s => s.PartName != null && s.PartName.Contains(filterPartName.Value));
-        }
-
-        if (filterMode.IsActive && !string.IsNullOrWhiteSpace(filterMode.Value))
-        {
-            query = filterMode.IsNegated
-                ? query.Where(s => s.Mode != null && !s.Mode.Contains(filterMode.Value))
-                : query.Where(s => s.Mode != null && s.Mode.Contains(filterMode.Value));
-        }
-
-        return query;
+        return query
+            .ApplyFilterIfActive(
+                filterStep,
+                s => s.Step != filterStep.Value,
+                s => s.Step == filterStep.Value)
+            .ApplyFilterIfActive(
+                filterPartName,
+                s => s.PartName != null && !s.PartName.Contains(filterPartName.Value!),
+                s => s.PartName != null && s.PartName.Contains(filterPartName.Value!))
+            .ApplyFilterIfActive(
+                filterMode,
+                s => s.Mode != null && !s.Mode.Contains(filterMode.Value!),
+                s => s.Mode != null && s.Mode.Contains(filterMode.Value!));
     }
 
     /// <summary>

@@ -4,6 +4,8 @@
 
 namespace HiokiNL2SQL.Logic;
 
+using System.Linq.Expressions;
+
 /// <summary>
 /// Container for the value and polarity of a filter.
 /// </summary>
@@ -164,4 +166,43 @@ public interface IFilter
     /// Deactivates this IFilter instance (value=null, isNegated=false).
     /// </summary>
     void Reset();
+}
+
+/// <summary>
+/// Provides extra functionality for <see cref="Filter{T}"/> operations.
+/// </summary>
+public static class FilterExtensions
+{
+    /// <summary>
+    /// Filters the input <paramref name="query"/> by <paramref name="predicate"/> if the input <paramref name="filter"/> is active.
+    /// </summary>
+    /// <typeparam name="T">The type of the contents of the <paramref name="query"/>.</typeparam>
+    /// <typeparam name="TVal">The type of the contents of the <paramref name="filter"/>.</typeparam>
+    /// <param name="query">The IQueryable instance to which the filter should be applied.</param>
+    /// <param name="filter">The filter object being applied (contains activity status).</param>
+    /// <param name="predicate">The actual predicate applied as a filter condition.</param>
+    /// <returns>A new IQueryable instance representing the contents of <paramref name="query"/> filtered by <paramref name="predicate"/>.</returns>
+    public static IQueryable<T> ApplyFilterIfActive<T, TVal>(
+        this IQueryable<T> query,
+        Filter<TVal?> filter,
+        Expression<Func<T, bool>> predicate)
+    => filter.IsActive ? query.Where(predicate) : query;
+
+    /// <summary>
+    /// Filters the input <paramref name="query"/> by a predicate if the input <paramref name="filter"/> is active.
+    /// Uses <paramref name="negativePredicate"/> if <paramref name="filter"/> is negated, otherwise <paramref name="positivePredicate"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the contents of the <paramref name="query"/>.</typeparam>
+    /// <typeparam name="TVal">The type of the contents of the <paramref name="filter"/>.</typeparam>
+    /// <param name="query">The IQueryable instance to which the filter should be applied.</param>
+    /// <param name="filter">The filter object being applied (contains activity status).</param>
+    /// <param name="positivePredicate">The filter action for when the <paramref name="filter"/> is not negated.</param>
+    /// <param name="negativePredicate">The filter action for when the <paramref name="filter"/> is negated.</param>
+    /// <returns>A new IQueryable instance representing the contents of <paramref name="query"/> filtered by the corresponding predicate.</returns>
+    public static IQueryable<T> ApplyFilterIfActive<T, TVal>(
+        this IQueryable<T> query,
+        Filter<TVal?> filter,
+        Expression<Func<T, bool>> positivePredicate,
+        Expression<Func<T, bool>> negativePredicate)
+    => query.ApplyFilterIfActive(filter, filter.IsNegated ? negativePredicate : positivePredicate);
 }

@@ -55,8 +55,9 @@ public partial class PowerSearchLogic()
                 {
                     this.NavService.UpdateSearchState(query);
                 }
-                catch
+                catch (OperationCanceledException)
                 {
+                    // This is the result of the debounce debouncing
                 }
 
                 _ = this.ExecutePowerSearch(skipUrlUpdate: true);
@@ -97,7 +98,7 @@ public partial class PowerSearchLogic()
     /// <summary>
     /// Gets the timer to debounce <see cref="CommandInput"/> and smooth the preview rendering.
     /// </summary>
-    public System.Timers.Timer? DebounceTimer { get; private set; }
+    public System.Timers.Timer? DebounceTimer { get; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the system is using NavService within this class or from the razor page.
@@ -236,14 +237,7 @@ public partial class PowerSearchLogic()
         // This is the situation that occurs on first render of power search.
         if (string.IsNullOrWhiteSpace(this.CommandInput) && this.filters.Count == 0)
         {
-            foreach (ILogTableLogic table in this.TableLogics)
-            {
-                table.ClearData();
-            }
-
-            this.LastExecutedQuery = "Hioki ICT Power Search";
-            this.IsSearching = false;
-            this.NotifyStateChanged();
+            this.ResetTableState(resetPageTitle: true);
             return; // short-circuit before any DB hits
         }
 
@@ -253,32 +247,11 @@ public partial class PowerSearchLogic()
         // If there was an fatal error, don't execute the search (warnings ok)
         if (hasFatalErrors)
         {
-            foreach (ILogTableLogic table in this.TableLogics)
-            {
-                table.ClearData();
-            }
-
-            this.IsSearching = false;
-            this.NotifyStateChanged();
+            this.ResetTableState();
             return;
         }
 
-        if (parseResult.HasDateFilter)
-        {
-            // Replace date/shift aliases in the raw command input with their resolved datetimes
-            // The filters already have resolved DateTime values from ProcessDateValue, so use those directly
-            if (parseResult.Filters.TryGetValue("before", out IFilter? beforeFilter) && beforeFilter is Filter<DateTime?> bf && bf.Value.HasValue)
-            {
-                string replacement = bf.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
-                this.CommandInput = Regex.Replace(this.CommandInput, SearchParserService.BeforePattern, $"before:\"{replacement}\"", RegexOptions.IgnoreCase);
-            }
-
-            if (parseResult.Filters.TryGetValue("after", out IFilter? afterFilter) && afterFilter is Filter<DateTime?> af && af.Value.HasValue)
-            {
-                string replacement = af.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
-                this.CommandInput = Regex.Replace(this.CommandInput, SearchParserService.AfterPattern, $"after:\"{replacement}\"", RegexOptions.IgnoreCase);
-            }
-        }
+        this.ApplyDateFilterReplacements(parseResult);
 
         try
         {
@@ -546,5 +519,44 @@ public partial class PowerSearchLogic()
 
         this.SyncLivePreview(); // calls NotifyStateChanged internally
         return true;
+    }
+
+    private void ResetTableState(bool resetPageTitle = false)
+    {
+        foreach (ILogTableLogic table in this.TableLogics)
+        {
+            table.ClearData();
+        }
+
+        this.IsSearching = false;
+
+        if (resetPageTitle)
+        {
+            this.LastExecutedQuery = "Hioki ICT Power Search";
+        }
+
+        this.NotifyStateChanged();
+    }
+
+    private void ApplyDateFilterReplacements(SearchParseResult parseResult)
+    {
+        if (!parseResult.HasDateFilter)
+        {
+            return;
+        }
+
+        // Replace date/shift aliases in the raw command input with their resolved datetimes
+        // The filters already have resolved DateTime values from ProcessDateValue, so use those directly
+        if (parseResult.Filters.TryGetValue("before", out IFilter? beforeFilter) && beforeFilter is Filter<DateTime?> bf && bf.Value.HasValue)
+        {
+            string replacement = bf.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
+            this.CommandInput = Regex.Replace(this.CommandInput, SearchParserService.BeforePattern, $"before:\"{replacement}\"", RegexOptions.IgnoreCase);
+        }
+
+        if (parseResult.Filters.TryGetValue("after", out IFilter? afterFilter) && afterFilter is Filter<DateTime?> af && af.Value.HasValue)
+        {
+            string replacement = af.Value.Value.ToString("yyyy-MM-dd HH:mm:ss");
+            this.CommandInput = Regex.Replace(this.CommandInput, SearchParserService.AfterPattern, $"after:\"{replacement}\"", RegexOptions.IgnoreCase);
+        }
     }
 }

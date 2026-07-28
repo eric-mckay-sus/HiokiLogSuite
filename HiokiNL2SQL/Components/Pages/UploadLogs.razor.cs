@@ -133,14 +133,7 @@ public partial class UploadLogs : IDisposable
     /// </summary>
     /// <param name="prompt">The prompt requiring file input.</param>
     /// <param name="previousError">The error message that caused this file prompt, if applicable.</param>
-    private void HandleFileRequested(Report prompt, string? previousError)
-    {
-        this.validationError = string.IsNullOrWhiteSpace(previousError)
-            ? prompt.message
-            : $"{previousError}\n{prompt.message}";
-
-        this.InvokeAsync(this.StateHasChanged);
-    }
+    private void HandleFileRequested(Report prompt, string? previousError) => this.HandleInputRequested(prompt, previousError);
 
     /// <summary>
     /// When the page requests confirmation, approve automatically when already uploading (page already confirmed).

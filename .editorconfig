@@ -141,36 +141,42 @@ dotnet_diagnostic.IDE0071.severity = silent
 # IDE0031: Use null propagation - keep as silent hint to avoid build errors with TreatWarningsAsErrors
 dotnet_diagnostic.IDE0031.severity = silent
 
-# IDE0065: Misplaced using directive
+# IDE0065: Misplaced using directive - place inside namespace declaration instead for higher specificity
 dotnet_diagnostic.IDE0065.severity = error
 
-# IDE0055: Fix formatting
-dotnet_diagnostic.IDE0055.severity = silent
+# IDE0055: Fix formatting - allow space after parenthesess for constructors
+dotnet_diagnostic.IDE0055.severity = none
 
-# IDE0003/0009: Remove 'this' qualification
+# IDE0003/0009: 'this' qualification - required
 dotnet_diagnostic.IDE0003.severity = none
-dotnet_diagnostic.IDE0009.severity = none
+dotnet_diagnostic.IDE0009.severity = warning
 
-# IDE1006: Naming Styles
+# IDE1006: Naming Styles - Let StyleCop enforce C# naming conventions (usually PascalCase, never starting with _)
 dotnet_diagnostic.IDE1006.severity = none
 
-# SA1206: Declaration keywords should follow order
+# SA1206: Declaration keywords should follow order - Let StyleCop enforce the order: access, static, other
 dotnet_diagnostic.SA1206.severity = none
 
-# SA1010: Closing parenthesis should be spaced correctly
+# SA1009: Closing parenthesis should not be followed by space - not when a primary constructor inherits
 dotnet_diagnostic.SA1009.severity = none
 
-# SA1010: Opening square brackets should be spaced correctly
+# SA1010: Opening square brackets should be preceded by a space - not when an indexer
 dotnet_diagnostic.SA1010.severity = none
 
-# SA1011: Closing square brackets should be spaced correctly
-dotnet_diagnostic.SA1011.severity = none
+# SA1313: Method parameter names should begin with lowercase letter - not for discard operator _
+dotnet_diagnostic.SA1313.severity = silent
 
-# SA1314: Type parameter names should begin with T
+# SA1314: Type parameter names should begin with T - not if there's a better name
 dotnet_diagnostic.SA1314.severity = none
 
-# SA1200: Using directives should be placed alphabetically, regardless of whether they are standard or custom
+# SA1200: Using directives should be placed alphabetically - standard, then custom
 dotnet_diagnostic.SA1210.severity = none
+
+# CA1806: Do not ignore method results - Don't want to miss these
+dotnet_diagnostic.CA1806.severity = warning
+
+# CA1852: Flag unsealed classes that are not inherited from
+dotnet_diagnostic.CA1852.severity = warning
 
 # Space preferences
 csharp_space_after_cast = false

@@ -21,10 +21,5 @@
     [CascadingParameter]
     public PowerSearchLogic State { get; set; } = default!;
 
-    [Parameter] public List<string> Messages { get; set; } = new();
-
-    private void RemoveMessage(string message){
-        Messages.Remove(message);
-        State.NotifyStateChanged();
-    }
+    [Parameter] public List<string> Messages { get; set; } = [];
 }

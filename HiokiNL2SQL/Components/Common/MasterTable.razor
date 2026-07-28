@@ -93,7 +93,7 @@
 
 @code {
     [Parameter] public IEnumerable<TItem>? Items { get; set; }
-    private PropertyInfo[] _cachedProps = typeof(TItem).GetProperties();
+    private readonly PropertyInfo[] _cachedProps = typeof(TItem).GetProperties();
 
     // Pagination Params
     [Parameter] public int CurrentPage { get; set; }

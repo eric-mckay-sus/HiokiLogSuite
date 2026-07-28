@@ -46,7 +46,7 @@ else
             StateHasChanged(); // Re-render now that State is populated
 
             // Flush any JS calls that were queued during prerendering
-            try { await JSService.FlushPendingAsync(); } catch { }
+            await JSService.FlushPendingAsync();
         }
     }
 

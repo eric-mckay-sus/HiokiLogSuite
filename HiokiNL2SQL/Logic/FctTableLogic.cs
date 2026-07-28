@@ -40,21 +40,15 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService
         Filter<string?> filterMode = this.GetFilter<string?>("mode");
 
         // Apply FCT-specific filters
-        if (filterStep.IsActive && filterStep.Value is int stepVal)
-        {
-            query = filterStep.IsNegated
-                ? query = query.Where(s => s.Step != stepVal)
-                : query = query.Where(s => s.Step == stepVal);
-        }
-
-        if (filterMode.IsActive && !string.IsNullOrWhiteSpace(filterMode.Value))
-        {
-            query = filterMode.IsNegated
-                ? query.Where(s => s.Mode != null && !s.Mode.Contains(filterMode.Value))
-                : query.Where(s => s.Mode != null && s.Mode.Contains(filterMode.Value));
-        }
-
-        return query;
+        return query
+            .ApplyFilterIfActive(
+                filterStep,
+                f => f.Step != filterStep.Value,
+                f => f.Step == filterStep.Value)
+            .ApplyFilterIfActive(
+                filterMode,
+                f => f.Mode != null && !f.Mode.Contains(filterMode.Value!),
+                f => f.Mode != null && f.Mode.Contains(filterMode.Value!));
     }
 
     /// <summary>
