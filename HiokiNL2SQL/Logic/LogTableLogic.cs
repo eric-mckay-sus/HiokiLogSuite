@@ -23,14 +23,32 @@ public class LogTableLogic<T> : ILogTableLogic
     /// <param name="querySelector">Encapsulates the DB connection and query information.</param>
     /// <param name="js">An implementation of <see cref="IJSService"/> for triggering a browser download of a CSV.</param>
     /// <param name="nav">An implementation of <see cref="INavService"/> for navigation to the power search page in a barcode 'drill-down'.</param>
-    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSService js, INavService nav)
+    /// <param name="extraFilters">The collection of extra filters to create (from the child).</param>
+    public LogTableLogic(IDbContextFactory<LogDbContext> dbFactory, Func<LogDbContext, IQueryable<T>> querySelector, IJSService js, INavService nav, IEnumerable<IFilter>? extraFilters = null)
     {
         this.DbFactory = dbFactory;
         this.QuerySelector = querySelector;
         this.JS = js;
         this.Nav = nav;
 
-        this.InitializeFilters(); // Children override this method as necessary to properly register their filters
+        this.Filters = new (StringComparer.OrdinalIgnoreCase)
+        {
+            ["barcode"] = new Filter<string?>("barcode", null) { OnChanged = this.NotifyStateChanged },
+            ["after"] = new Filter<DateTime?>("after", null) { OnChanged = this.NotifyStateChanged },
+            ["before"] = new Filter<DateTime?>("before", null) { OnChanged = this.NotifyStateChanged },
+            ["result"] = new Filter<string?>("result", null) { OnChanged = this.NotifyStateChanged },
+            ["group"] = new Filter<int?>("group", null) { OnChanged = this.NotifyStateChanged },
+        };
+
+        foreach (IFilter f in extraFilters ?? [])
+        {
+            this.Filters[f.Key] = f;
+        }
+
+        foreach (IFilter f in this.Filters.Values)
+        {
+            f.OnChanged = this.NotifyStateChanged;
+        }
     }
 
     // For compliance with ILogTable (these particular values should never be seen, overridden by children)
@@ -590,18 +608,6 @@ public class LogTableLogic<T> : ILogTableLogic
         this.TotalCount = 0;
         this.CurrentPage = 1;
         this.ResetFilterState();
-    }
-
-    /// <summary>
-    /// Creates an entry for each filter in the registry, wiring them to automatically push and pull data from form fields.
-    /// </summary>
-    protected virtual void InitializeFilters()
-    {
-        this.Filters["barcode"] = new Filter<string?>("barcode", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["after"] = new Filter<DateTime?>("after", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["before"] = new Filter<DateTime?>("before", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["result"] = new Filter<string?>("result", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["group"] = new Filter<int?>("group", null) { OnChanged = this.NotifyStateChanged };
     }
 
     /// <summary>

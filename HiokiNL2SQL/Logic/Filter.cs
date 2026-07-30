@@ -145,6 +145,11 @@ public interface IFilter
     bool IsActive { get; }
 
     /// <summary>
+    /// Gets or sets the action to perform when this filter is updated.
+    /// </summary>
+    Action? OnChanged { get; set; }
+
+    /// <summary>
     /// Gets the contents of the filter.
     /// </summary>
     /// <returns>A nullable object representing the value held by the filter.</returns>

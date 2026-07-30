@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 /// <param name="js">To handle saving to CSV.</param>
 /// <param name="navService">To navigate away for barcode "drill-down".</param>
 public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService js, INavService navService) :
-    LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navService)
+    LogTableLogic<FctResult>(dbFactory, db => db.FctView, js, navService, CreateFilters())
 {
     /// <summary>
     /// Gets this table's internal "type" as it would appear in <see cref="PowerSearchLogic.CurrentType"/>.
@@ -52,13 +52,11 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService
     }
 
     /// <summary>
-    /// Populates FCT-specific filters in parent's filter registry.
+    /// Creates FCT-specific filters for the parent to add to the registry.
     /// </summary>
-    protected override void InitializeFilters()
-    {
-        base.InitializeFilters();
-
-        this.Filters["step"] = new Filter<int?>("step", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["mode"] = new Filter<string?>("mode", null) { OnChanged = this.NotifyStateChanged };
-    }
+    private static IEnumerable<IFilter> CreateFilters() =>
+    [
+        new Filter<int?>("step", null),
+        new Filter<string?>("mode", null),
+    ];
 }

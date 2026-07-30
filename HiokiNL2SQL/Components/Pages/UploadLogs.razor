@@ -123,7 +123,6 @@
 @if (!isUploading && Reporter?.BatchResults != null && Reporter.BatchResults.Any())
 {
     int totalFiles = Reporter.BatchResults.Count;
-    int successfulFiles = Reporter.BatchResults.Count(r => !r.hadErrors && !r.alreadyUploaded);
     int duplicateCount = Reporter.BatchResults.Count(r => r.alreadyUploaded);
     int failedCount = Reporter.BatchResults.Count(r => r.hadErrors);
     int totalRows = Reporter.BatchResults.Sum(r => r.rowsUploaded);

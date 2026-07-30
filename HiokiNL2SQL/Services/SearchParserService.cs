@@ -378,7 +378,7 @@ public partial class SearchParserService
 
             // If an after tag targets a future date, the search cannot possibly have results
             // For shift-only, this is just an expansion of auto-detection (we'll handle user-specified out-of-range dates later)
-            if ((baseDateTime > DateTime.Now) && ((!isBefore && offsetHours != 24) || hasSpecificTime))
+            if ((baseDateTime > DateTime.Now) && ((!isBefore && offsetHours < 24) || hasSpecificTime))
             {
                 baseDateTime = baseDateTime.AddDays(-1);
             }

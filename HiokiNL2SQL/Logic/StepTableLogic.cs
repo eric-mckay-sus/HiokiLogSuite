@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 /// <param name="js">To handle saving to CSV.</param>
 /// <param name="navService">To navigate away for barcode "drill-down".</param>
 public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService js, INavService navService) :
-    LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navService)
+    LogTableLogic<StepResult>(dbFactory, db => db.StepView, js, navService, CreateFilters())
 {
     /// <summary>
     /// Gets this table's internal "type" as it would appear in <see cref="PowerSearchLogic.CurrentType"/>.
@@ -56,14 +56,12 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServic
     }
 
     /// <summary>
-    /// Populates step-specific filters in parent's filter registry.
+    /// Creates step-specific filters for the parent to add to the registry.
     /// </summary>
-    protected override void InitializeFilters()
-    {
-        base.InitializeFilters();
-
-        this.Filters["part"] = new Filter<string?>("part", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["step"] = new Filter<int?>("step", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["mode"] = new Filter<string?>("mode", null) { OnChanged = this.NotifyStateChanged };
-    }
+    private static IEnumerable<IFilter> CreateFilters() =>
+    [
+        new Filter<string?>("part", null),
+        new Filter<int?>("step", null),
+        new Filter<string?>("mode", null),
+    ];
 }

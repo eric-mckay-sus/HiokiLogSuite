@@ -47,7 +47,7 @@
 </div>
 
 <div class="table-responsive-wrapper">
-    <div class="table-container @(IsLoading ? "loading" : (UIIsStale || IsStale) ? "stale" : "")">
+    <div class="table-container @GetTableState()">
         <table class="table res-table table-striped text-nowrap">
             <thead class="table-dark">
                 <tr>
@@ -139,4 +139,17 @@
 
     // Whether this table is currently loading
     [Parameter] public bool IsLoading { get; set; }
+
+    private string GetTableState()
+    {
+        if (IsLoading)
+        {
+            return "loading";
+        }
+        if (UIIsStale || IsStale)
+        {
+            return "stale";
+        }
+        return string.Empty;
+    }
 }

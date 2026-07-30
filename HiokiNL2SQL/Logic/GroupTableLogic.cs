@@ -14,7 +14,7 @@ using System.Linq.Expressions;
 /// <param name="js">To handle saving to CSV.</param>
 /// <param name="navService">To navigate away for barcode "drill-down".</param>
 public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService js, INavService navService) :
-    LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navService)
+    LogTableLogic<GroupResult>(dbFactory, db => db.GroupView, js, navService, CreateFilters())
 {
     /// <summary>
     /// Gets this table's internal "type" as it would appear in <see cref="PowerSearchLogic.CurrentType"/>.
@@ -136,17 +136,15 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
     }
 
     /// <summary>
-    /// Populates group-specific filters in parent's filter registry.
+    /// Creates group-specific filters for the parent to add to the registry.
     /// </summary>
-    protected override void InitializeFilters()
-    {
-        base.InitializeFilters();
-
-        this.Filters["comp"] = new Filter<string?>("comp", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["short"] = new Filter<string?>("short", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["open"] = new Filter<string?>("open", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["macro"] = new Filter<string?>("macro", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["ic"] = new Filter<string?>("ic", null) { OnChanged = this.NotifyStateChanged };
-        this.Filters["function"] = new Filter<string?>("function", null) { OnChanged = this.NotifyStateChanged };
-    }
+    private static IEnumerable<IFilter> CreateFilters() =>
+    [
+        new Filter<string?>("comp", null),
+        new Filter<string?>("short", null),
+        new Filter<string?>("open", null),
+        new Filter<string?>("macro", null),
+        new Filter<string?>("ic", null),
+        new Filter<string?>("function", null),
+    ];
 }
