@@ -15,6 +15,28 @@ using System.Reflection;
 public class LogTableLogic<T> : ILogTableLogic
     where T : class, IHiokiLog
 {
+    // Channels for communicating with the UI
+
+    /// <summary>
+    /// Sets the action to take when <see cref="LogTableLogic{T}"/> calls for a refresh.
+    /// </summary>
+    private Action? onNotifyUI;
+
+    /// <summary>
+    /// The power search URL manipulation to perform when <see cref="LogTableLogic{T}"/> calls for a refresh.
+    /// </summary>
+    private Action? updatePSUrl;
+
+    /// <summary>
+    /// The shortcut to the power search execution for a barcode drill-down.
+    /// </summary>
+    private Action<string>? triggerPowerSearch;
+
+    /// <summary>
+    /// The manual override for the VISUAL staleness. If not used, visual status will match <see cref="IsStale"/>.
+    /// </summary>
+    private Func<bool>? uiIsStaleOverride;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="LogTableLogic{T}"/> class.
     /// Builds a new LogTableLogic using DB context and necessary services. Adds all relevant filters to the registry based on subtype.
@@ -146,23 +168,6 @@ public class LogTableLogic<T> : ILogTableLogic
     /// </summary>
     public HashSet<string> ResultCache { get; private set; } = [];
 
-    // Channels for communicating with the UI
-
-    /// <summary>
-    /// Sets the action to take when <see cref="LogTableLogic{T}"/> calls for a refresh.
-    /// </summary>
-    public Action? OnNotifyUI { private get; set; }
-
-    /// <summary>
-    /// Sets the power search URL manipulation to perform when <see cref="LogTableLogic{T}"/> calls for a refresh.
-    /// </summary>
-    public Action? UpdatePSUrl { private get; set; }
-
-    /// <summary>
-    /// Sets a shortcut to the power search execution for a barcode drill-down.
-    /// </summary>
-    public Action<string>? TriggerPowerSearch { private get; set; }
-
     // Staleness (for hydration check, to avoid multi-hitting DB)
 
     /// <summary>
@@ -173,20 +178,15 @@ public class LogTableLogic<T> : ILogTableLogic
     /// <summary>
     /// Gets a value indicating whether the 'pending' filter state (the filter values shown in the UI) matches the filter state used to get <see cref="DataView"/>.
     /// This value is final and must not be affected by outside sources as it affects when to skip a refresh and can put the program in an impossible state.
-    /// If you wish to override the default staleness for a display, use <see cref="UIIsStaleOverride"/>.
+    /// If you wish to override the default staleness for a display, use <see cref="uiIsStaleOverride"/>.
     /// </summary>
     public bool IsStale => this.LastQueryHash != this.GetFilterStateHash(this.Filters);
 
     /// <summary>
-    /// Sets the manual override for the VISUAL staleness. If not used, visual status will match <see cref="IsStale"/>.
-    /// </summary>
-    public Func<bool>? UIIsStaleOverride { private get; set; }
-
-    /// <summary>
     /// Gets a value indicating whether the UI should display with the stale formatting.
-    /// This value may be overridden using <see cref="UIIsStaleOverride"/> to set a different format than the 'true' staleness (<see cref="PowerSearchLogic"/>).
+    /// This value may be overridden using <see cref="uiIsStaleOverride"/> to set a different format than the 'true' staleness (<see cref="PowerSearchLogic"/>).
     /// </summary>
-    public bool UIIsStale => this.UIIsStaleOverride != null ? this.UIIsStaleOverride() : this.IsStale;
+    public bool UIIsStale => this.uiIsStaleOverride != null ? this.uiIsStaleOverride() : this.IsStale;
 
     /// <summary>
     /// Generate a state ID, for checking equality between two filter states
@@ -257,7 +257,7 @@ public class LogTableLogic<T> : ILogTableLogic
         }
 
         this.IsLoading = true;
-        this.OnNotifyUI?.Invoke(); // Show loading state
+        this.onNotifyUI?.Invoke(); // Show loading state
 
         try
         {
@@ -278,7 +278,7 @@ public class LogTableLogic<T> : ILogTableLogic
         finally
         {
             this.IsLoading = false;
-            this.OnNotifyUI?.Invoke();
+            this.onNotifyUI?.Invoke();
         }
     }
 
@@ -448,9 +448,9 @@ public class LogTableLogic<T> : ILogTableLogic
         string query = $"in:all barcode:{barcode}";
 
         // Redirect to the PowerSearch page to view all results
-        if (this.OnNotifyUI != null)
+        if (this.onNotifyUI != null)
         {
-            this.TriggerPowerSearch?.Invoke(query);
+            this.triggerPowerSearch?.Invoke(query);
         }
         else
         {
@@ -461,7 +461,7 @@ public class LogTableLogic<T> : ILogTableLogic
     /// <summary>
     /// Call to tell the UI to re-render.
     /// </summary>
-    public void NotifyStateChanged() => this.OnNotifyUI?.Invoke();
+    public void NotifyStateChanged() => this.onNotifyUI?.Invoke();
 
     /// <summary>
     /// Jumps to the specified new page.
@@ -479,7 +479,7 @@ public class LogTableLogic<T> : ILogTableLogic
             // Otherwise, every page change will redirect to the power search page.
             if (this.Nav.IsOnPowerSearchPage())
             {
-                this.UpdatePSUrl?.Invoke();
+                this.updatePSUrl?.Invoke();
             }
         }
     }
@@ -500,7 +500,7 @@ public class LogTableLogic<T> : ILogTableLogic
             await this.RefreshData(force: true);
             if (this.Nav.IsOnPowerSearchPage())
             {
-                this.UpdatePSUrl?.Invoke();
+                this.updatePSUrl?.Invoke();
             }
         }
     }
@@ -531,7 +531,7 @@ public class LogTableLogic<T> : ILogTableLogic
         await this.RefreshData(force: true); // because the sort parameters change we want a guaranteed refresh
         if (this.Nav.IsOnPowerSearchPage())
         {
-            this.UpdatePSUrl?.Invoke();
+            this.updatePSUrl?.Invoke();
         }
     }
 
@@ -609,6 +609,30 @@ public class LogTableLogic<T> : ILogTableLogic
         this.CurrentPage = 1;
         this.ResetFilterState();
     }
+
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
+    /// <param name="predicate"><inheritdoc path="/param[@name='predicate']"/></param>
+    public void SetStalenessOverride(Func<bool>? predicate) => this.uiIsStaleOverride = predicate;
+
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
+    /// <param name="handler"><inheritdoc path="/param[@name='handler']"/></param>
+    public void SetNotifyHandler(Action? handler) => this.onNotifyUI = handler;
+
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
+    /// <param name="handler"><inheritdoc path="/param[@name='handler']"/></param>
+    public void SetPowerSearchTrigger(Action<string>? handler) => this.triggerPowerSearch = handler;
+
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
+    /// <param name="handler"><inheritdoc path="/param[@name='handler']"/></param>
+    public void SetUrlUpdater(Action? handler) => this.updatePSUrl = handler;
 
     /// <summary>
     /// Gets a set of all values across a property.

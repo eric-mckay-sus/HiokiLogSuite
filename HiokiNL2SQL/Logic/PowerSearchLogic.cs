@@ -37,19 +37,19 @@ public partial class PowerSearchLogic()
         // Wire each table's notification to this class
         foreach (ILogTableLogic table in this.TableLogics)
         {
-            table.OnNotifyUI = this.NotifyStateChanged;
-            table.UpdatePSUrl = this.SyncUrl;
+            table.SetNotifyHandler(this.NotifyStateChanged);
+            table.SetUrlUpdater(this.SyncUrl);
 
             // UI stale state for the table comes from a simple comparison
             // between the current search bar text and the tab name (minus the
             // "Search: " prefix).  This boolean is purely for visual feedback.
-            table.UIIsStaleOverride = () =>
-                this.CommandInput.Trim() != this.LastExecutedQuery.Replace("Search: ", string.Empty);
+            table.SetStalenessOverride(() =>
+                this.CommandInput.Trim() != this.LastExecutedQuery.Replace("Search: ", string.Empty));
 
             // When a table requests a power-search (e.g., barcode drill-down),
             // update the URL and also execute the search locally so behavior
             // matches clicking the Power Search tab.
-            table.TriggerPowerSearch = (query) =>
+            table.SetPowerSearchTrigger((query) =>
             {
                 try
                 {
@@ -61,7 +61,7 @@ public partial class PowerSearchLogic()
                 }
 
                 _ = this.ExecutePowerSearch(skipUrlUpdate: true);
-            };
+            });
         }
     }
 

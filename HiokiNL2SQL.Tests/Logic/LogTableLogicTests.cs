@@ -289,8 +289,8 @@ public class LogTableLogicTests
     {
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
         string? triggeredQuery = null;
-        logic.OnNotifyUI = () => { }; // Simulate bound UI
-        logic.TriggerPowerSearch = (q) => triggeredQuery = q;
+        logic.onNotifyUI = () => { }; // Simulate bound UI
+        logic.SetPowerSearchTrigger((q) => triggeredQuery = q);
 
         logic.HandleBarcodeClick("ABC");
 

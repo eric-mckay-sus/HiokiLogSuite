@@ -28,10 +28,10 @@ public class PowerSearchLogicTests
         _logic = new PowerSearchLogic([_mockTable.Object], _realParser, _mockNav.Object, _mockJs.Object);
 
         // capture delegate after construction (should have been assigned by ctor)
-        _capturedUIStale = _mockTable.Object.UIIsStaleOverride;
+        _capturedUIStale = _mockTable.Object.GetUIIsStaleOverride();
 
         // capture delegate after construction (should have been assigned by ctor)
-        _capturedUIStale = _mockTable.Object.UIIsStaleOverride;
+        _capturedUIStale = _mockTable.Object.GetUIIsStaleOverride();
     }
 
     [Fact]

@@ -48,28 +48,32 @@ public interface ILogTableLogic
     /// </summary>
     int TotalCount { get; }
 
+    // Hooks for interface consumer to assign barcode drill-down behavior
+
     /// <summary>
     /// Sets the UI-only indicator used by MasterTable when deciding whether to fade the results (blinking inputs on power-search).
     /// This value is exclusively for rendering purposes and does not influence any query logic or caching.
     /// </summary>
-    Func<bool>? UIIsStaleOverride { set; }
-
-    // Actions to be invoked by an implementation of ILogTableLogic to properly update the view
+    /// <param name="predicate">The function to assign to this <see cref="ILogTableLogic"/>'s staleness metric.</param>
+    void SetStalenessOverride(Func<bool>? predicate);
 
     /// <summary>
     /// Sets the trigger accessible to an implementation of <see cref="ILogTableLogic"/> to prompt the power search page to refresh.
     /// </summary>
-    Action? OnNotifyUI { set; }
+    /// <param name="handler">The action to take when this <see cref="ILogTableLogic"/>'s UI updates.</param>
+    void SetNotifyHandler(Action? handler);
 
     /// <summary>
     /// Sets the trigger to jump to the power search page for a barcode "drill-down".
     /// </summary>
-    Action<string>? TriggerPowerSearch { set; }
+    /// <param name="handler">The action to take when this <see cref="ILogTableLogic"/> wishes to trigger a power search.</param>
+    void SetPowerSearchTrigger(Action<string>? handler);
 
     /// <summary>
     /// Sets the trigger to update the URL to match a power search query.
     /// </summary>
-    Action? UpdatePSUrl { set; }
+    /// <param name="handler">The action to take when this <see cref="ILogTableLogic"/> wishes to change the URL.</param>
+    void SetUrlUpdater(Action? handler);
 
     // The core methods that must be accessible to the power search page
 

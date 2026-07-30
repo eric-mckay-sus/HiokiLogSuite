@@ -61,7 +61,7 @@
     protected override void OnInitialized()
     {
         base.Logic = FctLogic;
-        Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
-        Logic.UpdatePSUrl = null;
+        Logic.SetNotifyHandler(() => InvokeAsync(StateHasChanged));
+        Logic.SetUrlUpdater(null);
     }
 }

@@ -82,7 +82,7 @@
                         }
                     </select>
                 </FilterWrapper>
-                
+
                 <GoButtons T="GroupResult" />
             </div>
         </div>
@@ -108,7 +108,7 @@
     protected override void OnInitialized()
     {
         base.Logic = GroupLogic;
-        Logic.OnNotifyUI = () => InvokeAsync(StateHasChanged);
-        Logic.UpdatePSUrl = null; // Tell the logic that we're not on the power search page
+        Logic.SetNotifyHandler(() => InvokeAsync(StateHasChanged));
+        Logic.SetUrlUpdater(null); // Tell the logic that we're not on the power search page
     }
 }
