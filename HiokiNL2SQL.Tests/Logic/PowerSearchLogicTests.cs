@@ -20,22 +20,24 @@ public class PowerSearchLogicTests
         _mockTable = new Mock<ILogTableLogic>();
         _mockTable.SetupAllProperties();
         _mockTable.Setup(t => t.TableName).Returns("group");
+        _mockTable.Setup(t => t.SetStalenessOverride(It.IsAny<Func<bool>?>()))
+            .Callback<Func<bool>?>(predicate => _capturedUIStale = predicate);
 
         _realParser = new SearchParserService(); // Concrete instance
         _mockNav = new Mock<INavService>();
         _mockJs = new Mock<IJSService>();
 
-        _logic = new PowerSearchLogic([_mockTable.Object], _realParser, _mockNav.Object, _mockJs.Object);
-
-        // capture delegate after construction (should have been assigned by ctor)
-        _capturedUIStale = _mockTable.Object.GetUIIsStaleOverride();
-
-        // capture delegate after construction (should have been assigned by ctor)
-        _capturedUIStale = _mockTable.Object.GetUIIsStaleOverride();
+        _logic = new PowerSearchLogic([_mockTable.Object], _realParser, _mockNav.Object, _mockJs.Object)
+        {
+            TableLogics = [_mockTable.Object],
+            ParserService = _realParser,
+            NavService = _mockNav.Object,
+            JSService = _mockJs.Object
+        };
     }
 
     [Fact]
-    public void Constructor_Wires_UIIsStaleOverride()
+    public async Task Constructor_Wires_UIIsStaleOverride()
     {
         // Delegate should be non-null and respond to mismatches between tab name and input.
         Assert.NotNull(_capturedUIStale);
@@ -45,8 +47,9 @@ public class PowerSearchLogicTests
         _logic.CommandInput = "foo";
         Assert.True(_capturedUIStale());
 
-        // if we pretend the tab already matches, it should return false
-        _logic.LastExecutedQuery = "Search: foo";
+        // Once a search has actually executed with the same input, the UI should be considered fresh.
+        _logic.CommandInput = "barcode:123 in:group";
+        await _logic.ExecutePowerSearch(skipUrlUpdate: true);
         Assert.False(_capturedUIStale());
     }
 
@@ -64,10 +67,10 @@ public class PowerSearchLogicTests
         // Assert
         // 1. Verify the Logic class updated its internal state from the Real Parser
         Assert.Equal("group", _logic.CurrentType);
-        Assert.Contains("barcode", _logic.Filters.Keys);
 
         // 2. Verify the preview was generated correctly by the real service
         Assert.Contains("A123", _logic.Preview);
+        Assert.Contains("barcode", _logic.Preview, StringComparison.OrdinalIgnoreCase);
 
         // 3. Verify the targeted table was actually called
         _mockTable.Verify(t => t.DictionaryToFilters(It.IsAny<Dictionary<string, IFilter>>(), It.IsAny<bool>()), Times.Once);

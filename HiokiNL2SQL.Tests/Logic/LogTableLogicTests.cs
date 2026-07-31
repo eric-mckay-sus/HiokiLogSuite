@@ -50,8 +50,8 @@ public class LogTableLogicTests
 
         if (includeDates)
         {
-            data.Add("after", new Filter<DateTime?>("after", new DateTime(2024, 1, 1)), new DateTime(2024, 1, 1));
-            data.Add("before", new Filter<DateTime?>("before", new DateTime(2025, 1, 1)), new DateTime(2025, 1, 1));
+            data.Add("after", new Filter<DateTime?>("after", new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified)), new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified));
+            data.Add("before", new Filter<DateTime?>("before", new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Unspecified)), new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Unspecified));
         }
 
         return data;
@@ -95,10 +95,14 @@ public class LogTableLogicTests
     public async Task RefreshData_KeepPageTrue_PersistsCurrentPage()
     {
         // Arrange
-        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
+        var data = Enumerable.Range(1, 10)
+            .Select(i => new TestLogRecord { Id = i, Barcode = $"Item{i}", Time = DateTime.UtcNow })
+            .ToList();
+
+        var logic = TestLogicFactory.CreateLogic(data);
+        logic.PageSize = 1;
+        await logic.RefreshData();
         logic.CurrentPage = 10;
-        // TotalPages must be high enough or it might be clamped (though logic doesn't clamp in RefreshData)
-        logic.TotalCount = 200;
 
         // Act
         await logic.RefreshData(keepPage: true);
@@ -159,10 +163,10 @@ public class LogTableLogicTests
     public async Task ApplyFilters_BeforeDate_WithSpecificTime_IsHardStop()
     {
         // Arrange: User enters "before:2024-01-01 12:00"
-        var targetDate = new DateTime(2024, 1, 1, 12, 0, 0);
+        var targetDate = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Unspecified);
         var data = new List<TestLogRecord> {
-            new() { Time = new DateTime(2024, 1, 1, 11, 59, 0), Barcode = "BeforeNoon" },
-            new() { Time = new DateTime(2024, 1, 1, 12, 0, 1), Barcode = "AfterNoon" }
+            new() { Time = new DateTime(2024, 1, 1, 11, 59, 0, DateTimeKind.Unspecified), Barcode = "BeforeNoon" },
+            new() { Time = new DateTime(2024, 1, 1, 12, 0, 1, DateTimeKind.Unspecified), Barcode = "AfterNoon" }
         };
         var logic = TestLogicFactory.CreateLogic(data);
         logic.Filters["before"] = new Filter<DateTime?>("before", targetDate);
@@ -180,7 +184,7 @@ public class LogTableLogicTests
     public async Task ApplyFilters_AfterDate_IsInclusive()
     {
         // Arrange
-        var start = new DateTime(2024, 1, 1, 12, 0, 0);
+        var start = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Unspecified);
         var data = new List<TestLogRecord> {
             new() { Time = start.AddSeconds(-1), Barcode = "TooEarly" },
             new() { Time = start, Barcode = "ExactlyOnTime" }
@@ -245,9 +249,9 @@ public class LogTableLogicTests
     {
         // Arrange
         var data = new List<TestLogRecord> {
-            new() { Group = 1, Time = new DateTime(2026, 12, 12) },
-            new() { Group = 3, Time = new DateTime(2023, 11, 1) },
-            new() { Group = 2, Time = new DateTime(2025, 1, 12) }
+            new() { Group = 1, Time = new DateTime(2026, 12, 12, 0, 0, 0, DateTimeKind.Unspecified) },
+            new() { Group = 3, Time = new DateTime(2023, 11, 1, 0, 0, 0, DateTimeKind.Unspecified) },
+            new() { Group = 2, Time = new DateTime(2025, 1, 12, 0, 0, 0, DateTimeKind.Unspecified) }
         };
         var logic = TestLogicFactory.CreateLogic(data);
 
@@ -257,8 +261,8 @@ public class LogTableLogicTests
         await logic.RefreshData();
 
         // Assert
-        Assert.Equal(new DateTime(2026, 12, 12), logic.DataView[0].Time);
-        Assert.Equal(new DateTime(2023, 11, 1), logic.DataView[2].Time);
+        Assert.Equal(new DateTime(2026, 12, 12, 0, 0, 0, DateTimeKind.Unspecified), logic.DataView[0].Time);
+        Assert.Equal(new DateTime(2023, 11, 1, 0, 0, 0, DateTimeKind.Unspecified), logic.DataView[2].Time);
     }
 
     [Fact]
@@ -289,7 +293,7 @@ public class LogTableLogicTests
     {
         var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
         string? triggeredQuery = null;
-        logic.onNotifyUI = () => { }; // Simulate bound UI
+        logic.SetNotifyHandler(() => { }); // Simulate bound UI
         logic.SetPowerSearchTrigger((q) => triggeredQuery = q);
 
         logic.HandleBarcodeClick("ABC");
@@ -303,7 +307,7 @@ public class LogTableLogicTests
         // Arrange
         // Create 15 records. Assuming PageSize is 5, this creates 3 pages.
         var data = Enumerable.Range(1, 15)
-            .Select(i => new TestLogRecord { Id = i, Barcode = $"Item{i}", Time = new DateTime(2026, 1, 16-i) }) // day as 16-i to put item numbers in ascending order
+            .Select(i => new TestLogRecord { Id = i, Barcode = $"Item{i}", Time = new DateTime(2026, 1, 16 - i, 0, 0, 0, DateTimeKind.Unspecified) }) // day as 16-i to put item numbers in ascending order
             .ToList();
 
         var logic = TestLogicFactory.CreateLogic(data);
@@ -380,7 +384,7 @@ public class LogTableLogicTests
 
         await logic.RefreshData();
         // initial unsorted state: apply sorting default (Time descending)
-        Assert.Equal(2, logic.DataView.Count);
+        Assert.Equal(2, logic.TotalCount);
 
         // Act: sort by group ascending
         await logic.ToggleSort("Group");
@@ -481,12 +485,16 @@ public class LogTableLogicTests
     }
 
     [Fact]
-    public void ClearData_PurgesAllState()
+    public async Task ClearData_PurgesAllState()
     {
         // Arrange
-        var logic = TestLogicFactory.CreateLogic(new List<TestLogRecord>());
-        logic.DataView.Add(new() { Id = 1, Barcode = "Test" });
-        logic.TotalCount = 1;
+        var data = new List<TestLogRecord>
+        {
+            new() { Id = 1, Barcode = "Test", Time = DateTime.UtcNow }
+        };
+        var logic = TestLogicFactory.CreateLogic(data);
+        await logic.RefreshData();
+        logic.DataView.Add(new() { Id = 2, Barcode = "Extra" });
         logic.CurrentPage = 5;
         logic.Filters["barcode"].SetValue("SomeFilter");
 
