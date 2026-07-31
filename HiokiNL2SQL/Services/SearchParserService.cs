@@ -4,9 +4,11 @@
 
 namespace HiokiNL2SQL.Services;
 
-using System.Globalization;
 using System.Text.RegularExpressions;
 
+using static DateParsingService;
+using static SearchPreviewService;
+using static SearchValidationService;
 using HiokiNL2SQL.Logic;
 
 /// <summary>
@@ -41,27 +43,6 @@ public record SearchParseResult
 }
 
 /// <summary>
-/// Enumerates the datatypes allowed for a tag.
-/// </summary>
- public enum ValType
- {
-    /// <summary>
-    /// Strings are valid tag values
-    /// </summary>
-    String,
-
-    /// <summary>
-    /// Integers are valid tag values
-    /// </summary>
-    Int,
-
-    /// <summary>
-    /// DateTimes are valid tag values
-    /// </summary>
-    DateTime,
-}
-
-/// <summary>
 /// A service to contain state and methods relevant for parsing. Required to be injected into PowerSearch.razor
 /// This service does have state, but it is all static.
 /// </summary>
@@ -88,30 +69,6 @@ public partial class SearchParserService
     private const string InPattern = @"(-?)in\s*:\s*(-?\w+)";
 
     /// <summary>
-    /// The core set of tags available when searching all tables.
-    /// </summary>
-    private static readonly HashSet<string> UniversalTags = new (StringComparer.OrdinalIgnoreCase)
-        { "in", "barcode", "group", "before", "after", "result" };
-
-    /// <summary>
-    /// The set of tags exclusive to the group table.
-    /// </summary>
-    private static readonly HashSet<string> GroupTags = new (StringComparer.OrdinalIgnoreCase)
-        { "comp", "short", "open", "macro", "ic", "function" };
-
-    /// <summary>
-    /// The set of tags exclusive to the step table.
-    /// </summary>
-    private static readonly HashSet<string> StepTags = new (StringComparer.OrdinalIgnoreCase)
-        { "step", "mode", "part" };
-
-    /// <summary>
-    /// The set of tags exclusive to the FCT table.
-    /// </summary>
-    private static readonly HashSet<string> FctTags = new (StringComparer.OrdinalIgnoreCase)
-        { "step", "mode" };
-
-    /// <summary>
     /// Regex to find key:value pairs. -? detects optional negation, \w+ detects the key text, \s* surrounding the colon detects whitespace,
     /// : is the literal colon, " is a literal quote, [^"]* iterates over non-quote characters, " is again a literal quote, | is for OR,
     /// and (?:(?!\s?-?\w+:)\S)+ is a non-capturing group that matches strings that don't look like a key (by using negative lookahead).
@@ -122,172 +79,36 @@ public partial class SearchParserService
     private static readonly string TagPattern = @"(-?\w+)\s?:\s?(""[^""]*""|(?:(?!\s?-?\w+:)\S)+)";
 
     /// <summary>
-    /// Basic SQL injection countermeasure (these words are disallowed in a query).
+    /// Gets the core set of tags available when searching all tables.
     /// </summary>
-    private static readonly HashSet<string> SqlBlacklist = new (StringComparer.OrdinalIgnoreCase)
-    {
-        "DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE",
-        "EXEC", "EXECUTE", "ALTER", "CREATE", "GRANT", "REVOKE",
-    };
+    public static HashSet<string> UniversalTags { get; } = new (StringComparer.OrdinalIgnoreCase)
+        { "in", "barcode", "group", "before", "after", "result" };
 
     /// <summary>
-    /// Maps each tag type to the ValType representing its accepted datatype.
+    /// Gets the set of tags exclusive to the group table.
     /// </summary>
-    private static readonly Dictionary<string, ValType> TagTypeMap = new (StringComparer.OrdinalIgnoreCase)
-    {
-        { "barcode", ValType.String },
-        { "group", ValType.Int },
-        { "after", ValType.DateTime },
-        { "before", ValType.DateTime },
-        { "result", ValType.String },
-        { "comp", ValType.String },
-        { "short", ValType.String },
-        { "open", ValType.String },
-        { "macro", ValType.String },
-        { "ic", ValType.String },
-        { "function", ValType.String },
-        { "step", ValType.Int },
-        { "mode", ValType.String },
-        { "part", ValType.String },
-    };
-
-    private static readonly Dictionary<string, string> TagDescriptions = new (StringComparer.OrdinalIgnoreCase) // maps search tags to their tooltip
-    {
-        { "in", "Switch table scope (all, group, step, fct)" },
-        { "barcode", "Search by unique PCB serial number" },
-        { "group", "Filter by group number in test sequence" },
-        { "before", "Show results recorded before this date (exclusive)" },
-        { "after", "Show results recorded after this date (inclusive)" },
-        { "result", "Filter by PASS/FAIL status" },
-        { "comp", "Filter by component test results" },
-        { "short", "Filter by short-circuit test results" },
-        { "open", "Filter by open-circuit test results" },
-        { "macro", "Search by macro-test results" },
-        { "ic", "Filter by integrated circuit (IC) test results" },
-        { "function", "Search by functional test results" },
-        { "step", "Filter by test step number" },
-        { "mode", "Filter by test mode" },
-        { "part", "Search by part name" },
-    };
+    public static HashSet<string> GroupTags { get; } = new (StringComparer.OrdinalIgnoreCase)
+        { "comp", "short", "open", "macro", "ic", "function" };
 
     /// <summary>
-    /// Gets the dictionary that associates each shift with its start time and duration.
+    /// Gets the set of tags exclusive to the step table.
     /// </summary>
-    public static Dictionary<string, (TimeSpan Start, double Hours)> ShiftDetails { get; } = new ()
-    {
-        {
-            "shift1", (new TimeSpan(7, 0, 0), 8.5)
-        },
-        {
-            "shift2", (new TimeSpan(15, 30, 0), 7.0)
-        },
-        {
-            "shift3", (new TimeSpan(-1, -30, 0), 8.5)
-        },
-    };
+    public static HashSet<string> StepTags { get; } = new (StringComparer.OrdinalIgnoreCase)
+        { "step", "mode", "part" };
+
+    /// <summary>
+    /// Gets the set of tags exclusive to the FCT table.
+    /// </summary>
+    public static HashSet<string> FctTags { get; } = new (StringComparer.OrdinalIgnoreCase)
+        { "step", "mode" };
 
     /// <summary>
     /// Gets the set of all tags available across the system (union of above sets).
     /// </summary>
     public static HashSet<string> AllTags { get; } = CombineAllTags();
 
-    /// <summary>
-    /// Dynamically gets the tooltip based on what tables in which a key is valid.
-    /// </summary>
-    /// <param name="key">The key for which to get the tooltip.</param>
-    /// <param name="showScope">Whether to provide the scope of this tag.</param>
-    /// <returns>The tooltip associated with this string (and optional scope).</returns>
-    public static string GetTagTooltip(string key, bool showScope)
-    {
-        // Get the functional description
-        if (!TagDescriptions.TryGetValue(key, out string? description))
-        {
-            description = $"Filter by {key}";
-        }
-
-        // If instructed not to return the scope, return now
-        if (!showScope)
-        {
-            return description;
-        }
-
-        // Otherwise, gather scope info by scanning tag sets
-        string scopeInfo;
-        if (UniversalTags.Contains(key))
-        {
-            scopeInfo = "All tables";
-        }
-        else
-        {
-            List<string> locations = [];
-            if (GroupTags.Contains(key))
-            {
-                locations.Add("Group");
-            }
-
-            if (StepTags.Contains(key))
-            {
-                locations.Add("Step");
-            }
-
-            if (FctTags.Contains(key))
-            {
-                locations.Add("FCT");
-            }
-
-            scopeInfo = locations.Count > 0 ? string.Join(", ", locations) : "System tag";
-        }
-
-        return $"{description} | Works in: {scopeInfo}";
-    }
-
     [GeneratedRegex(InPattern, RegexOptions.IgnoreCase, "en-US")]
     public static partial Regex ApplyInPattern();
-
-    /// <summary>
-    /// Translates the dictionary created by ParseQuery into a human-readable preview of what query would be executed if the search was run now.
-    /// </summary>
-    /// <param name="type">The table targeted by the query.</param>
-    /// <param name="filters">The dictionary of filters for the query.</param>
-    /// <returns>A string preview of the query to be executed.</returns>
-    public static string GeneratePreview(string type, Dictionary<string, IFilter> filters)
-    {
-        string tableMessage = $"Showing all results";
-        tableMessage += (type != "all") ? $" from **{type.ToUpper()}**" : " from **ALL** tables";
-        if (filters.Count == 0)
-        {
-            return tableMessage;
-        }
-
-        // Build string snippets for each filter
-        IEnumerable<string> parts = filters.Values.Select(filter =>
-        {
-            string cleanKey = filter.Key.ToUpper();
-            string negationLabel = filter.IsNegated ? " NOT " : " ";
-            string containLabel = filter.IsNegated ? "does NOT contain" : "contains";
-
-            // Branch based on datatype
-            return filter switch
-            {
-                // DateTime filters (format as datetime)
-                Filter<DateTime?> { Value: { } dtValue } =>
-                    $"DATE is **{cleanKey}** '{dtValue:yyyy-MM-dd HH:mm:ss}'",
-
-                // Integer filters (translates to SQL '=')
-                Filter<int?> { Value: { } intValue } =>
-                    $"**{cleanKey}** is{negationLabel}'{intValue}'",
-
-                // String filters (translates to SQL 'LIKE')
-                Filter<string?> { Value: { } strValue } when !string.IsNullOrWhiteSpace(strValue) =>
-                    $"**{cleanKey}** {containLabel} '{strValue}'",
-
-                // Default fallback
-                _ => $"**{cleanKey}** (incomplete value...)'"
-            };
-        });
-
-        return $"Searching **{type.ToUpper()}** where " + string.Join(" and ", parts);
-    }
 
     /// <summary>
     /// Gets the list of all supported tags for the current mode
@@ -307,114 +128,6 @@ public partial class SearchParserService
         }
 
         return keys.OrderBy(x => x); // Implicitly casts to an orderable implementation of IEnumerable (not a set)
-    }
-
-    /// <summary>
-    /// Used by ParseQuery to separate and translate a datetime
-    /// Splits and rebuilds string to handle combined date and time aliases like "today shift1".
-    /// </summary>
-    /// <param name="key">The key for which to get the datetime boundary (should be 'before' or 'after').</param>
-    /// <param name="value">The value for the key, with optional aliases.</param>
-    /// <param name="isInclusive">Whether the boundary datetime should be inclusive of the value provided.</param>
-    /// <returns>The full ISO date string representing the boundary for the date filter.</returns>
-    public static DateTime? ProcessDateValue(string key, string value, bool isInclusive = true)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        bool isBefore = key.Equals("before", StringComparison.OrdinalIgnoreCase);
-
-        // Detect specific time to deactivate date-only inclusivity check (excluding time shouldn't skip entire day)
-        bool hasSpecificTime = Regex.IsMatch(value, @"\d{1,2}:\d{2}", RegexOptions.IgnoreCase);
-        string[] parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        DateTime baseDateTime;
-        double offsetHours = 24; // default to day offset, used when no time (alias or literal) is provided
-
-        if (parts.Length > 1)
-        { // If we have a date and time, translate parts separately and re-combine
-            // Example: "today shift1" or "2026-02-20 08:30" (or any similar combination of date & time, alias or not)
-
-            // If there's a shift number offset in either part, prioritize it
-            foreach (string part in parts)
-            {
-                if (ShiftDetails.TryGetValue(part.ToLower(), out (TimeSpan Start, double Hours) detail))
-                {
-                    offsetHours = detail.Hours;
-                    break;
-                }
-            }
-
-            DateTime datePart = BaseDateTimeFromAlias(parts[0]);
-            DateTime timePart = BaseDateTimeFromAlias(parts[1]);
-
-            // If either was unexpected, return immediately
-            if (datePart.Equals(DateTime.MinValue) || timePart.Equals(DateTime.MinValue))
-            {
-                return DateTime.MinValue;
-            }
-
-            // Shift 3's negative offset was overwritten by the date part, so reapply it.
-            if (parts[1].Equals("shift3", StringComparison.OrdinalIgnoreCase))
-            {
-                datePart = datePart.AddDays(-1);
-            }
-
-            // First part always provides the date, second part always provides the time
-            baseDateTime = datePart.Date.Add(timePart.TimeOfDay);
-        }
-
-        // Otherwise, just let BaseDateTime handle it
-        else
-        {
-            if (ShiftDetails.TryGetValue(value.ToLower(), out (TimeSpan Start, double Hours) detail))
-            {
-                offsetHours = detail.Hours;
-            }
-
-            baseDateTime = BaseDateTimeFromAlias(value);
-
-            // If an after tag targets a future date, the search cannot possibly have results
-            // For shift-only, this is just an expansion of auto-detection (we'll handle user-specified out-of-range dates later)
-            if ((baseDateTime > DateTime.Now) && ((!isBefore && offsetHours < 24) || hasSpecificTime))
-            {
-                baseDateTime = baseDateTime.AddDays(-1);
-            }
-        }
-
-        // Verify that there actually was a date
-        if (!baseDateTime.Equals(DateTime.MinValue))
-        {
-            // Inclusivity logic
-            // Terminology: unit refers to day or shift, whichever is relevant and smaller
-            if (isBefore)
-            {
-                // Rule 1: isBefore && isInclusive (inclusive end point) -> 1 tick before start of next unit
-                // Rule 2: isBefore && !isInclusive (exclusive end point) -> 1 tick before start of target unit
-                if (!hasSpecificTime)
-                { // Don't steal a tick when no alias provided
-                    if (isInclusive)
-                    {
-                        baseDateTime = baseDateTime.AddHours(offsetHours);
-                    }
-
-                    baseDateTime = baseDateTime.AddTicks(-1);
-                }
-            }
-            else
-            {
-                // Rule 3: !isBefore && isInclusive (inclusive start point) -> Start of target unit (Default)
-                // Rule 4: !isBefore && !isInclusive (exclusive start point) -> Start of next unit
-                if (!isInclusive && !hasSpecificTime)
-                {
-                    baseDateTime = baseDateTime.AddHours(offsetHours);
-                }
-            }
-        }
-
-        return baseDateTime;
     }
 
     /// <summary>
@@ -590,40 +303,6 @@ public partial class SearchParserService
     }
 
     /// <summary>
-    /// Swaps the "before" and "after" filters if "before" occurs before "after".
-    /// </summary>
-    /// <param name="result">The parse result containing the filters.</param>
-    private static void SwapDatesIfInverted(SearchParseResult result)
-    {
-        // Safely retrieve and cast the filters in a single guard clause
-        if (!result.Filters.TryGetValue("before", out IFilter? beforeFilter) ||
-            !result.Filters.TryGetValue("after", out IFilter? afterFilter) ||
-            beforeFilter is not Filter<DateTime?> b ||
-            afterFilter is not Filter<DateTime?> a)
-        {
-            return;
-        }
-
-        // Check if both have values and are inverted
-        if (a.Value.HasValue && b.Value.HasValue && a.Value > b.Value)
-        {
-            // Swap the values inside the filter objects in the dictionary
-            (b.Value, a.Value) = (a.Value, b.Value);
-
-            result.ErrorMessages.Add($"Your start date is after your end date. This search is now **after:{a.Value:yyyy-MM-dd} before:{b.Value:yyyy-MM-dd}...**");
-        }
-    }
-
-    private static HashSet<string> CombineAllTags()
-    {
-        HashSet<string> all = new (UniversalTags, StringComparer.OrdinalIgnoreCase);
-        all.UnionWith(GroupTags);
-        all.UnionWith(StepTags);
-        all.UnionWith(FctTags);
-        return all;
-    }
-
-    /// <summary>
     /// Creates a filter for a key-value pair with its polarity.
     /// </summary>
     /// <param name="key">The filter's name.</param>
@@ -651,113 +330,12 @@ public partial class SearchParserService
         };
     }
 
-    /// <summary>
-    /// Generates an error message depending on whether the string is a keyless value or value without a key.
-    /// </summary>
-    /// <param name="toCheck">The string for which to generate the error.</param>
-    /// <returns>An error message describing the missing key/value.</returns>
-    private static string? MissingKeyOrValueMessage(string toCheck)
+    private static HashSet<string> CombineAllTags()
     {
-        if (!string.IsNullOrWhiteSpace(toCheck))
-        {
-            // Check if it's a key without a value
-            if (toCheck.EndsWith(':'))
-            {
-                return $"Tag **{toCheck}** is missing a value. This search excludes **{toCheck}**.";
-            }
-
-            // or a value without key
-            else
-            {
-                return $"Unrecognized filter without key: **{toCheck}**. This search excludes **{toCheck}**.";
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Verifies that a value matches a certain type.
-    /// </summary>
-    /// <param name="type">A ValType (enum) representing the required type.</param>
-    /// <param name="key">The tag-identifying string.</param>
-    /// <param name="value">The value for which to check the type.</param>
-    /// <param name="error">The error message (in case of failure).</param>
-    /// <returns>Whether the value matches the type specified.</returns>
-    private static bool IsValidValue(ValType type, string key, string value, out string error)
-    {
-        error = string.Empty;
-        switch (type)
-        {
-            // If we're checking a field required to be an int, use int.TryParse
-            case ValType.Int:
-                if (!int.TryParse(value, out _))
-                {
-                    error = $"**{value}** is not a whole number.";
-                    return false;
-                }
-
-                break;
-
-            // If we're checking a field required to be a datetime, use DateTime.TryParse
-            case ValType.DateTime:
-                DateTime? normalized = ProcessDateValue(key, value); // disregard inclusivity for this check
-                if (!normalized.HasValue)
-                {
-                    error = $"Date (read as **{value}**) cannot be empty.";
-                    return false;
-                }
-
-                if (normalized.Equals(DateTime.MinValue))
-                {
-                    error = $"**{value}** (read as **{normalized}**) is not a valid date or alias. Please use \"YYYY-MM-DD HH:mm:ss\" (ISO formatting) or a shortcut below.";
-                    return false;
-                }
-
-                if (key.Equals("after", StringComparison.OrdinalIgnoreCase) && normalized > DateTime.Now)
-                {
-                    error = $"**{value}** is in the future. Did you mean to search before that date?";
-                    return false;
-                }
-
-                break;
-        }
-
-        // The input value is already a string, so there's no check that case (typos not a part of this check)
-        return true;
-    }
-
-    /// <summary>
-    /// Generates a datetime boundary for aliases like "today", "last24h", and "shift2".
-    /// </summary>
-    /// <param name="alias">The alias for which to get the bounding datetime.</param>
-    /// <returns>A datetime representing the starting boundary for this alias.</returns>
-    private static DateTime BaseDateTimeFromAlias(string alias)
-    {
-        DateTime now = DateTime.Now;
-        DateTime today = now.Date; // Could use DateTime.Today, but if this parser were set up to run automatically at midnight, that would become unstable
-        string lowerAlias = alias.ToLower();
-
-        return lowerAlias switch
-        {
-            "today" => today,
-            "yesterday" => today.AddDays(-1),
-            "lastweek" => today.AddDays(-7),
-            "last24h" => now.AddHours(-24), // Ensure 24 hours since this moment, not just since this morning.
-
-            // Shift aliases use the local helper to get the right end of the shift
-            "shift1" => GetShiftStartOnDay(ShiftDetails["shift1"].Start),
-            "shift2" => GetShiftStartOnDay(ShiftDetails["shift2"].Start),
-            "shift3" => GetShiftStartOnDay(ShiftDetails["shift3"].Start),
-            _ => DateTime.TryParse(alias, CultureInfo.CurrentCulture, out DateTime p) ? p : DateTime.MinValue // If it's not an alias, hopefully it's already a datetime, but default to min value
-        };
-
-        // If the shift hasn't started yet today, it refers to yesterday's instance
-        // This is safe to do here because when the user provides a date and shift, the date part from the shift is discarded, so this date has no effect (just the time)
-        DateTime GetShiftStartOnDay(TimeSpan start)
-        {
-            DateTime shiftTodayStart = DateTime.Today.Add(start);
-            return now < shiftTodayStart ? shiftTodayStart.AddDays(-1) : shiftTodayStart;
-        }
+        HashSet<string> all = new (UniversalTags, StringComparer.OrdinalIgnoreCase);
+        all.UnionWith(GroupTags);
+        all.UnionWith(StepTags);
+        all.UnionWith(FctTags);
+        return all;
     }
 }
