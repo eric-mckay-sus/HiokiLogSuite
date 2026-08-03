@@ -1,12 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1;
-using HiokiNL2SQLMark1.Logic;
+using HiokiNL2SQL;
+using HiokiNL2SQL.Logic;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
 public class GroupTableLogicTests
 {
-    public static readonly TheoryData<string, string, string> GroupFilterData = 
+    public static readonly TheoryData<string, string, string> GroupFilterData =
     new()
     {
         // Key, PropertyName on GroupResult, TestValue
@@ -16,7 +16,7 @@ public class GroupTableLogicTests
         { "ic", "IcTest", "I1" },
         { "function", "FunctionTest", "F1" }
     };
-    
+
     [Theory]
     [MemberData(nameof(GroupFilterData))]
     public async Task ApplyFilters_GroupSpecific_FiltersCorrectly(string key, string propName, string value)
@@ -24,12 +24,12 @@ public class GroupTableLogicTests
         // Arrange: Create two records, one that matches the specific test value
         var matchRecord = new GroupResult();
         typeof(GroupResult).GetProperty(propName)?.SetValue(matchRecord, value);
-        
+
         var nonMatchRecord = new GroupResult();
         typeof(GroupResult).GetProperty(propName)?.SetValue(nonMatchRecord, "DIFFERENT");
-        
+
         var data = new List<GroupResult> { matchRecord, nonMatchRecord };
-        
+
         var logic = TestLogicFactory.CreateLogic<GroupResult, GroupTableLogic>(data);
 
         // Act: Set the specific filter using the key
@@ -50,7 +50,7 @@ public class GroupTableLogicTests
         // Arrange
         var matchRecord = new GroupResult();
         typeof(GroupResult).GetProperty(propName)?.SetValue(matchRecord, value);
-        
+
         var otherRecord = new GroupResult();
         typeof(GroupResult).GetProperty(propName)?.SetValue(otherRecord, "REMAINING");
 
@@ -88,15 +88,15 @@ public class GroupTableLogicTests
     [Fact]
     public async Task DictionaryToFilters_HandlesMixedBaseAndSpecificFilters()
     {
-        // Arrange: Test that GroupTableLogic correctly siphons its own tags 
+        // Arrange: Test that GroupTableLogic correctly siphons its own tags
         // while letting LogTableLogic handle the barcode.
-        var data = new List<GroupResult> { 
+        var data = new List<GroupResult> {
             new() { Barcode = "ABC", ComponentTest = "C1" },
             new() { Barcode = "ABC", ComponentTest = "C2" },
             new() { Barcode = "XYZ", ComponentTest = "C1" }
         };
         var logic = TestLogicFactory.CreateLogic<GroupResult, GroupTableLogic>(data);
-        
+
         var filterDict = new Dictionary<string, IFilter> {
             { "barcode", new Filter<string?>("barcode", "ABC") },
             { "comp", new Filter<string?>("comp", "C1") }
@@ -124,7 +124,7 @@ public class GroupTableLogicTests
         string functionResult = "FCT";
 
         // Do it twice to verify "distinct" logic
-        var groupData = new List<GroupResult> { 
+        var groupData = new List<GroupResult> {
             new() { Result = overallResult, ComponentTest = compResult, ShortTest = shortResult, OpenTest = openResult, MacroTest = macroResult, IcTest = icResult, FunctionTest = functionResult },
             new() { Result = overallResult, ComponentTest = compResult, ShortTest = shortResult, OpenTest = openResult, MacroTest = macroResult, IcTest = icResult, FunctionTest = functionResult }
         };

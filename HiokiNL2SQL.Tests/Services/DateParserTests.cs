@@ -1,4 +1,4 @@
-using Parser = HiokiNL2SQLMark1.Services.SearchParserService;
+using Parser = HiokiNL2SQL.Services.SearchParserService;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
@@ -46,10 +46,10 @@ public class DateParserTests
     {
         // When a specific time is provided, we don't jump whole days for exclusivity
         string val = "2026-02-20 08:30";
-        
+
         // After + Exclusive + Specific Time should NOT jump to Feb 21
         var result = Parser.ProcessDateValue("after", val, false);
-        
+
         Assert.Equal(2026, result!.Value.Year);
         Assert.Equal(2, result!.Value.Month);
         Assert.Equal(20, result!.Value.Day);
@@ -62,7 +62,7 @@ public class DateParserTests
         // Test "today shift2" (Date Alias + Time Alias)
         // Shift 2 starts at 15:00
         var result = Parser.ProcessDateValue("after", "today shift2", true);
-        
+
         var today = DateTime.Today;
         Assert.Equal(today.Date.AddHours(15.5), result);
     }
@@ -73,7 +73,7 @@ public class DateParserTests
         // Shift is 8 hours. After + Exclusive + Shift should jump 8.5 hours.
         var result = Parser.ProcessDateValue("after", "shift1", false);
         var baseShift1 = InvokeBaseDateTimeFromAlias("shift1");
-        
+
         Assert.Equal(baseShift1.AddHours(8.5), result);
     }
 
@@ -101,7 +101,7 @@ public class DateParserTests
         // Setup: If it's currently morning, shift2 (15:30) is in the future.
         // The logic should subtract 1 day so 'after:shift2' shows yesterday's shift.
         var result = Parser.ProcessDateValue("after", "shift2", true);
-        
+
         if (DateTime.Now.TimeOfDay < new TimeSpan(15, 30, 0))
         {
             Assert.True(result < DateTime.Today, "Should have shifted to yesterday because shift hasn't started yet.");
@@ -115,7 +115,7 @@ public class DateParserTests
         // 'today shift3' should result in Yesterday at 22:30
         var result = Parser.ProcessDateValue("after", "today shift3", true);
         var expected = DateTime.Today.AddDays(-1).Add(new TimeSpan(22, 30, 0));
-        
+
         Assert.Equal(expected, result);
     }
 
@@ -125,7 +125,7 @@ public class DateParserTests
 
     [Theory]
     // Verification that the 'before:today' inclusive bug is fixed
-    [InlineData("before", "today", true)] 
+    [InlineData("before", "today", true)]
     public void ProcessDateValue_BeforeTodayInclusive_IsEndOfToday(string key, string value, bool inclusive)
     {
         var result = Parser.ProcessDateValue(key, value, inclusive);
@@ -133,7 +133,7 @@ public class DateParserTests
 
         // It should be the very last tick of today, NOT yesterday.
         Assert.Equal(expectedEndofToday, result);
-        Assert.True(result > DateTime.Now.Date); 
+        Assert.True(result > DateTime.Now.Date);
     }
 
     [Theory]
@@ -145,7 +145,7 @@ public class DateParserTests
     {
         var result = Parser.ProcessDateValue(key, value, isInclusive);
         var expectedDt = DateTime.Parse(expected);
-        
+
         Assert.True(Math.Abs((result!.Value - expectedDt).TotalSeconds) < 1);
     }
 

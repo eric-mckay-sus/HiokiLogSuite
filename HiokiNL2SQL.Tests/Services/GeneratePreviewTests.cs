@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1.Services;
+using HiokiNL2SQL.Services;
 
 namespace HiokiNL2SQL.Tests.Services;
 [ExcludeFromCodeCoverage]
@@ -14,7 +14,7 @@ public class GeneratePreviewTests
     {
         // Arrange
         string input = "";
-        
+
         // Act
         var result = _parser.ParseQuery(input, "fct");
 

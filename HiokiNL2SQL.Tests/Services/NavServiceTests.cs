@@ -1,4 +1,4 @@
-using HiokiNL2SQLMark1.Services;
+using HiokiNL2SQL.Services;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 

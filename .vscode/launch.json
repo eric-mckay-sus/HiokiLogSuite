@@ -8,11 +8,11 @@
             "name": "ParseHioki",
             "type": "coreclr",
             "request": "launch",
-            "program": "${workspaceFolder}/HiokiParserMark1/bin/Debug/net8.0/HiokiParserMark1.dll", 
+            "program": "${workspaceFolder}/HiokiParser/bin/Debug/net8.0/HiokiParser.dll",
             "args": [
                 "C:/LOCAL NETWORK FILES/Hioki ICT Results/20251212"
             ],
-            "cwd": "${workspaceFolder}/HiokiParserMark1",
+            "cwd": "${workspaceFolder}/HiokiParser",
             "stopAtEntry": false,
             "console": "internalConsole"
         }

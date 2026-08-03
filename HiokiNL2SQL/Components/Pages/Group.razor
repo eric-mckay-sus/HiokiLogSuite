@@ -1,0 +1,114 @@
+﻿@page "/group"
+@rendermode InteractiveServer
+@inherits LogTableBase<GroupResult> // Group table is the page type
+@inject Logic.GroupTableLogic GroupLogic // The page is controlled by group logic
+@inject IJSService JS
+
+<PageTitle>Hioki ICT Group Results</PageTitle>
+
+<h1>Hioki 1220 ICT Group Test Results</h1>
+
+<CascadingValue Value="this">
+    <div class="page-content-wrapper" style="max-width: 100%; overflow-x: hidden;">
+        <div class="query-builder-panel mb-3 p-3 border rounded bg-light style="max-width: 100%; overflow-x: hidden;">
+            <div class="row g-3">
+                <FilterWrapper Filter='FilterBarcode' Label="Barcode" ColumnClass="col-3">
+                    <input type="text" class="form-control" placeholder="Scan or type..." @bind-value='FilterBarcode.Value' @bind-value:event='oninput' />
+                </FilterWrapper>
+                <DateFields T="GroupResult" />
+                <FilterWrapper Filter='FilterGroup' Label="Group #" ColumnClass="col-1">
+                    <input type="number" class="form-control" @bind-value='FilterGroup.Value' @bind-value:event="oninput" />
+                </FilterWrapper>
+                <FilterWrapper Filter='FilterResult' Label="Overall Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterResult.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in Logic.ResultCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter='FilterComp' Label="Component Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterComp.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in GroupLogic.CompCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterShort" Label="Short Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterShort.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in GroupLogic.ShortCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterOpen" Label="Open Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterOpen.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in GroupLogic.OpenCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterMacro" Label="Macro Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterMacro.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in GroupLogic.MacroCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterIC" Label="IC Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterIC.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in GroupLogic.IcCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+                <FilterWrapper Filter="FilterFunction" Label="Function Test Result" ColumnClass="col-2">
+                    <select class="form-select" @bind="FilterFunction.Value">
+                        <option value="">All Results</option>
+                        @foreach (string? r in GroupLogic.FunctionCache)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </FilterWrapper>
+
+                <GoButtons T="GroupResult" />
+            </div>
+        </div>
+        <SimplePreview Preview="@Preview"/>
+    </div>
+
+    <div id="table-results-area">
+        <LogTablePresenter T="GroupResult" TableLogic="GroupLogic" />
+    </div>
+</CascadingValue>
+
+@code {
+    private Filter<string?> FilterComp => Logic.GetFilter<string?>("comp");
+    private Filter<string?> FilterShort => Logic.GetFilter<string?>("short");
+    private Filter<string?> FilterOpen => Logic.GetFilter<string?>("open");
+    private Filter<string?> FilterMacro => Logic.GetFilter<string?>("macro");
+    private Filter<string?> FilterIC => Logic.GetFilter<string?>("ic");
+    private Filter<string?> FilterFunction => Logic.GetFilter<string?>("function");
+
+    /// <summary>
+    /// When the page loads, inform LogTableBase that it is a group page
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        base.Logic = GroupLogic;
+        Logic.SetNotifyHandler(() => InvokeAsync(StateHasChanged));
+        Logic.SetUrlUpdater(null); // Tell the logic that we're not on the power search page
+    }
+}

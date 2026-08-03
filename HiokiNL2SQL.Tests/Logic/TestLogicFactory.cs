@@ -1,14 +1,13 @@
 using Moq;
 using Microsoft.EntityFrameworkCore;
-using HiokiNL2SQLMark1.Logic;
-using HiokiNL2SQLMark1;
+using HiokiNL2SQL.Logic;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
 public static class TestLogicFactory
 {
-    public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSService? js = null, INavService? nav = null) 
+    public static TLogic CreateLogic<T, TLogic>(List<T> initialData, IJSService? js = null, INavService? nav = null)
         where T : class, IHiokiLog
         where TLogic : LogTableLogic<T>
     {
@@ -29,9 +28,9 @@ public static class TestLogicFactory
                             if (log.Time == default) log.Time = DateTime.Now;
                             if (log.Group == default) log.Group = new Random().Next(1, 100000);
                         }
-                        if (item is IStepFCT sf)
+                        if (item is IStepFct sf && sf.Step == default)
                         {
-                            if (sf.Step == default) sf.Step = new Random().Next(1, 100000);
+                            sf.Step = new Random().Next(1, 100000);
                         }
                     }
                     context.Set<T>().AddRange(initialData);
@@ -43,21 +42,47 @@ public static class TestLogicFactory
         var finalJs = js ?? new Mock<IJSService>().Object;
         var finalNav = nav ?? new Mock<INavService>().Object;
 
-        // Determine if we are creating GroupTableLogic or the base LogTableLogic
+        // Direct construction avoids runtime constructor binding issues for the current generic model.
         if (typeof(TLogic) == typeof(GroupTableLogic))
         {
-            return (TLogic)Activator.CreateInstance(typeof(GroupTableLogic), mockFactory.Object, finalJs, finalNav)!;
-        } else if (typeof(TLogic) == typeof(StepTableLogic))
+            return (TLogic)(object)new GroupTableLogic(mockFactory.Object, finalJs, finalNav)
+            {
+                DbFactory = mockFactory.Object,
+                QuerySelector = db => db.GroupView,
+                JS = finalJs,
+                Nav = finalNav,
+            };
+        }
+        else if (typeof(TLogic) == typeof(StepTableLogic))
         {
-            return (TLogic)Activator.CreateInstance(typeof(StepTableLogic), mockFactory.Object, finalJs, finalNav)!;
-        } else if (typeof(TLogic) == typeof(FctTableLogic))
+            return (TLogic)(object)new StepTableLogic(mockFactory.Object, finalJs, finalNav)
+            {
+                DbFactory = mockFactory.Object,
+                QuerySelector = db => db.StepView,
+                JS = finalJs,
+                Nav = finalNav,
+            };
+        }
+        else if (typeof(TLogic) == typeof(FctTableLogic))
         {
-            return (TLogic)Activator.CreateInstance(typeof(FctTableLogic), mockFactory.Object, finalJs, finalNav)!;
+            return (TLogic)(object)new FctTableLogic(mockFactory.Object, finalJs, finalNav)
+            {
+                DbFactory = mockFactory.Object,
+                QuerySelector = db => db.FctView,
+                JS = finalJs,
+                Nav = finalNav,
+            };
         }
 
-        // Default fallback for the base class
+        // Default fallback for the base class.
         static IQueryable<T> selector(LogDbContext db) => db.Set<T>();
-        return (TLogic)Activator.CreateInstance(typeof(TLogic), mockFactory.Object, (Func<LogDbContext, IQueryable<T>>)selector, finalJs, finalNav)!;
+        return (TLogic)(object)new LogTableLogic<T>(mockFactory.Object, selector, finalJs, finalNav)
+        {
+            DbFactory = mockFactory.Object,
+            QuerySelector = selector,
+            JS = finalJs,
+            Nav = finalNav,
+        };
     }
 
     // Overload to keep existing single-generic calls working for TestLogRecord

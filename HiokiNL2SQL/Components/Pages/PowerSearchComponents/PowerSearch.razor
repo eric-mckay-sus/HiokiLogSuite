@@ -1,0 +1,135 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject PowerSearchLogic State
+@inject INavService NavService
+@inject IJSService JSService
+@inject IServiceScopeFactory ScopeFactory
+@implements IDisposable // for the automatic Dispose method
+
+<PageTitle>@State?.LastExecutedQuery</PageTitle>
+
+@if (State == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <CascadingValue Value="State" IsFixed="true">
+        <h1>Hioki 1220 ICT Power Search</h1>
+
+        <ErrorDisplay Messages="State.ErrorMessages" />
+
+        <div class="command-container mb-4">
+            <SearchBar />
+            <Preview />
+            <SearchTags />
+        </div>
+
+        <SearchResults />
+    </CascadingValue>
+}
+
+@code{
+
+    /// <summary>
+    /// When the page opens, check the URL for filters, sorts, and pagination.
+    /// If there are filters, immediately run a query with them.
+    /// </summary>
+    /// <returns></returns>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            NavService.EnsureSubscribed();
+
+            await ApplyUrlState();
+            StateHasChanged(); // Re-render now that State is populated
+
+            // Flush any JS calls that were queued during prerendering
+            await JSService.FlushPendingAsync();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        State.OnRefreshRequested -= HandleRefreshRequested;
+        State.OnRefreshRequested += HandleRefreshRequested;
+        NavService.OnLocationChanged -= HandleLocationChanged;
+        NavService.OnLocationChanged += HandleLocationChanged;
+    }
+
+    /// <summary>
+    /// Signature and pattern in order to implement IDisposable.
+    /// Note: GC stands for garbage collector, which internally calls Dispose(false). By calling Dispose(true) here, we effectively circumvent that with the manual disposal.
+    /// </summary>
+    public void Dispose(){
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// When this page closes, inform the viewmodel and location manager, then kill the timer thread
+    /// </summary>
+    /// <param name="disposing">Whether to actually dispose. This is a help for the garbage collector.</param>
+    private void Dispose(bool disposing)
+    {
+        if (disposing){
+            if (State != null) {
+                State.OnRefreshRequested -= HandleRefreshRequested;
+                State.DebounceTimer?.Stop();
+                State.DebounceTimer?.Dispose();
+            }
+            NavService.OnLocationChanged -= HandleLocationChanged;
+        }
+    }
+
+    /// <summary>
+    /// Runs whenever PowerSearchLogic calls NotifyStateChanged()
+    /// </summary>
+    private void HandleRefreshRequested() => InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// Check the search bar for filters, then update the URL as necessary
+    /// </summary>
+    /// <param name="newLocation">The location navigated to that requires a URL update.</param>
+    public async void HandleLocationChanged(string newLocation)
+    {
+        if (State != null && State.IsInternalNavigation){
+            State.IsInternalNavigation = false;
+            return;
+        }
+        try{
+            await InvokeAsync(async () =>
+            {
+                await ApplyUrlState();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            // Log error or update UI state - async void must handle its own errors!
+            Console.WriteLine($"Navigation error: {ex.Message}");
+        }
+    }
+
+    private async Task ApplyUrlState()
+    {
+        UrlState? urlState = NavService.GetFullStateFromUrl();
+        // If there isn't a query from the URL, leave the search bar alone
+        if (!string.IsNullOrWhiteSpace(urlState.query)) State.CommandInput = urlState.query;
+
+        var activeTable = State.TableLogics.FirstOrDefault(t =>
+        t.TableName.Equals(State.CurrentType, StringComparison.OrdinalIgnoreCase));
+
+        if (activeTable != null)
+        {
+            activeTable.CurrentPage = urlState.page ?? 1;
+            activeTable.PageSize = urlState.pageSize ?? 50;
+            activeTable.CurrentSortColumn = urlState.sortCol ?? "";
+            activeTable.SortDir = urlState.sortDir ?? "none";
+        }
+
+        // Execute the search (passing true to keepPage ensures we use the URL's page number)
+        await State.ExecutePowerSearch(skipUrlUpdate: true, keepPage: true);
+    }
+}

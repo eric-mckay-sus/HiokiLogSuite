@@ -1,12 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQLMark1;
-using HiokiNL2SQLMark1.Logic;
+using HiokiNL2SQL;
+using HiokiNL2SQL.Logic;
 
 namespace HiokiNL2SQL.Tests.Logic;
 [ExcludeFromCodeCoverage]
 public class FctTableLogicTests
 {
-    public static readonly TheoryData<string, IFilter, string, object?> FctFilterData = 
+    public static readonly TheoryData<string, IFilter, string, object?> FctFilterData =
     new()
     {
         // Key, Filter Object, Property Name, Expected Value
@@ -20,7 +20,7 @@ public class FctTableLogicTests
         // Arrange
         var matchRecord = new FctResult();
         typeof(FctResult).GetProperty(propName)?.SetValue(matchRecord, value);
-        
+
         var otherRecord = new FctResult();
         // Set otherRecord to a different value to ensure filtering happens
         object otherValue = value is int i ? i + 1 : "DIFFERENT";
@@ -46,7 +46,7 @@ public class FctTableLogicTests
         // Arrange
         var matchRecord = new FctResult();
         typeof(FctResult).GetProperty(propName)?.SetValue(matchRecord, value);
-        
+
         var otherRecord = new FctResult();
         object otherValue = value is int i ? i + 1 : "REMAINING";
         typeof(FctResult).GetProperty(propName)?.SetValue(otherRecord, otherValue);
@@ -77,7 +77,7 @@ public class FctTableLogicTests
         var logic = TestLogicFactory.CreateLogic<FctResult, FctTableLogic>([]);
         logic.Filters["step"].SetValue(10);
         logic.Filters["mode"].SetValue("FLASH ROM");
-        logic.Filters["barcode"].SetValue("ABC"); 
+        logic.Filters["barcode"].SetValue("ABC");
 
         // Act
         logic.ResetFilterState();

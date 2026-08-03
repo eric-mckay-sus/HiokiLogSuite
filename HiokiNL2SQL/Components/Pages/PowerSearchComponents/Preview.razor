@@ -1,0 +1,46 @@
+@implements IDisposable
+
+<div class="mt-1 px-2">
+    @if (!string.IsNullOrWhiteSpace(State.Preview))
+    {
+        <small class="text-muted d-inline-flex">
+            <i class="bi bi-search me-1"></i>
+            <Markdown>@((MarkupString)State.Preview)</Markdown>
+        </small>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    public PowerSearchLogic State { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        // Listen for changes from the SearchBar so we can update highlights
+        State.OnRefreshRequested -= HandleRefreshRequested;
+        State.OnRefreshRequested += HandleRefreshRequested;
+    }
+    private void HandleRefreshRequested() => InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// Signature and pattern in order to implement IDisposable.
+    /// Note: GC stands for garbage collector, which internally calls Dispose(false). By calling Dispose(true) here, we effectively circumvent that with the manual disposal.
+    /// </summary>
+    public void Dispose()
+    {
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// When this component unloads, unbind the refresh handler.
+    /// </summary>
+    /// <param name="disposing">Whether to actually dispose. This is a help for the garbage collector.</param>
+    protected void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            State.OnRefreshRequested -= HandleRefreshRequested;
+        }
+    }
+}
