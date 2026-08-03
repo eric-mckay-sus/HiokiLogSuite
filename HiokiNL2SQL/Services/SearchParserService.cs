@@ -156,6 +156,38 @@ public partial class SearchParserService
         }
 
         // In the first pass, look for the "in" keyword to ensure further filters are applicable
+        ProcessInTag(rawInput, result);
+
+        MatchCollection matches = Regex.Matches(rawInput, TagPattern);
+        int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
+
+        // Loop through
+        foreach (Match match in matches)
+        {
+            CheckForGaps(rawInput, lastIndex, match.Index, result);
+            ProcessTagMatch(match, result, isInclusive);
+
+            lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
+        }
+
+        // Check if there is any unparsed input (that didn't match the pattern)
+        if (lastIndex < rawInput.Length)
+        {
+            CheckForGaps(rawInput, lastIndex, rawInput.Length, result);
+        }
+
+        SwapDatesIfInverted(result);
+        result.Preview = GeneratePreview(result.CurrentType, result.Filters);
+        return result;
+    }
+
+    /// <summary>
+    /// Detects and assigns the target table based on the value of the "in" tag.
+    /// </summary>
+    /// <param name="rawInput">The complete search query.</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object containing relevant search information.</param>
+    private static void ProcessInTag(string rawInput, SearchParseResult result)
+    {
         MatchCollection matches = ApplyInPattern().Matches(rawInput);
         if (matches.Count > 0)
         {
@@ -193,113 +225,84 @@ public partial class SearchParserService
                 result.ErrorMessages.Add($"**{targetType}** is not a valid table. The **in** keyword only accepts the values *all*, *group*, *step*, or *fct*.");
             }
         }
+    }
 
-        // Now the target table  is certain, we can enumerate all the valid keys
-        HashSet<string> allowedKeys = new (GetSupportedKeysThisMode(result.CurrentType), StringComparer.OrdinalIgnoreCase);
-        matches = Regex.Matches(rawInput, TagPattern);
-        int lastIndex = 0; // keep track of the location of the last match to determine if there is a break (invalid tags)
+    private static void ProcessTagMatch(Match match, SearchParseResult result, bool isInclusive)
+    {
+        string key = match.Groups[1].Value.ToLower();
+        bool isNegated = key.StartsWith('-');
+        string cleanKey = isNegated ? key[1..] : key;
+        string value = match.Groups[2].Value;
 
-        // Loop through
-        foreach (Match match in matches)
+        // Skip "in" tag (already handled)
+        if (cleanKey == "in")
         {
-            // Create error if the space between the last match and this one contains non-whitespace characters
-            string gap = rawInput[lastIndex..match.Index].Trim();
-            string? message = MissingKeyOrValueMessage(gap);
-            if (!string.IsNullOrEmpty(message))
-            {
-                result.ErrorMessages.Add(message);
-            }
-
-            ProcessMatch(match);
-
-            lastIndex = match.Index + match.Length; // for use in gap checking in the next iteration
+            return;
         }
 
-        // Performs validation on matches from tagPattern
-        void ProcessMatch(Match match)
+        // Validate key
+        if (!ValidateMatchKey(cleanKey, key, result))
         {
-            string? key = match.Groups[1].Value.ToLower();
-            bool isNegated = key.StartsWith('-');
-            string cleanKey = isNegated ? key[1..] : key; // for use in checking against key sets
-            string? value = match.Groups[2].Value;
-
-            // We handled everything relating to the 'in' tag in the first pass
-            if (cleanKey == "in")
-            {
-                return;
-            }
-
-            // If a user put a hyphen on their value, they probably wanted to negate, but we can supply a warning for them to learn
-            if (value.StartsWith('-'))
-            {
-                isNegated = true;
-                value = value[1..];
-                result.ErrorMessages.Add($"The value for **{cleanKey}** started with a hyphen. This search is now **-{cleanKey}:{value}...**. To search for a literal hyphen, use quotes like *{key}:\"-{value}\"*.");
-            }
-
-            value = value.Trim('"'); // cut the quotes, if the regex found them (they're no longer protecting anything)
-
-            // Basic SQL injection countermeasure
-            if (SqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
-            {
-                result.ErrorMessages.Add($"Security Issue: The value for **{key}** contains forbidden keywords.");
-                return;
-            }
-
-            // Validate if key is supported by system
-            if (!AllTags.Contains(cleanKey))
-            {
-                result.ErrorMessages.Add($"The tag **{key}** wasn't recognized. Try using the table and key options below the search bar.");
-                return;
-            }
-
-            // Validate if value matches the datatype required by the key
-            if (TagTypeMap.TryGetValue(cleanKey, out ValType expectedType) && !IsValidValue(expectedType, cleanKey, value, out string errorMessage))
-            {
-                result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
-                return;
-            }
-
-            // Validate if key is supported by the selected table
-            if (!allowedKeys.Contains(cleanKey))
-            {
-                result.ErrorMessages.Add($"The tag **{key}:** is not available when searching **{result.CurrentType}**. Try a different tag or search a table with that attribute.");
-                return;
-            }
-
-            // Validate if filter was already used in this search. If it was, proceed and overwrite, but notify the user
-            if (result.Filters.ContainsKey(cleanKey))
-            {
-                result.ErrorMessages.Add($"Duplicate tag detected: **{key}:**. This search is now '**{key}:{value}...**. The previous use of this key is *ignored*.");
-            }
-
-            // Attempting to negate before/after isn't fatal, but it needs to be deactivated and we should tell the user
-            if (isNegated && (cleanKey == "before" || cleanKey == "after"))
-            {
-                result.ErrorMessages.Add($"The **{cleanKey}** tag cannot be negated. This search is now **{cleanKey} : {value}...**");
-                isNegated = false; // revoke negation for these keys
-            }
-
-            // If it's not a datetime, it doesn't get special treatment
-            result.Filters[cleanKey] = CreateFilter(cleanKey, value, isNegated, isInclusive);
+            return;
         }
 
-        // Verify that the start date is actually before the end date
-        SwapDatesIfInverted(result);
+        // Validate and normalize value
+        (bool wasNegated, string? normalizedValue) = ValidateAndProcessValue(cleanKey, key, value, result);
 
-        // Check if there is any unparsed input (that didn't match the pattern)
-        if (lastIndex < rawInput.Length)
+        if (!wasNegated && normalizedValue == value)
         {
-            string trailing = rawInput[lastIndex..].Trim();
-            string? message = MissingKeyOrValueMessage(trailing);
-            if (!string.IsNullOrEmpty(message))
-            {
-                result.ErrorMessages.Add(message);
-            }
+            return;
         }
 
-        result.Preview = GeneratePreview(result.CurrentType, result.Filters);
-        return result;
+        isNegated = HandleDateNegation(cleanKey, value, isNegated, result);
+
+        // Register duplicate (but still process it)
+        CheckDuplicateKey(cleanKey, key, normalizedValue, result);
+
+        // Create and store filter
+        result.Filters[cleanKey] = CreateFilter(cleanKey, normalizedValue, isNegated, isInclusive);
+    }
+
+    private static (bool isNegated, string normalizedValue) ValidateAndProcessValue(string cleanKey, string key, string value, SearchParseResult result)
+    {
+        // If a user put a hyphen on their value, they probably wanted to negate
+        bool isNegated = false;
+        if (value.StartsWith('-'))
+        {
+            isNegated = true;
+            value = value[1..];
+            result.ErrorMessages.Add($"The value for **{cleanKey}** started with a hyphen. This search is now **-{cleanKey}:{value}...**. To search for a literal hyphen, use quotes like *{key}:\"-{value}\"*.");
+        }
+
+        value = value.Trim('"');
+
+        // Basic SQL injection countermeasure
+        if (SqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
+        {
+            result.ErrorMessages.Add($"Security Issue: The value for **{key}** contains forbidden keywords.");
+            return (false, value);
+        }
+
+        // Validate if value matches the datatype required by the key
+        if (TagTypeMap.TryGetValue(cleanKey, out ValType expectedType) && !IsValidValue(expectedType, cleanKey, value, out string errorMessage))
+        {
+            result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
+            return (false, value);
+        }
+
+        return (isNegated, value);
+    }
+
+    private static bool HandleDateNegation(string cleanKey, string value, bool isNegated, SearchParseResult result)
+    {
+        // Attempting to negate before/after isn't fatal, but it needs to be deactivated
+        if (isNegated && (cleanKey == "before" || cleanKey == "after"))
+        {
+            result.ErrorMessages.Add($"The **{cleanKey}** tag cannot be negated. This search is now **{cleanKey} : {value}...**");
+            return false; // revoke negation
+        }
+
+        return isNegated;
     }
 
     /// <summary>

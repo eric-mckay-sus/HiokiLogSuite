@@ -5,6 +5,7 @@
 namespace HiokiNL2SQL.Services;
 
 using static DateParsingService;
+using static SearchParserService;
 
 /// <summary>
 /// Enumerates the datatypes allowed for a tag.
@@ -136,5 +137,69 @@ public static class SearchValidationService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Verifies that <paramref name="cleanKey"/> exists and is supported by the target table.
+    /// </summary>
+    /// <param name="cleanKey">The sanitized key, as it would appear in the set of accepted keys.</param>
+    /// <param name="key">The literal key value supplied by the user.</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object containing all relevant information about the search.</param>
+    /// <returns>A value indicating whether the key was accepted.</returns>
+    public static bool ValidateMatchKey(string cleanKey, string key, SearchParseResult result)
+    {
+        // Validate if key is supported by system
+        if (!AllTags.Contains(cleanKey))
+        {
+            result.ErrorMessages.Add($"The tag **{key}** wasn't recognized. Try using the table and key options below the search bar.");
+            return false;
+        }
+
+        // Validate if key is supported by the selected table
+        HashSet<string> allowedKeys = new (GetSupportedKeysThisMode(result.CurrentType), StringComparer.OrdinalIgnoreCase);
+        if (!allowedKeys.Contains(cleanKey))
+        {
+            result.ErrorMessages.Add($"The tag **{key}:** is not available when searching **{result.CurrentType}**. Try a different tag or search a table with that attribute.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Verifies that <paramref name="cleanKey"/> has not already appeared in the search query.
+    /// If it has, overwrites the old value of this tag with the new <paramref name="value"/>.
+    /// </summary>
+    /// <param name="cleanKey">The sanitized key, as it would appear in the set of accepted keys.</param>
+    /// <param name="key">The literal key value supplied by the user.</param>
+    /// <param name="value">The value of the current tag (with which to overwrite).</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object containing all relevant information about the search.</param>
+    /// <returns>A value indicating whether <paramref name="key"/> is a duplicate.</returns>
+    public static bool CheckDuplicateKey(string cleanKey, string key, string value, SearchParseResult result)
+    {
+        if (result.Filters.ContainsKey(cleanKey))
+        {
+            result.ErrorMessages.Add($"Duplicate tag detected: **{key}:**. This search is now '**{key}:{value}...**. The previous use of this key is *ignored*.");
+            return true; // indicates it's a duplicate (but we still process it)
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Verifies that there are no gaps between the last and current tags (i.e. the regex skipped non-tag conforming text).
+    /// </summary>
+    /// <param name="rawInput">The complete search query.</param>
+    /// <param name="lastIndex">The index of <paramref name="rawInput"/> where the last tag ended.</param>
+    /// <param name="currentIndex">The index of <paramref name="rawInput"/> where the current tag begins.</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object containing relevant search information.</param>
+    public static void CheckForGaps(string rawInput, int lastIndex, int currentIndex, SearchParseResult result)
+    {
+        string gap = rawInput[lastIndex..currentIndex].Trim();
+        string? message = MissingKeyOrValueMessage(gap);
+        if (!string.IsNullOrEmpty(message))
+        {
+            result.ErrorMessages.Add(message);
+        }
     }
 }
