@@ -246,15 +246,17 @@ public partial class SearchParserService
             return;
         }
 
+        int numErrorsBeforeValidation = result.ErrorMessages.Count;
+
         // Validate and normalize value
         (bool wasNegated, string? normalizedValue) = ValidateAndProcessValue(cleanKey, key, value, result);
 
-        if (!wasNegated && normalizedValue == value)
+        if (result.ErrorMessages.Count > numErrorsBeforeValidation)
         {
             return;
         }
 
-        isNegated = HandleDateNegation(cleanKey, value, isNegated, result);
+        isNegated = HandleDateNegation(cleanKey, value, wasNegated, result);
 
         // Register duplicate (but still process it)
         CheckDuplicateKey(cleanKey, key, normalizedValue, result);

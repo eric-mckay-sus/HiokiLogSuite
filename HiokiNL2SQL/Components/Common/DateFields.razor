@@ -1,4 +1,4 @@
-@using Parser = HiokiNL2SQL.Services.SearchParserService
+@using DateParsing = HiokiNL2SQL.Services.DateParsingService
 @typeparam T where T : class, IHiokiLog
 
 @if (Parent != null){
@@ -8,7 +8,7 @@
         <input type="date" class="form-control" @bind="Parent.StartDatePart" @bind:after="Parent.UpdateStart" />
         <select class="form-select" @bind="Parent.StartTimePart" @bind:after="Parent.UpdateStart">
             <option value="">All Shifts</option>
-            @foreach (string shift in Parser.ShiftDetails.Keys)
+            @foreach (string shift in DateParsing.ShiftDetails.Keys)
             {
                 <option value="@shift">@shift</option>
             }
@@ -21,7 +21,7 @@
         <input type="date" class="form-control" @bind="Parent.EndDatePart" @bind:after="Parent.UpdateEnd" />
         <select class="form-select" @bind="Parent.EndTimePart" @bind:after="Parent.UpdateEnd">
             <option value="">All Shifts</option>
-            @foreach (string shift in Parser.ShiftDetails.Keys)
+            @foreach (string shift in DateParsing.ShiftDetails.Keys)
             {
                 <option value="@shift">@shift</option>
             }

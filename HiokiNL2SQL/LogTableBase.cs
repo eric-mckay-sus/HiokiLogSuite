@@ -7,7 +7,8 @@ namespace HiokiNL2SQL;
 using Microsoft.AspNetCore.Components;
 
 using HiokiNL2SQL.Logic;
-using Parser = Services.SearchParserService;
+using DateParsing = Services.DateParsingService;
+using SearchPreview = Services.SearchPreviewService;
 
 /// <summary>
 /// This abstract class forms the interface between a page and LogTableLogic and holds all shared information between VQ pages.
@@ -86,7 +87,7 @@ public abstract class LogTableBase<T> : ComponentBase
     public virtual async Task RefreshData(bool keepPage = false, bool withScroll = false, bool force = false)
     {
         await this.Logic.RefreshData(keepPage, force);
-        this.Preview = Parser.GeneratePreview(this.Logic.TableName, this.Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
+        this.Preview = SearchPreview.GeneratePreview(this.Logic.TableName, this.Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
         this.StateHasChanged();
         if (withScroll)
         {
@@ -106,7 +107,7 @@ public abstract class LogTableBase<T> : ComponentBase
         // Combine parts: date only, time only, or both
         string combined = $"{datePart} {this.StartTimePart}".Trim();
 
-        this.FilterStartDate.Value = Parser.ProcessDateValue("after", combined, this.IsInclusive);
+        this.FilterStartDate.Value = DateParsing.ProcessDateValue("after", combined, this.IsInclusive);
     }
 
     /// <summary>
@@ -119,7 +120,7 @@ public abstract class LogTableBase<T> : ComponentBase
 
         string combined = $"{datePart} {this.EndTimePart}".Trim();
 
-        this.FilterEndDate.Value = Parser.ProcessDateValue("before", combined, this.IsInclusive);
+        this.FilterEndDate.Value = DateParsing.ProcessDateValue("before", combined, this.IsInclusive);
     }
 
     /// <summary>
@@ -150,7 +151,7 @@ public abstract class LogTableBase<T> : ComponentBase
         this.StartDatePart = this.EndDatePart = null;
         this.StartTimePart = this.EndTimePart = null;
         await this.Logic.ClearFilters();
-        this.Preview = Parser.GeneratePreview(this.Logic.TableName, this.Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
+        this.Preview = SearchPreview.GeneratePreview(this.Logic.TableName, this.Logic.Filters.Where(kvp => kvp.Value.GetValue() != null).ToDictionary()).Replace("Searching", "Showing");
         this.StateHasChanged();
     }
 
