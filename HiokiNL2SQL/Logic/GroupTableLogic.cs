@@ -5,7 +5,6 @@
 namespace HiokiNL2SQL.Logic;
 
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Expressions;
 
 /// <summary>
 /// Model class for a group table. Inherits from LogTableLogic.
@@ -111,28 +110,28 @@ public class GroupTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServi
         return query
             .ApplyFilterIfActive(
                 filterComp,
-                g => g.ComponentTest != null && !g.ComponentTest.Contains(filterComp.Value!),
-                g => g.ComponentTest != null && g.ComponentTest.Contains(filterComp.Value!))
+                g => g.ComponentTest != null && g.ComponentTest.Contains(filterComp.Value!),
+                g => g.ComponentTest != null && !g.ComponentTest.Contains(filterComp.Value!))
             .ApplyFilterIfActive(
                 filterShort,
-                g => g.ShortTest != null && !g.ShortTest.Contains(filterShort.Value!),
-                g => g.ShortTest != null && g.ShortTest.Contains(filterShort.Value!))
+                g => g.ShortTest != null && g.ShortTest.Contains(filterShort.Value!),
+                g => g.ShortTest != null && !g.ShortTest.Contains(filterShort.Value!))
             .ApplyFilterIfActive(
                 filterOpen,
-                g => g.OpenTest != null && !g.OpenTest.Contains(filterOpen.Value!),
-                g => g.OpenTest != null && g.OpenTest.Contains(filterOpen.Value!))
+                g => g.OpenTest != null && g.OpenTest.Contains(filterOpen.Value!),
+                g => g.OpenTest != null && !g.OpenTest.Contains(filterOpen.Value!))
             .ApplyFilterIfActive(
                 filterMacro,
-                g => g.MacroTest != null && !g.MacroTest.Contains(filterMacro.Value!),
-                g => g.MacroTest != null && g.MacroTest.Contains(filterMacro.Value!))
+                g => g.MacroTest != null && g.MacroTest.Contains(filterMacro.Value!),
+                g => g.MacroTest != null && !g.MacroTest.Contains(filterMacro.Value!))
             .ApplyFilterIfActive(
                 filterIC,
-                g => g.IcTest != null && !g.IcTest.Contains(filterIC.Value!),
-                g => g.IcTest != null && g.IcTest.Contains(filterIC.Value!))
+                g => g.IcTest != null && g.IcTest.Contains(filterIC.Value!),
+                g => g.IcTest != null && !g.IcTest.Contains(filterIC.Value!))
             .ApplyFilterIfActive(
                 filterFunction,
-                g => g.FunctionTest != null && !g.FunctionTest.Contains(filterFunction.Value!),
-                g => g.FunctionTest != null && g.FunctionTest.Contains(filterFunction.Value!));
+                g => g.FunctionTest != null && g.FunctionTest.Contains(filterFunction.Value!),
+                g => g.FunctionTest != null && !g.FunctionTest.Contains(filterFunction.Value!));
     }
 
     /// <summary>

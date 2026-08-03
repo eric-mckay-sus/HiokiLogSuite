@@ -43,16 +43,16 @@ public class StepTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSServic
         return query
             .ApplyFilterIfActive(
                 filterStep,
-                s => s.Step != filterStep.Value,
-                s => s.Step == filterStep.Value)
+                s => s.Step == filterStep.Value,
+                s => s.Step != filterStep.Value)
             .ApplyFilterIfActive(
                 filterPartName,
-                s => s.PartName != null && !s.PartName.Contains(filterPartName.Value!),
-                s => s.PartName != null && s.PartName.Contains(filterPartName.Value!))
+                s => s.PartName != null && s.PartName.Contains(filterPartName.Value!),
+                s => s.PartName != null && !s.PartName.Contains(filterPartName.Value!))
             .ApplyFilterIfActive(
                 filterMode,
-                s => s.Mode != null && !s.Mode.Contains(filterMode.Value!),
-                s => s.Mode != null && s.Mode.Contains(filterMode.Value!));
+                s => s.Mode != null && s.Mode.Contains(filterMode.Value!),
+                s => s.Mode != null && !s.Mode.Contains(filterMode.Value!));
     }
 
     /// <summary>
