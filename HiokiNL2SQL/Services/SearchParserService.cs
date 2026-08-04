@@ -252,17 +252,17 @@ public static partial class SearchParserService
             return;
         }
 
-        int numErrorsBeforeValidation = result.ErrorMessages.Count;
-
         // Validate and normalize value
         (bool wasNegated, string? normalizedValue) = ValidateAndProcessValue(cleanKey, key, value, result);
 
-        if (result.ErrorMessages.Count > numErrorsBeforeValidation)
+        if (normalizedValue is null)
         {
             return;
         }
 
-        isNegated = CheckForDateNegation(cleanKey, value, wasNegated, result);
+        isNegated |= wasNegated;
+
+        isNegated = CheckForDateNegation(cleanKey, value, isNegated, result);
 
         // Register duplicate (but still process it)
         CheckDuplicateKey(cleanKey, key, normalizedValue, result);
@@ -279,7 +279,7 @@ public static partial class SearchParserService
     /// <param name="value">The value entered for this key.</param>
     /// <param name="result">The <see cref="SearchParseResult"/> object for attaching the error message(s).</param>
     /// <returns>A value indicating whether the value is valid for this key.</returns>
-    internal static (bool isNegated, string normalizedValue) ValidateAndProcessValue(string cleanKey, string key, string value, SearchParseResult result)
+    internal static (bool isNegated, string? normalizedValue) ValidateAndProcessValue(string cleanKey, string key, string value, SearchParseResult result)
     {
         // If a user put a hyphen on their value, they probably wanted to negate
         bool isNegated = false;
@@ -296,14 +296,14 @@ public static partial class SearchParserService
         if (SqlBlacklist.Any(forbidden => value.Contains(forbidden, StringComparison.OrdinalIgnoreCase)))
         {
             result.ErrorMessages.Add($"Security Issue: The value for **{key}** contains forbidden keywords.");
-            return (false, value);
+            return (false, null);
         }
 
         // Validate if value matches the datatype required by the key
         if (TagTypeMap.TryGetValue(cleanKey, out ValType expectedType) && !IsValidValue(expectedType, cleanKey, value, out string errorMessage))
         {
             result.ErrorMessages.Add($"Invalid value for the **{key}** tag. {errorMessage}");
-            return (false, value);
+            return (false, null);
         }
 
         return (isNegated, value);
