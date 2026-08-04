@@ -2,10 +2,10 @@
 
 @if (Parent != null){
     <div class="col-12 d-flex justify-content-end gap-3">
-        <InclusivityControls T="GroupResult" />
+        <InclusivityControls T="T" />
         <button class="btn btn-outline-secondary" @onclick="Parent.ClearFilters">Clear</button>
         @*Have to use parentheses for RefreshData because it takes an argument now (even though it's optional)*@
-        <button class="btn btn-primary" @onclick="() => Parent.RefreshData(withScroll:true)">Execute</button>
+        <button class="btn btn-primary" @onclick="() => Parent.RefreshData(force: true, withScroll:true)">Execute</button>
     </div>
 }
 
