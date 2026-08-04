@@ -1,20 +1,23 @@
 using System.Diagnostics.CodeAnalysis;
-using HiokiNL2SQL.Services;
+using static HiokiNL2SQL.Services.SearchParserService;
 using HiokiNL2SQL.Logic;
+using HiokiNL2SQL.Services;
 
 namespace HiokiNL2SQL.Tests.Services;
-[ExcludeFromCodeCoverage]
-public class SearchParserTests
-{
-    private readonly SearchParserService _parser = new();
 
+/// <summary>
+/// Integration tests for <see cref="SearchParserService.ParseQuery"/>
+/// </summary>
+[ExcludeFromCodeCoverage]
+public class ParseQueryTests
+{
     [Theory]
     [InlineData("")]
     [InlineData(null)]
     public void ParseQuery_ShouldHandleEmptyOrNullInput(string? input)
     {
         // Act
-        var result = _parser.ParseQuery(input, "group");
+        SearchParseResult result = ParseQuery(input, "group");
 
         // Assert
         Assert.Empty(result.Filters);
@@ -31,7 +34,7 @@ public class SearchParserTests
         string input = "in:fct in:group";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Equal("group", result.CurrentType);
@@ -45,7 +48,7 @@ public class SearchParserTests
         string input = "in:garbage_table barcode:A100";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("is not a valid table"));
@@ -61,7 +64,7 @@ public class SearchParserTests
     public void ParseQuery_ShouldIdentifyMissingKeysAndValues(string input, string gap, string patternHits, bool isKey)
     {
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Single(result.ErrorMessages);
@@ -85,10 +88,10 @@ public class SearchParserTests
     public void ParseQuery_ShouldHandleHyphenOnValue(string input, string key, string expectedValue, bool expectedNegation, string expectedErrorSnippet)
     {
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
-        Assert.True(result.Filters.TryGetValue(key, out var filter));
+        Assert.True(result.Filters.TryGetValue(key, out IFilter? filter));
         Assert.Equal(expectedValue, filter.GetValue());
         Assert.Equal(expectedNegation, filter.IsNegated);
 
@@ -107,11 +110,11 @@ public class SearchParserTests
     public void ParseQuery_ShouldHandleNegativeTags(string input, string expectedKey, object expectedValue) // use object to allow any datatype
     {
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Empty(result.ErrorMessages);
-        Assert.True(result.Filters.TryGetValue(expectedKey, out var filter), $"Filter should contain {expectedKey}");
+        Assert.True(result.Filters.TryGetValue(expectedKey, out IFilter? filter), $"Filter should contain {expectedKey}");
         Assert.True(filter.IsNegated, "Filter should be marked as negated");
         Assert.Equal(expectedValue, filter.GetValue());
     }
@@ -123,7 +126,7 @@ public class SearchParserTests
         string input = "barcode:\"A123' OR 1=1; DROP TABLE Users;--\"";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("Security Issue"));
@@ -138,7 +141,7 @@ public class SearchParserTests
         string input = "barcode:A123 unknownTag:value";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("The tag **unknowntag** wasn't recognized"));
@@ -153,7 +156,7 @@ public class SearchParserTests
     public void ParseQuery_ShouldCatchInvalidValueTypes(string input)
     {
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         var error = Assert.Single(result.ErrorMessages);
@@ -168,7 +171,7 @@ public class SearchParserTests
         string input = "in:fct comp:UN-T";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("is not available when searching **fct**"));
@@ -181,7 +184,7 @@ public class SearchParserTests
         string input = "in:group -part:123-456";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("The tag **-part:** is not available when searching **group**"));
@@ -194,7 +197,7 @@ public class SearchParserTests
         string input = "barcode:A100 barcode:B200";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected"));
@@ -208,7 +211,7 @@ public class SearchParserTests
         string input = "barcode:A123 -barcode:B456";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Contains(result.ErrorMessages, e => e.Contains("Duplicate tag detected: **-barcode:**"));
@@ -222,7 +225,7 @@ public class SearchParserTests
     public void ParseQuery_ShouldCatchNegatedNonNegatableTag(string input, string key)
     {
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         // The parser should catch that these tags cannot be negated
@@ -244,7 +247,7 @@ public class SearchParserTests
         // Testing that "after" > "before" triggers a swap
         string input = "after:2025-01-01 before:2024-01-01";
 
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         var after = result.Filters["after"] as Filter<DateTime?>;
         var before = result.Filters["before"] as Filter<DateTime?>;
@@ -257,7 +260,7 @@ public class SearchParserTests
     public void ParseQuery_DateSwap_ShouldNotTriggerOnEqualDates()
     {
         string input = "after:2025-01-01 before:2025-01-01";
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         Assert.DoesNotContain(result.ErrorMessages, e => e.Contains("start date is after"));
     }
@@ -272,7 +275,7 @@ public class SearchParserTests
         string input = "in:invalidTable boom:value barcode:\"DROP TABLE\"";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Equal(3, result.ErrorMessages.Count);
@@ -290,7 +293,7 @@ public class SearchParserTests
         string input = "in:fct comp:UN-T unexpected_junk";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Equal(2, result.ErrorMessages.Count);
@@ -307,7 +310,7 @@ public class SearchParserTests
         string input = "barcode:A1 barcode:A2 xyz:123";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.Equal(2, result.ErrorMessages.Count);
@@ -325,7 +328,7 @@ public class SearchParserTests
         string input = "BARCODE:\"Part Number 123\"";
 
         // Act
-        var result = _parser.ParseQuery(input, "all");
+        SearchParseResult result = ParseQuery(input, "all");
 
         // Assert
         Assert.True(result.Filters.ContainsKey("barcode"));

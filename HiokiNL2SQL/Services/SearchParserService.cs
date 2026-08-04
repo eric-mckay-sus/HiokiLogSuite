@@ -46,7 +46,7 @@ public record SearchParseResult
 /// A service to contain state and methods relevant for parsing. Required to be injected into PowerSearch.razor
 /// This service does have state, but it is all static.
 /// </summary>
-public partial class SearchParserService
+public static partial class SearchParserService
 {
     /// <summary>
     /// Pattern to match the 'before' tag and associated DateTime.
@@ -140,7 +140,7 @@ public partial class SearchParserService
     /// <param name="currentType">The current table to check.</param>
     /// <param name="isInclusive">Whether date filters include the specified value in their range.</param>
     /// <returns>a SearchParseResult containing the dictionary of filters, list of errors, current table, and preview.</returns>
-    public SearchParseResult ParseQuery(string rawInput, string currentType, bool isInclusive = true)
+    public static SearchParseResult ParseQuery(string rawInput, string currentType, bool isInclusive = true)
     {
         // Initialize the return package with the current table
         var result = new SearchParseResult
@@ -186,7 +186,7 @@ public partial class SearchParserService
     /// </summary>
     /// <param name="rawInput">The complete search query.</param>
     /// <param name="result">The <see cref="SearchParseResult"/> object containing relevant search information.</param>
-    private static void ProcessInTag(string rawInput, SearchParseResult result)
+    internal static void ProcessInTag(string rawInput, SearchParseResult result)
     {
         MatchCollection matches = ApplyInPattern().Matches(rawInput);
         if (matches.Count > 0)
@@ -206,7 +206,7 @@ public partial class SearchParserService
             // Can't negate the 'in' tag, so don't assign it, and throw a non-fatal error
             if (polarity.Equals("-"))
             {
-                result.ErrorMessages.Add($"The {(multipleInTags ? "active" : string.Empty)} **in** tag cannot be negated. This search is now **in:{cleanType}...**.");
+                result.ErrorMessages.Add($"The **in** tag cannot be negated. This search is now **in:{cleanType}...**.");
             }
 
             // Conveniently, this strictness removes the need for a SQL injection check for this tag later
@@ -227,7 +227,13 @@ public partial class SearchParserService
         }
     }
 
-    private static void ProcessTagMatch(Match match, SearchParseResult result, bool isInclusive)
+    /// <summary>
+    /// Validates and creates a filter for one detected tag.
+    /// </summary>
+    /// <param name="match">A match against the tag detection regex.</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object containing the query details.</param>
+    /// <param name="isInclusive">A value indicating the inclusivity of the date filter.</param>
+    internal static void ProcessTagMatch(Match match, SearchParseResult result, bool isInclusive)
     {
         string key = match.Groups[1].Value.ToLower();
         bool isNegated = key.StartsWith('-');
@@ -256,7 +262,7 @@ public partial class SearchParserService
             return;
         }
 
-        isNegated = HandleDateNegation(cleanKey, value, wasNegated, result);
+        isNegated = CheckForDateNegation(cleanKey, value, wasNegated, result);
 
         // Register duplicate (but still process it)
         CheckDuplicateKey(cleanKey, key, normalizedValue, result);
@@ -265,7 +271,15 @@ public partial class SearchParserService
         result.Filters[cleanKey] = CreateFilter(cleanKey, normalizedValue, isNegated, isInclusive);
     }
 
-    private static (bool isNegated, string normalizedValue) ValidateAndProcessValue(string cleanKey, string key, string value, SearchParseResult result)
+    /// <summary>
+    /// Screens a full tag (key and value) for improper negation, SQL injection threat, or invalid value.
+    /// </summary>
+    /// <param name="cleanKey">The search key, with negation stripped.</param>
+    /// <param name="key">The search key as the user entered it.</param>
+    /// <param name="value">The value entered for this key.</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object for attaching the error message(s).</param>
+    /// <returns>A value indicating whether the value is valid for this key.</returns>
+    internal static (bool isNegated, string normalizedValue) ValidateAndProcessValue(string cleanKey, string key, string value, SearchParseResult result)
     {
         // If a user put a hyphen on their value, they probably wanted to negate
         bool isNegated = false;
@@ -295,7 +309,15 @@ public partial class SearchParserService
         return (isNegated, value);
     }
 
-    private static bool HandleDateNegation(string cleanKey, string value, bool isNegated, SearchParseResult result)
+    /// <summary>
+    /// Verifies, revokes, and notifies attempted date negation. For non-date tags, does nothing.
+    /// </summary>
+    /// <param name="cleanKey">The search key, with negation stripped.</param>
+    /// <param name="value">The search key as the user entered it.</param>
+    /// <param name="isNegated">A value indicating whether this tag is negated.</param>
+    /// <param name="result">The <see cref="SearchParseResult"/> object for attaching the error message.</param>
+    /// <returns>A value indicating whether the tag is negated (regardless of tag identity.</returns>
+    internal static bool CheckForDateNegation(string cleanKey, string value, bool isNegated, SearchParseResult result)
     {
         // Attempting to negate before/after isn't fatal, but it needs to be deactivated
         if (isNegated && (cleanKey == "before" || cleanKey == "after"))
@@ -315,7 +337,7 @@ public partial class SearchParserService
     /// <param name="isNegated">The filter's polarity (true when negated).</param>
     /// <param name="isInclusive">Whether to treat date filters as inclusive of their value (or exclusive).</param>
     /// <returns>The filter constructed from its components.</returns>
-    private static IFilter CreateFilter(string key, string value, bool isNegated, bool isInclusive)
+    internal static IFilter CreateFilter(string key, string value, bool isNegated, bool isInclusive)
     {
         // Determine the expected type from TagTypeMap
         if (!TagTypeMap.TryGetValue(key, out ValType type))
