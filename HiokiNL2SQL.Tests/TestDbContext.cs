@@ -1,4 +1,3 @@
-using HiokiNL2SQL;
 using HiokiNL2SQL.Tests.Logic;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
@@ -22,5 +21,16 @@ public class TestDbContext(DbContextOptions<LogDbContext> options) : LogDbContex
         modelBuilder.Entity<GroupResult>();
         modelBuilder.Entity<StepResult>();
         modelBuilder.Entity<FctResult>();
+    }
+}
+
+public static class TestUtils
+{
+    public static void AssertContainsXTimes(string substring, string target, int times)
+    {
+        int actualRemovedLength = target.Length - target.Replace(substring, string.Empty).Length;
+        int expectedRemovedLength = substring.Length * times;
+
+        Assert.Equal(expectedRemovedLength, actualRemovedLength);
     }
 }

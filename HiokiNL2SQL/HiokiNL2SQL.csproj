@@ -33,6 +33,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Show internal methods to testing project -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="HiokiNL2SQL.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\InterProcessIO\InterProcessIO.csproj" />
     <ProjectReference Include="..\HiokiParser\HiokiParser.csproj" />

@@ -8,7 +8,7 @@
             @foreach (string key in SearchParserService.GetSupportedKeysThisMode(State.CurrentType))
             {
                 <span class="badge @State.GetBadgeClass(key, true) align-middle"
-                    title="@SearchParserService.GetTagTooltip(key, false)"
+                    title="@SearchPreviewService.GetTagTooltip(key, false)"
                     style="cursor: @(State.CommandInput.Contains(key, StringComparison.OrdinalIgnoreCase) ? "default" : "pointer");"
                     @onclick="() => State.AppendKey(key, false)">
                     @key
@@ -43,7 +43,7 @@
             {
                 <span @key="key"
                     class="badge @State.GetBadgeClass(key, false) align-middle"
-                    title="@SearchParserService.GetTagTooltip(key, true)"
+                    title="@SearchPreviewService.GetTagTooltip(key, true)"
                     style="cursor: help;">
                     @key
                 </span>

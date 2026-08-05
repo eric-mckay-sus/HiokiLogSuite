@@ -375,7 +375,7 @@ public class LogTableLogicTests
         // Arrange: two records with different group values and filters that match both
         var data = new List<TestLogRecord> {
             new() { Group = 2, Barcode = "A", Result = "PASS", Time = DateTime.Now.AddMinutes(1) },
-            new() { Group = 1, Barcode = "B", Result = "PASS", Time = DateTime.Now }
+            new() { Group = 1, Barcode = "AB", Result = "PASS", Time = DateTime.Now }
         };
         var logic = TestLogicFactory.CreateLogic(data);
         // apply two filters that still return both records

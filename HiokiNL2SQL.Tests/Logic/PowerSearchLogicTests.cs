@@ -1,6 +1,5 @@
 using Moq;
 using HiokiNL2SQL.Logic;
-using HiokiNL2SQL.Services;
 using System.Diagnostics.CodeAnalysis;
 
 namespace HiokiNL2SQL.Tests.Logic;
@@ -8,7 +7,6 @@ namespace HiokiNL2SQL.Tests.Logic;
 public class PowerSearchLogicTests
 {
     private readonly Mock<ILogTableLogic> _mockTable;
-    private readonly SearchParserService _realParser;
     private readonly Mock<INavService> _mockNav;
     private readonly Mock<IJSService> _mockJs;
     private readonly PowerSearchLogic _logic;
@@ -23,14 +21,12 @@ public class PowerSearchLogicTests
         _mockTable.Setup(t => t.SetStalenessOverride(It.IsAny<Func<bool>?>()))
             .Callback<Func<bool>?>(predicate => _capturedUIStale = predicate);
 
-        _realParser = new SearchParserService(); // Concrete instance
         _mockNav = new Mock<INavService>();
         _mockJs = new Mock<IJSService>();
 
-        _logic = new PowerSearchLogic([_mockTable.Object], _realParser, _mockNav.Object, _mockJs.Object)
+        _logic = new PowerSearchLogic([_mockTable.Object], _mockNav.Object, _mockJs.Object)
         {
             TableLogics = [_mockTable.Object],
-            ParserService = _realParser,
             NavService = _mockNav.Object,
             JSService = _mockJs.Object
         };

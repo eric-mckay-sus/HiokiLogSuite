@@ -43,12 +43,12 @@ public class FctTableLogic(IDbContextFactory<LogDbContext> dbFactory, IJSService
         return query
             .ApplyFilterIfActive(
                 filterStep,
-                f => f.Step != filterStep.Value,
-                f => f.Step == filterStep.Value)
+                f => f.Step == filterStep.Value,
+                f => f.Step != filterStep.Value)
             .ApplyFilterIfActive(
                 filterMode,
-                f => f.Mode != null && !f.Mode.Contains(filterMode.Value!),
-                f => f.Mode != null && f.Mode.Contains(filterMode.Value!));
+                f => f.Mode != null && f.Mode.Contains(filterMode.Value!),
+                f => f.Mode != null && !f.Mode.Contains(filterMode.Value!));
     }
 
     /// <summary>

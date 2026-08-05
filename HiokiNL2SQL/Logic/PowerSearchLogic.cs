@@ -7,6 +7,7 @@ namespace HiokiNL2SQL.Logic;
 using System.Text.RegularExpressions;
 
 using HiokiNL2SQL.Services;
+using static HiokiNL2SQL.Services.SearchParserService;
 
 /// <summary>
 /// The methods and state necessary to run and display a power search.
@@ -23,14 +24,12 @@ public partial class PowerSearchLogic()
     /// Constructs a new power search engine from the necessary services, and wires the table engines to this display.
     /// </summary>
     /// <param name="tableLogics">The list of table engines to use.</param>
-    /// <param name="parserService">The service to parse command input.</param>
     /// <param name="navService">The navigation manager for URL use and manipulation.</param>
     /// <param name="jsService">The JS runtime to control cursor focus.</param>
-    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, SearchParserService parserService, INavService navService, IJSService jsService)
+    public PowerSearchLogic(IEnumerable<ILogTableLogic> tableLogics, INavService navService, IJSService jsService)
         : this()
     {
         this.TableLogics = tableLogics;
-        this.ParserService = parserService;
         this.NavService = navService;
         this.JSService = jsService;
 
@@ -131,11 +130,6 @@ public partial class PowerSearchLogic()
     public required IEnumerable<ILogTableLogic> TableLogics { get; init; }
 
     /// <summary>
-    /// Gets the service to which command input will be passed to compile the filter dictionary.
-    /// </summary>
-    public required SearchParserService ParserService { get; init; }
-
-    /// <summary>
     /// Gets the service responsible for controlling the navigation between filter state URLs.
     /// </summary>
     public required INavService NavService { get; init; }
@@ -225,7 +219,7 @@ public partial class PowerSearchLogic()
         IEnumerable<ILogTableLogic> targets = this.TableLogics
             .Where(t => this.CurrentType == "all" || t.TableName.Equals(this.CurrentType, StringComparison.OrdinalIgnoreCase));
 
-        SearchParseResult parseResult = this.ParserService.ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
+        SearchParseResult parseResult = ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
 
         this.filters = parseResult.Filters;
         this.ErrorMessages = parseResult.ErrorMessages;
@@ -410,7 +404,7 @@ public partial class PowerSearchLogic()
     /// </summary>
     public void SyncLivePreview()
     {
-        SearchParseResult liveResult = this.ParserService.ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
+        SearchParseResult liveResult = ParseQuery(this.CommandInput, this.CurrentType, this.IsInclusive);
         this.Preview = liveResult.Preview;
 
         // Update the CurrentType if the user entered the "in" tag

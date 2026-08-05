@@ -65,7 +65,6 @@ public static class Program
         // Services for the entire app
         builder.Services.AddScoped<INavService, NavService>();
         builder.Services.AddScoped<IJSService, JSService>();
-        builder.Services.AddScoped<SearchParserService>();
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
         builder.Services.AddBlazorBootstrap();

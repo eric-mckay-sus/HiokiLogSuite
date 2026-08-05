@@ -91,6 +91,7 @@ public static class SearchPreviewService
     {
         string tableMessage = $"Showing all results";
         tableMessage += (type != "all") ? $" from **{type.ToUpper()}**" : " from **ALL** tables";
+
         if (filters.Count == 0)
         {
             return tableMessage;
