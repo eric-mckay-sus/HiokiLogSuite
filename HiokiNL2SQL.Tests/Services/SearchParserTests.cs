@@ -102,7 +102,7 @@ public class SearchParserTests
         SearchParseResult result = new () { CurrentType="step" };
 
         // Act
-        ValidateAndProcessValue("step", "step", "-R-CV", result);
+        ValidateAndProcessValue("mode", "mode", "-R-CV", result);
 
         // Assert
         Assert.Single(result.ErrorMessages);
@@ -125,7 +125,7 @@ public class SearchParserTests
 
     [Theory]
     [InlineData("group", "flobber", "**flobber** is not a whole number.")]
-    [InlineData("after", "flibber", "**flibber** (read as **1900-1-1**) is not a valid date or alias. Please use \"YYYY-MM-DD HH:mm:ss\" (ISO formatting) or a shortcut below.")]
+    [InlineData("after", "flibber", "**flibber** (read as **1/1/0001 12:00:00 AM**) is not a valid date or alias.")]
     public void ValidateAndProcessValue_DetectsDatatypeMismatch(string key, string value, string expectedMessage)
     {
         // Arrange
@@ -137,6 +137,22 @@ public class SearchParserTests
         // Assert
         Assert.Single(result.ErrorMessages);
         Assert.Contains(expectedMessage, result.ErrorMessages[0]);
+    }
+
+    [Theory]
+    [InlineData("group", "101")]
+    [InlineData("after", "yesterday")]
+    [InlineData("result", "PASS")]
+    public void ValidateAndProcessValue_Accepts_ValidTag(string key, string value)
+    {
+        // Arrange
+        SearchParseResult result = new ();
+
+        // Act
+        ValidateAndProcessValue(key, key, value, result);
+
+        // Assert
+        Assert.Empty(result.ErrorMessages);
     }
 
     #endregion
